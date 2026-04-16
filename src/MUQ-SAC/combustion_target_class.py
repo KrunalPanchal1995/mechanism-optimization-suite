@@ -11,6 +11,7 @@ import statistics
 import pandas as pd
 import time
 from scipy.optimize import minimize
+
 class combustion_target():
 ###Class definition and acquisition of input parameters.	
 	def __init__(self,data,addendum,index):
@@ -467,30 +468,51 @@ class combustion_target():
 			self.phi = self.add["phi"]
 		
 		
+		# Compute equivalence ratio phi for multi-fuel mixtures
+		# Assumptions:
+		# - self.fuel_dict: {species: mole_fraction}
+		# - self.oxidizer_dict: {species: mole_fraction} and contains O2
+		# - self.stoichiometry: {fuel_species: nu_O2_per_mol_fuel}
+
+		# 1) Get actual oxidizer (O2) mole fraction
+		x_o2 = self.oxidizer_x
+		if x_o2 <= 0.0:
+			raise ValueError("Cannot compute phi: oxidizer_dict has no O2 or O2 mole fraction is zero.")
+
+		# 2) Total fuel (mole fraction) and stoichiometric O2 required for the mixture
+		total_fuel = 0.0
+		o2_required = 0.0
+
+		for fuel, x_fuel in self.fuel_dict.items():
+			x_fuel = float(x_fuel)
+			if x_fuel <= 0.0:
+				continue
+
+			nu_o2 = float(self.stoichiometry.get(fuel, 0.0))
+			# Only include fuels for which a valid stoichiometric O2 coefficient exists
+			if nu_o2 <= 0.0:
+				continue
+
+			total_fuel += x_fuel
+			o2_required += nu_o2 * x_fuel
+
+		if total_fuel <= 0.0:
+			raise ValueError("Cannot compute phi: total_fuel is zero (or no fuels had valid stoichiometry).")
+		if o2_required <= 0.0:
+			raise ValueError("Cannot compute phi: computed O2_required is zero (check stoichiometry map).")
+
+		# 3) Compute phi using your stated formula (shown explicitly)
+		F_over_A_actual = total_fuel / x_o2
+		F_over_A_stoich = total_fuel / o2_required
+		self.phi = float(F_over_A_actual / F_over_A_stoich)
+
+		#print(self.phi)
+		# Equivalent compact form:
+		# self.phi = float(o2_required / x_o2)
 		
-		actual_fuel = []
-		st_fuel = []
-		st_ox = []
-		for i in self.fuel_dict:
-			actual_fuel.append(self.fuel_dict[i])
-			st_fuel.append(1.0)
-			st_ox.append(self.stoichiometry[i])
-		
-		totalfuel_st = 0
-		totalfuel = 0
-		total_ox = 0
-		for i,ele in enumerate(st_fuel):
-			if st_ox[i] !=0:
-				totalfuel_st += st_fuel[i]
-				total_ox += st_ox[i]	
-				totalfuel += actual_fuel[i]
-		Fact = totalfuel/actual_oxidizer
-		Fast = totalfuel_st/total_ox
-			
-		self.phi = float(Fact/Fast)
 		if self.units["observed"] == "ms" and self.target == "Tig":
 			self.observed = self.observed*1000
-		#print(self.phi)
+		print(self.dataSet_id,self.phi)
 		#raise AssertionError("Stop")
 		#if "Fls" in self.target:
 			#print("Target {} has phi of {}\n".format(self.uniqueID,self.phi))
