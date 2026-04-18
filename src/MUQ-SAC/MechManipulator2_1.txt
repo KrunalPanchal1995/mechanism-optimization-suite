@@ -1,0 +1,200 @@
+All numbers are verified. Let me walk through every line of the two functions with exact values.
+
+---
+
+## The reaction used for this example
+
+**CH₃ + HO₂ → CH₃O + OH** (simplified, round numbers)
+
+| Parameter | Value | Internal representation |
+|---|---|---|
+| A | 3.6 × 10¹³ cm³/mol/s | α₀ = ln(A) = **31.2145** |
+| n | 0.2 | n₀ = **0.2** |
+| Eₐ | 2000 cal/mol | ε₀ = Eₐ/R = 2000/1.987 = **1006.54 K** |
+
+The SLSQP covariance fit (`getCovariance`) produced this Cholesky factor:
+
+```
+L  =  [[  0.30   0.00    0.0 ],     (lower triangular — 6 free entries)
+       [  0.10   0.20    0.0 ],
+       [ 20.00  15.00  100.0 ]]
+```
+
+So the full covariance is:
+
+```
+Σ = L Lᵀ = [[ 0.09   0.03      6.0   ],
+             [ 0.03   0.05      5.0   ],
+             [ 6.0    5.0    10625.0  ]]
+```
+
+---
+
+## `_compute_perturbed_params(rxn, beta, select_vector)` — four modes
+
+### Mode 1 — Full A-factor (`n_params = 1`)
+
+This fires when the XML has `perturbation_type = "factor"`. The UncertaintyExtractor sets `activeParameters = ['R1_A']` (length 1) and `cholskyDeCorrelateMat = [0.3]` (a 1-element array, just σ_A).
+
+```python
+# n_params = len(self.unsrt[rxn].activeParameters) = 1  → scalar branch
+sigma_A = float(cov[0])    # = 0.3
+active  = float(sel[0])    # = 1.0  (this reaction IS selected)
+beta_arr = [0.7]
+
+p = p0.copy()
+p[0] += sigma_A * beta[0] * active
+     #  0.3     *   0.7   *   1.0   = +0.21
+```
+
+Result:
+```
+p[0] = 31.2145 + 0.21 = 31.4245  →  A_new = exp(31.4245) = 4.44×10¹³
+p[1] = 0.2     (unchanged — n is not part of this mode)
+p[2] = 1006.54 (unchanged — Ea is not part of this mode)
+```
+
+The `sel[0]` multiplier means if sensitivity analysis says A is unimportant (`sel = [0.0]`) the formula gives `0.3 × 0.7 × 0.0 = 0`, and the reaction stays at its nominal — Mode 3 (Partial A-factor).
+
+---
+
+### Mode 2 — Full A1+B1+C1 (`n_params = 3`, all three selected)
+
+The design matrix gave `β = [0.5, −0.3, 0.8]` and `sel = [1, 1, 1]`.
+
+```python
+active_indices = (0, 1, 2)   # len == 3 → full L branch
+delta = L @ beta_arr         # standard MUQ-SAC formula
+```
+
+Expanding `L @ β`:
+
+```
+Δp[0] = 0.30×0.5  + 0.00×(−0.3) + 0.0 ×0.8  =  0.150
+Δp[1] = 0.10×0.5  + 0.20×(−0.3) + 0.0 ×0.8  = −0.010
+Δp[2] = 20.0×0.5  + 15.0×(−0.3) + 100 ×0.8  = 85.500
+```
+
+Result:
+```
+p = p0 + Δp:
+  p[0] = 31.2145 + 0.150  = 31.3645   →  A_new  = 4.18×10¹³
+  p[1] = 0.2000  − 0.010  = 0.1900    →  n_new  = 0.190
+  p[2] = 1006.54 + 85.500 = 1092.04   →  Ea_new = 1092.04 × 1.987 = 2169.9 cal/mol
+```
+
+---
+
+### Mode 4 — Partial A1+B1+C1 (the critical one): `{A, Ea}` selected, `n` not selected
+
+This is the case that was **mathematically wrong** in the old code. The design matrix has `β = [0.5, 0.0, 0.8]` — a zero at position 1 because `n` was flagged out by sensitivity analysis. The selection vector is `sel = [1, 0, 1]`.
+
+```python
+# Step 1 — which indices are active?
+active_indices = tuple(i for i in range(3) if sel[i] != 0.0)
+# → active_indices = (0, 2)   i.e. only lnA and Ea/R
+```
+
+**Step 1 — Extract the principal submatrix of Σ**
+
+```python
+Sigma_r = Sigma[ np.ix_([0,2], [0,2]) ]
+```
+```
+Σ_r = [[ Σ[0,0]  Σ[0,2] ],   =  [[ 0.09    6.0    ],
+        [ Σ[2,0]  Σ[2,2] ]]       [ 6.0  10625.0   ]]
+```
+
+This is the 2 × 2 marginal covariance of just (ln A, Eₐ/R), preserving the correlation between them.
+
+**Step 2 — Re-Cholesky the reduced covariance**
+
+```python
+L_r = cholesky(Sigma_r, lower=True)
+```
+```
+L_r = [[ 0.30000,     0.0       ],
+       [20.00000,  101.11874  ]]
+```
+
+Verify: `L_r @ L_rᵀ = Σ_r` ✓ (confirmed in the script above)
+
+This is **not** the same as just taking rows/columns of L directly. If you sliced L:
+```
+L[[0,2],:][:,[0,2]] = [[ 0.30,  0.0 ],
+                        [20.00, 100.0]]   ← L_r[1,1] would be 100, NOT 101.12
+```
+The diagonal entry is wrong because the correct L_r[1,1] = √(Σ_r[1,1] − L_r[1,0]²) = √(10625 − 400) = √10225 = 101.12. The cross-correlation in row 2 of the original L is not accounted for when you slice naively.
+
+**Step 3 — Extract ζ_r and compute the reduced perturbation**
+
+```python
+zeta_r  = beta_arr[ [0, 2] ]   # = [0.5, 0.8]
+delta_r = L_r @ zeta_r
+```
+```
+Δp_r[0] =  0.30000 × 0.5  +       0   × 0.8  =  0.15000   (for lnA)
+Δp_r[1] = 20.00000 × 0.5  + 101.119  × 0.8  = 90.89499   (for Ea/R)
+```
+
+**Step 4 — Write back to p0 only at the active positions**
+
+```python
+p = p0.copy()
+p[0] += 0.15000    # lnA
+# p[1] untouched   # n  — zero change guaranteed
+p[2] += 90.89499   # Ea/R
+```
+```
+p[0] = 31.2145 + 0.150  = 31.3645   →  A_new  = 4.18×10¹³
+p[1] = 0.2000             (nominal)  →  n_new  = 0.200   ← exactly zero change
+p[2] = 1006.54 + 90.89  = 1097.44   →  Ea_new = 1097.44 × 1.987 = 2180.6 cal/mol
+```
+
+---
+
+### Why the old code was wrong — the bug in numbers
+
+The old code did `L_full.dot(beta_sparse)` where `beta_sparse = [0.5, 0.0, 0.8]`:
+
+```
+L @ [0.5, 0.0, 0.8]:
+Δp[0] = 0.30×0.5 + 0×0.0   + 0×0.8   =  0.150   ← lnA same
+Δp[1] = 0.10×0.5 + 0.20×0.0 + 0×0.8  =  0.050   ← n gets 0.05 from L[1,0]×ζ_A !
+Δp[2] = 20.0×0.5 + 15.0×0.0 + 100×0.8 = 90.000  ← Ea/R is also wrong
+```
+
+The problem is `L[1,0] = 0.10`. Even though `ζ_n = 0`, the off-diagonal entry `L[1,0]` multiplies `ζ_A = 0.5` and produces a spurious n-perturbation of **+0.05**. n ends up at 0.25 instead of 0.2. And the Ea/R perturbation is 90.0 instead of the correct 90.895 — a difference of 0.895 K, which translates to **1.78 cal/mol** in Ea. Neither error is catastrophic in isolation, but across 40 reactions in a design matrix of thousands of samples, the systematic bias accumulates and corrupts the response surface.
+
+---
+
+## `_write_rate_constant(p, reaction_details)` — three lines, one job
+
+Taking the Mode 2 result `p = [31.3645, 0.190, 1092.04]`:
+
+```python
+reaction_details["A"]  = float(np.exp(p[0]))
+#                         exp(31.3645) = 4.1826e+13
+#   Reverses the ln(A) storage convention: α = ln(A)  →  A = exp(α)
+
+reaction_details["b"]  = float(p[1])
+#                         0.190
+#   n is already in the right units — no conversion needed
+
+reaction_details["Ea"] = float(p[2] * 1.987)
+#                         1092.04 × 1.987 = 2169.9 cal/mol
+#   Reverses the ε = Ea/R storage convention: ε = Ea/R  →  Ea = ε × R
+#   R = 1.987 cal/mol/K (CHEMKIN gas constant)
+```
+
+The YAML file before and after:
+
+```yaml
+# Before
+rate-constant: {A: 3.6e+13, b: 0.2,  Ea: 2000.0}
+
+# After (Full A1+B1+C1, β = [0.5, -0.3, 0.8])
+rate-constant: {A: 4.18e+13, b: 0.190, Ea: 2169.89}
+```
+
+This function exists as a standalone helper precisely because the same three lines previously appeared identically in `ElementaryPerturbation`, `PlogPerturbation`, `TroePerturbation`, and `BranchingReactions`. Extracting it into one place means the R = 1.987 constant and the `exp(p[0])` conversion only need to be right once.
