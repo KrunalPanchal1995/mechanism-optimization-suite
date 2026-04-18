@@ -56,9 +56,9 @@ warnings.filterwarnings("ignore")
 M_CONST   = 3.0 / np.log(10.0)   # IUPAC normalization factor
 R_GAS     = 1.987                 # cal/(mol·K)  — Ea stored as cal/mol in YAML
 MAX_DELTA_N = 2.0                 # |Δn| hard upper bound
-N_CLASS_A   = 1                  # samples of each class to generate
-N_CLASS_B   = 1
-N_CLASS_C   = 1
+N_CLASS_A   = 20                  # samples of each class to generate
+N_CLASS_B   = 15
+N_CLASS_C   = 15
 
 PARAM_NAMES  = ["alpha", "n", "eps"]   # 0,1,2
 PARAM_LABELS = [r"$\alpha$", r"$n$", r"$\varepsilon$"]
@@ -191,7 +191,7 @@ def parse_xml_uncertainty(xml_path: str) -> dict:
     return reactions
 
 
-def get_nominal_params(rxn_eq: str, yaml_rate_db: dict) -> np.ndarray:
+def get_nominal_params(rxn_eq: str, yaml_rate_db: dict) -> np.ndarray | None:
     """
     Look up Arrhenius parameters [alpha=ln(A), n, eps=Ea/R] from the YAML DB.
     Ea is in cal/mol in the Cantera YAML; eps = Ea/R_gas.
@@ -414,7 +414,7 @@ def _fp_S_deriv(T_val: float, L_r: np.ndarray, indices: tuple) -> float:
 
 
 def _solve_2x2(T1: float, T2: float, rhs1: float, rhs2: float,
-               L_r: np.ndarray, indices: tuple) -> np.ndarray:
+               L_r: np.ndarray, indices: tuple) -> np.ndarray | None:
     """
     Solve the 2×2 linear system:
         row1 @ ζ_r = rhs1,   row1 = (L_r^T θ_S(T1))^T
@@ -594,55 +594,49 @@ def sample_class_B(T: np.ndarray, L_r: np.ndarray, indices: tuple,
     if m == 2:
         return _class_B_m2(T, L_r, indices, fp_grid, T_min, T_max, n_samples, rng)
 
-    # ── m=3: SLSQP, exactly determined ────────────────────────────────────
+    # ── m=3: analytical – solve 3×3 system at each T_u, scan for crossover ──
+    # At a fixed T_u the constraints C1 + C3 + C4 form a 3×3 linear system in ζ_r:
+    #   [θ_S(T_min)^T L_r]       ζ_r = r1 · fp(T_min)
+    #   [θ_S(T_u)^T L_r]         ζ_r = r3 · fp(T_u)
+    #   [dθ_S(T_u)/dT^T L_r]     ζ_r = r3 · fp'(T_u)
+    # This is solvable analytically — no optimizer needed.
+    fp_Tmin = float(f_prior_S(np.array([T_min]), L_r, indices)[0])
+    Tu_grid  = np.linspace(T_min * 1.04, T_max * 0.96, 80)
     zeta_list = []
-    fp_Tmin   = float(f_prior_S(np.array([T_min]), L_r, indices)[0])
-    fp_Tmax   = float(f_prior_S(np.array([T_max]), L_r, indices)[0])
+    attempt   = 0
 
-    def fp_at(t):
-        return float(f_prior_S(np.array([t]), L_r, indices)[0])
+    def _solve_3x3_B(Tu: float, r1: float, r3: float) -> np.ndarray | None:
+        """Solve the 3×3 linear system [C1; C3; C4] for ζ_r at fixed T_u."""
+        row1 = L_r.T @ theta_S(np.array([T_min]), indices)[:, 0]
+        row2 = L_r.T @ theta_S(np.array([Tu]),    indices)[:, 0]
+        row3 = L_r.T @ _dtheta_S_dT(Tu, indices)
+        A    = np.vstack([row1, row2, row3])
+        b    = np.array([
+            r1  * float(f_prior_S(np.array([T_min]), L_r, indices)[0]),
+            r3  * float(f_prior_S(np.array([Tu]),    L_r, indices)[0]),
+            r3  * _fp_S_deriv(Tu, L_r, indices),
+        ])
+        try:
+            if abs(np.linalg.det(A)) < 1e-14:
+                return None
+            return np.linalg.solve(A, b)
+        except np.linalg.LinAlgError:
+            return None
 
-    def dk_at(t, zr):
-        return float(delta_kappa(np.array([t]), L_r, zr, indices)[0])
-
-    attempt = 0
-    while len(zeta_list) < n_samples and attempt < n_samples * 15:
+    while len(zeta_list) < n_samples and attempt < n_samples * 30:
         attempt += 1
         r1 = rng.uniform(-0.95, 0.95)
-        r2 = rng.uniform(-0.95, 0.95)
         r3 = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
 
-        z0  = rng.uniform(-1.0, 1.0, size=m)
-        Tu0 = rng.uniform(T_min + 0.2 * (T_max - T_min),
-                           T_max - 0.2 * (T_max - T_min))
-        x0  = np.append(z0, Tu0)
-
-        def c1(x): return dk_at(T_min, x[:m]) - r1 * fp_Tmin
-        def c2(x): return dk_at(T_max, x[:m]) - r2 * fp_Tmax
-        def c3(x):
-            Tu = float(np.clip(x[m], T_min, T_max))
-            return dk_at(Tu, x[:m]) - r3 * fp_at(Tu)
-        def c4(x):
-            Tu = float(np.clip(x[m], T_min, T_max))
-            zr = x[:m]
-            dth  = _dtheta_S_dT(Tu, indices)
-            Lz   = L_r @ zr
-            return float(dth @ Lz) - r3 * _fp_S_deriv(Tu, L_r, indices)
-        def obj(x):
-            return float(np.sum((fp_grid - delta_kappa(T, L_r, x[:m], indices))**2))
-
-        try:
-            res = minimize(obj, x0, method="SLSQP",
-                           bounds=[(None,None)]*m + [(T_min*1.005, T_max*0.995)],
-                           constraints=[{"type":"eq","fun":f} for f in [c1,c2,c3,c4]],
-                           options={"maxiter": 1500, "ftol": 1e-9})
-            zr = res.x[:m]; Tu = float(res.x[m])
+        # Scan T_u grid, solve analytically, keep first crossover found
+        for Tu in rng.permutation(Tu_grid):
+            zr = _solve_3x3_B(float(Tu), r1, r3)
+            if zr is None:
+                continue
             dk = delta_kappa(T, L_r, zr, indices)
-            cres = abs(c1(res.x)) + abs(c2(res.x)) + abs(c3(res.x)) + abs(c4(res.x))
-            if _has_sign_change(dk) and T_min < Tu < T_max and cres < 2.0:
+            if _has_sign_change(dk):
                 zeta_list.append(_enforce_dn_constraint(zr, L_r, indices))
-        except Exception:
-            pass
+                break   # move to next (r1, r3) draw
 
     return zeta_list
 
@@ -851,6 +845,105 @@ def plot_sac_curves(
     print(f"      Saved → {out_file}")
 
 
+def plot_class_curves_separate(
+    T: np.ndarray,
+    nominal: np.ndarray,
+    L_full: np.ndarray,
+    L_r: np.ndarray,
+    indices: tuple,
+    zeta_A: list,
+    zeta_B: list,
+    zeta_C: list,
+    rxn_label: str,
+    save_dir: Path,
+) -> None:
+    """
+    Save three separate figures — one per Arrhenius curve class — into save_dir:
+        classA_curves.pdf   (always generated)
+        classB_curves.pdf   (generated only when zeta_B is non-empty)
+        classC_curves.pdf   (generated only when zeta_C is non-empty)
+
+    Each figure shows the uncertainty limits, the nominal curve, and only
+    the samples of that particular class, using the same visual style as
+    the combined plot produced by plot_sac_curves().
+    """
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    inv_T   = 1000.0 / T
+    kap0    = kappa_nominal(T, nominal)
+    fp_full = f_prior_from_L(L_full, T) * M_CONST
+    kap_up  = kap0 + fp_full
+    kap_lo  = kap0 - fp_full
+
+    sel_label = SELECTION_LABELS.get(indices, str(indices))
+    n_note    = f"  [|Δn| < {MAX_DELTA_N}]" if 1 in indices else ""
+
+    def _base_title(cls_name: str) -> str:
+        return f"{rxn_label}\nActive: {sel_label}{n_note}  —  {cls_name} samples only"
+
+    def _draw_background(ax):
+        """Uncertainty limits + nominal — shared by all three sub-plots."""
+        ax.set_facecolor(COLORS["background"])
+        ax.plot(inv_T, kap_up, color=COLORS["limit"], ls="--", lw=1.2,
+                label=r"Uncertainty limits ($\pm f_{\rm prior}$)")
+        ax.plot(inv_T, kap_lo, color=COLORS["limit"], ls="--", lw=1.2)
+        ax.plot(inv_T, kap0,   color=COLORS["nominal"], lw=2.0,
+                label=r"Nominal $\kappa_0$", zorder=10)
+        ax.set_xlabel(r"$1000\,/\,T\;\;[\mathrm{K}^{-1}]$", fontsize=11)
+        ax.set_ylabel(r"$\kappa = \ln k$", fontsize=11)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+
+    # ── Class-A (always present) ──────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(8, 5))
+    _draw_background(ax)
+    first = True
+    for zr in zeta_A:
+        kap = kappa_curve(T, nominal, L_r, zr, indices)
+        lbl = "Class-A" if first else "_nolegend_"
+        ax.plot(inv_T, kap, color=COLORS["classA"], lw=0.9, alpha=0.70, label=lbl)
+        first = False
+    ax.set_title(_base_title("Class-A"), fontsize=10)
+    ax.legend(fontsize=8, loc="best", framealpha=0.85)
+    out_A = save_dir / "classA_curves.pdf"
+    fig.savefig(out_A, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"      Saved → {out_A}")
+
+    # ── Class-B (m ≥ 2, skip when list is empty) ─────────────────────────────
+    if zeta_B:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        _draw_background(ax)
+        first = True
+        for zr in zeta_B:
+            kap = kappa_curve(T, nominal, L_r, zr, indices)
+            lbl = "Class-B" if first else "_nolegend_"
+            ax.plot(inv_T, kap, color=COLORS["classB"], lw=0.9, alpha=0.80, label=lbl)
+            first = False
+        ax.set_title(_base_title("Class-B"), fontsize=10)
+        ax.legend(fontsize=8, loc="best", framealpha=0.85)
+        out_B = save_dir / "classB_curves.pdf"
+        fig.savefig(out_B, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"      Saved → {out_B}")
+
+    # ── Class-C (m ≥ 2, skip when list is empty) ─────────────────────────────
+    if zeta_C:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        _draw_background(ax)
+        first = True
+        for zr in zeta_C:
+            kap = kappa_curve(T, nominal, L_r, zr, indices)
+            lbl = "Class-C" if first else "_nolegend_"
+            ax.plot(inv_T, kap, color=COLORS["classC"], lw=0.9, alpha=0.80, label=lbl)
+            first = False
+        ax.set_title(_base_title("Class-C"), fontsize=10)
+        ax.legend(fontsize=8, loc="best", framealpha=0.85)
+        out_C = save_dir / "classC_curves.pdf"
+        fig.savefig(out_C, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"      Saved → {out_C}")
+
+
 def plot_summary_panel(
     T: np.ndarray,
     nominal: np.ndarray,
@@ -996,8 +1089,22 @@ def process_reaction(rxn_tag: str, rxn_data: dict,
         zB_dict[sel] = zB
         zC_dict[sel] = zC
 
-        # ── per-selection plot ─────────────────────────────────────────────────
+        # ── per-selection combined plot ────────────────────────────────────────
         plot_sac_curves(
+            T         = T,
+            nominal   = nominal,
+            L_full    = L_full,
+            L_r       = L_r,
+            indices   = sel,
+            zeta_A    = zA,
+            zeta_B    = zB,
+            zeta_C    = zC,
+            rxn_label = f"{rxn_tag}  ({rIndex})",
+            save_dir  = rxn_dir / sel_name,
+        )
+
+        # ── per-selection separate class plots ────────────────────────────────
+        plot_class_curves_separate(
             T         = T,
             nominal   = nominal,
             L_full    = L_full,
