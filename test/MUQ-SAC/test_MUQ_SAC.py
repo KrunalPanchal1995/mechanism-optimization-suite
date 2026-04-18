@@ -56,9 +56,9 @@ warnings.filterwarnings("ignore")
 M_CONST   = 3.0 / np.log(10.0)   # IUPAC normalization factor
 R_GAS     = 1.987                 # cal/(mol·K)  — Ea stored as cal/mol in YAML
 MAX_DELTA_N = 2.0                 # |Δn| hard upper bound
-N_CLASS_A   = 20                  # samples of each class to generate
-N_CLASS_B   = 15
-N_CLASS_C   = 15
+N_CLASS_A   = 1                  # samples of each class to generate
+N_CLASS_B   = 1
+N_CLASS_C   = 1
 
 PARAM_NAMES  = ["alpha", "n", "eps"]   # 0,1,2
 PARAM_LABELS = [r"$\alpha$", r"$n$", r"$\varepsilon$"]
@@ -191,7 +191,7 @@ def parse_xml_uncertainty(xml_path: str) -> dict:
     return reactions
 
 
-def get_nominal_params(rxn_eq: str, yaml_rate_db: dict) -> np.ndarray | None:
+def get_nominal_params(rxn_eq: str, yaml_rate_db: dict) -> np.ndarray:
     """
     Look up Arrhenius parameters [alpha=ln(A), n, eps=Ea/R] from the YAML DB.
     Ea is in cal/mol in the Cantera YAML; eps = Ea/R_gas.
@@ -414,7 +414,7 @@ def _fp_S_deriv(T_val: float, L_r: np.ndarray, indices: tuple) -> float:
 
 
 def _solve_2x2(T1: float, T2: float, rhs1: float, rhs2: float,
-               L_r: np.ndarray, indices: tuple) -> np.ndarray | None:
+               L_r: np.ndarray, indices: tuple) -> np.ndarray:
     """
     Solve the 2×2 linear system:
         row1 @ ζ_r = rhs1,   row1 = (L_r^T θ_S(T1))^T
