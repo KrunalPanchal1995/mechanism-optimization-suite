@@ -1,7 +1,3 @@
-try:
-    import ruamel_yaml as yaml
-except ImportError:
-    from ruamel import yaml
 import yaml
 import os,re
 class MySafeLoader(yaml.SafeLoader):
@@ -9,7 +5,13 @@ class MySafeLoader(yaml.SafeLoader):
 
 # Remove the default resolvers for booleans
 def bool_as_string_constructor(loader, node):
-    return loader.construct_scalar(node)
+    value = loader.construct_scalar(node)
+    if value.lower() == 'true':
+        return True
+    elif value.lower() == 'false':
+        return False
+    return value  # Return original value if not "true" or "false"
+
 yaml.add_implicit_resolver('tag:yaml.org,2002:str', None, ['T', 'F', 'Y', 'N'])
 MySafeLoader.add_constructor('tag:yaml.org,2002:bool', bool_as_string_constructor)
 

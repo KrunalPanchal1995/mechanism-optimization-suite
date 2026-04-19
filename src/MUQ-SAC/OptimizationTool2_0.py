@@ -30,7 +30,7 @@ from scipy.optimize import (minimize, differential_evolution,
                              NonlinearConstraint, Bounds, shgo, BFGS)
 from scipy import optimize as spopt
 from simulation_manager2_0 import SM as simulator
-
+from scipy.linalg import block_diag as _scipy_block_diag
 import matplotlib as mpl
 mpl.use('Agg')
 from matplotlib import pyplot as plt
@@ -512,7 +512,7 @@ class OptimizationTool(object):
         diff_3        = {}
         target_value  = []
         response_value = []
-        COUNT_Tig = COUNT_Fls = COUNT_Flw = COUNT_All = 0
+        COUNT_Tig = COUNT_RCM = COUNT_Fls = COUNT_Flw = COUNT_All = 0
         frequency = {}
 
         for i, case in enumerate(self.target_list):
@@ -525,6 +525,17 @@ class OptimizationTool(object):
 
             if case.target == "Tig":
                 COUNT_Tig += 1
+                val   = self.ResponseSurfaces[i].evaluate(x)
+                f_exp = np.log(case.observed * 10)
+                w_    = case.std_dvtn / case.observed
+                w     = 1.0 / w_
+                diff.append((val - f_exp) * w)
+                diff_3[case.uniqueID] = (val - f_exp) / f_exp
+                target_value.append(f_exp)
+                response_value.append(val)
+            
+            if case.target == "RCM":
+                COUNT_RCM += 1
                 val   = self.ResponseSurfaces[i].evaluate(x)
                 f_exp = np.log(case.observed * 10)
                 w_    = case.std_dvtn / case.observed
@@ -587,15 +598,19 @@ class OptimizationTool(object):
         """
         x        = np.asarray(zeta_flat, dtype=float)
         grad     = np.zeros_like(x)
-        COUNT_Tig = COUNT_Fls = 0
+        COUNT_Tig = COUNT_RCM = COUNT_Fls = COUNT_Flw =  0
 
         for i, case in enumerate(self.target_list):
             if self.ResponseSurfaces[i].selection != 1:
                 continue
             if case.target == "Tig":
                 COUNT_Tig += 1
+            elif case.target == "RCM":
+                COUNT_RCM += 1
             elif case.target == "Fls":
                 COUNT_Fls += 1
+            elif case.target == "Flw":
+                COUNT_Flw += 1
 
         for i, case in enumerate(self.target_list):
             if self.ResponseSurfaces[i].selection != 1:
@@ -610,6 +625,13 @@ class OptimizationTool(object):
                 r_i   = (val - f_exp) * w
                 grad += 2.0 * r_i * w * J_i
 
+            elif case.target == "RCM":
+                val   = self.ResponseSurfaces[i].evaluate(x)
+                f_exp = np.log(case.observed * 10)
+                w     = case.observed / case.std_dvtn          # 1/w_
+                r_i   = (val - f_exp) * w
+                grad += 2.0 * r_i * w * J_i
+            
             elif case.target == "Fls":
                 val   = np.exp(self.ResponseSurfaces[i].evaluate(x))
                 f_exp = case.observed
@@ -639,10 +661,10 @@ class OptimizationTool(object):
 
         s = ",".join(f"{v}" for v in zeta_flat) + "\n"
         open("zeta_guess_values.txt", "+a").write(s)
-        open("guess_values.txt", "+a").write(f"{self.count},{','.join(str(v) for v in x)}\n")
+        open("GUESS_VALUES.txt", "+a").write(f"{self.count},{','.join(str(v) for v in x)}\n")
 
         obj, diff, tv, rv, d3 = self._eval_obj_core(zeta_flat)
-        open("guess_values_TRANSFORMED.txt", "+a").write(
+        open("GUESS_VALUES_TRANSFORMED.txt", "+a").write(
             f"{self.count},{','.join(str(v) for v in zeta_flat)}\n")
         return obj
 
@@ -886,7 +908,7 @@ class OptimizationTool(object):
         f          = np.empty(num_expts)
         df         = np.zeros((num_expts, num_params))
         frequency  = {}
-        COUNT_Tig = COUNT_Fls = COUNT_Flw = COUNT_All = 0
+        COUNT_Tig = COUNT_RCM = COUNT_Fls = COUNT_Flw = COUNT_All = 0
 
         for i, case in enumerate(self.target_list):
             if self.ResponseSurfaces[i].selection != 1:
@@ -897,6 +919,14 @@ class OptimizationTool(object):
 
             if case.target == "Tig":
                 COUNT_Tig += 1
+                val   = self.ResponseSurfaces[i].evaluate(x)
+                f_exp = np.log(case.observed * 10)
+                w     = 1.0 / np.log(case.std_dvtn * 10)
+                f[i]  = (val - f_exp) * w
+                df[i, :] = np.asarray(self.ResponseSurfaces[i].Jacobian(x)) * w
+            
+            elif case.target == "RCM":
+                COUNT_RCM += 1
                 val   = self.ResponseSurfaces[i].evaluate(x)
                 f_exp = np.log(case.observed * 10)
                 w     = 1.0 / np.log(case.std_dvtn * 10)
@@ -930,7 +960,7 @@ class OptimizationTool(object):
         response_value = []
         target_stvd    = []
         case_stvd      = []
-        COUNT_Tig = COUNT_Fls = COUNT_Flw = COUNT_All = 0
+        COUNT_Tig = COUNT_RCM = COUNT_Fls = COUNT_Flw = COUNT_All = 0
         frequency = {}
 
         for i, case in enumerate(self.target_list):
@@ -942,6 +972,14 @@ class OptimizationTool(object):
 
             if case.target == "Tig":
                 COUNT_Tig += 1
+                val   = self.ResponseSurfaces[i].evaluate(x)
+                response_value.append(val)
+                target_value.append(np.log(case.observed * 10))
+                target_stvd.append(1.0 / np.log(case.std_dvtn * 10))
+                case_stvd.append(case.std_dvtn / case.observed)
+            
+            elif case.target == "RCM":
+                COUNT_RCM += 1
                 val   = self.ResponseSurfaces[i].evaluate(x)
                 response_value.append(val)
                 target_value.append(np.log(case.observed * 10))
@@ -974,6 +1012,10 @@ class OptimizationTool(object):
                 multiplicating_factors.append(1.0 / COUNT_Tig)
             elif case.target == "Fls":
                 multiplicating_factors.append(0.05 * (1.0 / COUNT_Fls))
+            elif case.target == "RCM":
+                multiplicating_factors.append(1.0 / COUNT_RCM)
+            elif case.target == "Flw":
+                multiplicating_factors.append(1.0 / COUNT_Flw)
         mf = np.asarray(multiplicating_factors)
 
         for i, dif in enumerate(diff):
@@ -1009,6 +1051,11 @@ class OptimizationTool(object):
                 COUNT_Tig += 1
                 target_value.append(np.log(case.observed * 10))
                 target_stvd.append(1.0 / np.log(case.std_dvtn * 10))
+            
+            elif case.target == "RCM":
+                COUNT_Tig += 1
+                target_value.append(np.log(case.observed * 10))
+                target_stvd.append(1.0 / np.log(case.std_dvtn * 10))
 
             elif case.target == "Fls":
                 COUNT_Fls += 1
@@ -1028,6 +1075,10 @@ class OptimizationTool(object):
                 mf.append(1.0 / COUNT_Tig)
             elif case.target == "Fls":
                 mf.append(1.0 / COUNT_Fls)
+            elif case.target == "RCM":
+                mf.append(1.0 / COUNT_RCM)
+            elif case.target == "Flw":
+                mf.append(1.0 / COUNT_Flw)
         mf = np.asarray(mf)
 
         for i, dif in enumerate(diff):
@@ -1051,7 +1102,7 @@ class OptimizationTool(object):
             direct_sim_value = []
             target_value     = []
             target_stvd      = []
-            COUNT_Tig = COUNT_Fls = COUNT_Flw = COUNT_All = 0
+            COUNT_Tig = COUNT_Fls = COUNT_Flw = COUNT_RCM = COUNT_All = 0
             frequency        = {}
 
             val = np.asarray(
@@ -1066,6 +1117,11 @@ class OptimizationTool(object):
 
                 if case.target == "Tig":
                     COUNT_Tig += 1
+                    target_value.append(np.log(case.observed * 10))
+                    target_stvd.append(1.0 / np.log(case.std_dvtn * 10))
+                
+                elif case.target == "RCM":
+                    COUNT_RCM += 1
                     target_value.append(np.log(case.observed * 10))
                     target_stvd.append(1.0 / np.log(case.std_dvtn * 10))
 
@@ -1088,6 +1144,10 @@ class OptimizationTool(object):
                     mf.append(1.0 / COUNT_Tig)
                 elif case.target == "Fls":
                     mf.append(1.0 / COUNT_Fls)
+                elif case.target == "RCM":
+                    mf.append(1.0 / COUNT_RCM)
+                elif case.target == "Flw":
+                    mf.append(1.0 / COUNT_Flw)
             mf = np.asarray(mf)
 
             for i, dif in enumerate(diff):
@@ -1344,11 +1404,17 @@ class OptimizationTool(object):
             optimal_parameters_zeta = np.asarray(flat_z)
             cov = []
 
-        # ── post-processing: plots + CSV ────────────────────────────────────
-        self._post_optimisation_plots(optimal_parameters,
-                                      optimal_parameters_zeta)
+        # ── Posterior covariance ────────────────────────────────────────────
+        Sigma_zeta, Sigma_p, H_gn, rxn_slices = \
+            self.build_posterior_covariance(optimal_parameters_zeta)
+        posterior_bands = self.posterior_kappa_bands(
+            optimal_parameters_zeta, Sigma_p, rxn_slices)
+        self._post_optimisation_plots(optimal_parameters, optimal_parameters_zeta,
+                                    posterior_bands=posterior_bands)
         return (np.asarray(optimal_parameters),
-                np.asarray(optimal_parameters_zeta), cov)
+                np.asarray(optimal_parameters_zeta),
+                {"Sigma_zeta": Sigma_zeta, "Sigma_p": Sigma_p,
+                "H": H_gn, "rxn_slices": rxn_slices})
 
     # ═════════════════════════════════════════════════════════════════════════
     #  run_optimization_with_MLE_no_PRS  (UPGRADED)
@@ -1430,7 +1496,7 @@ class OptimizationTool(object):
             return (np.asarray(optimal_parameters),
                     np.asarray(optimal_parameters_zeta), cov)
 
-        # ── 3-param direct simulation design ────────────────────────────────
+        # ── 3-param (A1+B1+C1) direct simulation design ────────────────────────────────
         self._build_codec(Unsrt_data)
         self.kappa_0   = {}
         self.kappa_max = {}
@@ -1538,9 +1604,17 @@ class OptimizationTool(object):
                 for i, c in enumerate(CASE):
                     if c == case_id:
                         fh.write(f"{TEMPERATURE[i]}\t{EXP[i]}\t{VALUE[i]}\n")
-
+        # ── Posterior covariance ────────────────────────────────────────────
+        Sigma_zeta, Sigma_p, H_gn, rxn_slices = \
+            self.build_posterior_covariance(optimal_parameters_zeta)
+        posterior_bands = self.posterior_kappa_bands(
+            optimal_parameters_zeta, Sigma_p, rxn_slices)
+        self._post_optimisation_plots(optimal_parameters, optimal_parameters_zeta,
+                                    posterior_bands=posterior_bands)
         return (np.asarray(optimal_parameters),
-                np.asarray(optimal_parameters_zeta), cov)
+                np.asarray(optimal_parameters_zeta),
+                {"Sigma_zeta": Sigma_zeta, "Sigma_p": Sigma_p,
+                "H": H_gn, "rxn_slices": rxn_slices})
 
     # ═════════════════════════════════════════════════════════════════════════
     #  DEAP helpers  (optional — only used when deap is installed)
@@ -1643,18 +1717,225 @@ class OptimizationTool(object):
         return best, flat_z, []
 
     # ═════════════════════════════════════════════════════════════════════════
+    #  Posterior covariance (MUM-PCE / MUQ-SAC)
+    # ═════════════════════════════════════════════════════════════════════════
+
+    def _build_arrhenius_map(self):
+        """
+        Build the block-diagonal linear map  B  such that  δp = B ζ.
+
+        For each reaction j:
+        - Full PRS:    block = L_j               (3×3  cholskyDeCorrelateMat)
+        - Partial PRS: block = E_j @ L_r_j       (3×m_j, embedding × reduced Cholesky)
+
+        The Arrhenius map B has shape (3·N_r × m) where m = Σ m_j.
+        The posterior covariance in Arrhenius space follows as
+            Σ_p = B  Σ_ζ  B^T.
+        """
+        blocks = []
+        for rxn in self.rxn_index:
+            u = self.unsrt[rxn]
+            if hasattr(u, "selection_matrix") and hasattr(u, "reduced_cholesky"):
+                # Partial PRS: embed reduced Cholesky into full (lnA, n, Ea/R) space
+                E   = np.asarray(u.selection_matrix,  dtype=float)  # 3 × m_j
+                L_r = np.asarray(u.reduced_cholesky,  dtype=float)  # m_j × m_j
+                blocks.append(E @ L_r)
+            else:
+                # Full PRS / A-factor: use the full 3×3 (or 1×1) Cholesky factor
+                blocks.append(np.asarray(u.cholskyDeCorrelateMat, dtype=float))
+        return _scipy_block_diag(*blocks) if blocks else np.zeros((0, 0))
+
+
+    def build_posterior_covariance(self, zeta_star, include_prior=True, ridge=1e-12):
+        """
+        Compute the posterior covariance in ζ-space and Arrhenius-parameter space.
+
+        Implements the MUM-PCE inverse-spectral formula adapted for the MUQ-SAC
+        ζ-parameterisation (see the accompanying LaTeX note):
+
+            H_GN   = J̃^T J̃  +  I        (include_prior=True adds prior term I)
+            Σ_ζ    = H_GN^{-1}
+            Σ_p    = B Σ_ζ B^T
+
+        where J̃ = W J  is the weighted Jacobian, W = diag(1/σ_r), and J is
+        the stacked matrix of transformed response Jacobians.
+
+        Parameters
+        ----------
+        zeta_star     : 1-D array  — optimal flat zeta vector from run_optimization_*
+        include_prior : bool       — True  → MAP posterior (recommended)
+                                    False → data-only posterior (may be ill-conditioned)
+        ridge         : float      — small diagonal stabilisation (default 1e-12)
+
+        Returns
+        -------
+        Sigma_zeta : np.ndarray (m × m)   posterior covariance in ζ-space
+        Sigma_p    : np.ndarray (3N_r × 3N_r)  posterior cov in Arrhenius-param space
+        H          : np.ndarray (m × m)   Gauss-Newton Hessian (for diagnostics)
+        rxn_slices : dict  {rxn → slice}  maps each reaction to its rows/cols in Sigma_p
+        """
+        x = np.asarray(zeta_star, dtype=float)
+        n = len(x)
+        H = np.zeros((n, n), dtype=float)
+
+        if include_prior:
+            # Standard normal prior on ζ: adds I to the Hessian
+            H += np.eye(n, dtype=float)
+
+        for i, case in enumerate(self.target_list):
+            if self.ResponseSurfaces[i].selection != 1:
+                continue
+            try:
+                _, _, sigma, J_eff = \
+                    self.ResponseSurfaces[i].transformed_value_and_jacobian(x, case)
+            except NotImplementedError:
+                continue
+
+            Jw = np.asarray(J_eff, dtype=float) / float(sigma)
+            H += np.outer(Jw, Jw)
+
+        H += ridge * np.eye(n, dtype=float)
+
+        # Invert Hessian — use pseudo-inverse if nearly singular
+        try:
+            Sigma_zeta = np.linalg.inv(H)
+        except np.linalg.LinAlgError:
+            Sigma_zeta = np.linalg.pinv(H)
+
+        # Map to Arrhenius space
+        B       = self._build_arrhenius_map()
+        Sigma_p = B @ Sigma_zeta @ B.T
+
+        # Build per-reaction index slices into Sigma_p (3 rows each)
+        rxn_slices = {}
+        row = 0
+        for rxn in self.rxn_index:
+            n_params = len(self.unsrt[rxn].activeParameters)
+            rxn_slices[rxn] = slice(row, row + n_params)
+            row += n_params
+
+        return Sigma_zeta, Sigma_p, H, rxn_slices
+
+
+    def posterior_kappa_bands(self, zeta_star, Sigma_p, rxn_slices,
+                            n_sigma=1, n_points=80):
+        """
+        Compute posterior ±n_sigma uncertainty bands on log(k(T)) for every
+        active reaction.
+
+        The posterior variance of κ(T) = θ(T)^T Σ_p_j θ(T) where
+            θ(T) = [1, ln T, -1/T]^T
+
+        Parameters
+        ----------
+        zeta_star  : 1-D array — optimal flat zeta vector
+        Sigma_p    : 2-D array — posterior covariance in Arrhenius space
+        rxn_slices : dict — {rxn → slice} from build_posterior_covariance
+        n_sigma    : int  — how many σ bands to draw (default 1)
+        n_points   : int  — temperature-grid resolution
+
+        Returns
+        -------
+        bands : dict  {rxn → {"T": array, "k_opt": array,
+                            "k_lo": array, "k_hi": array,
+                            "sigma_k": array}}
+        """
+        bands   = {}
+        zd      = self.codec.unflatten_zeta(np.asarray(zeta_star, dtype=float))
+
+        for rxn in self.rxn_index:
+            u      = self.unsrt[rxn]
+            T_lo   = float(u.temperatures[0])
+            T_hi   = float(u.temperatures[-1])
+            Tp     = np.linspace(T_lo, T_hi, n_points)
+            Theta  = np.array([np.ones(n_points), np.log(Tp), -1.0 / Tp])  # (3, N)
+
+            # Optimised rate constant
+            p0     = np.asarray(u.nominal, dtype=float)
+            L      = np.asarray(u.cholskyDeCorrelateMat, dtype=float)
+            z_rxn  = np.asarray(zd[rxn], dtype=float)
+            p_opt  = p0 + L @ z_rxn
+            k_opt  = Theta.T @ p_opt   # log(k) at each T
+
+            # Posterior standard deviation  σ_κ(T) = sqrt(θ^T Σ_p_j θ)
+            sl     = rxn_slices[rxn]
+            Sp_j   = Sigma_p[sl, sl]   # 3×3 (or m×m) block
+
+            # Embed into full 3×3 if partial PRS block is smaller
+            if Sp_j.shape[0] < 3:
+                active_idx = [i for i, s in enumerate(u.selection) if s == 1]
+                Sp_full    = np.zeros((3, 3), dtype=float)
+                for a, gi in enumerate(active_idx):
+                    for b, gj in enumerate(active_idx):
+                        Sp_full[gi, gj] = Sp_j[a, b]
+                Sp_j = Sp_full
+
+            sigma_k = np.array([
+                float(np.sqrt(max(Theta[:, i] @ Sp_j @ Theta[:, i], 0.0)))
+                for i in range(n_points)
+            ])
+
+            bands[rxn] = {
+                "T"       : Tp,
+                "k_opt"   : k_opt,
+                "k_lo"    : k_opt - n_sigma * sigma_k,
+                "k_hi"    : k_opt + n_sigma * sigma_k,
+                "sigma_k" : sigma_k,
+            }
+        return bands
+    
+    
+    # ═════════════════════════════════════════════════════════════════════════
     #  Post-optimisation helpers
     # ═════════════════════════════════════════════════════════════════════════
-    def _post_optimisation_plots(self, optimal_parameters, optimal_parameters_zeta):
-        """Generate reaction plots and per-dataset CSV files after optimisation."""
+    def _post_optimisation_plots(self, optimal_parameters, optimal_parameters_zeta,
+                              posterior_bands=None):
+        """
+        Generate per-reaction Arrhenius plots and per-dataset CSV files.
+        If posterior_bands is supplied, posterior ±1σ envelopes are added.
+        """
         ch      = {r: self.unsrt[r].cholskyDeCorrelateMat  for r in self.unsrt}
         nominal = {r: self.unsrt[r].nominal                 for r in self.unsrt}
         p_max   = {r: self.unsrt[r].P_max                  for r in self.unsrt}
         p_min   = {r: self.unsrt[r].P_min                  for r in self.unsrt}
         Temp    = {r: self.unsrt[r].temperatures            for r in self.unsrt}
 
-        zd = self.codec.unflatten_zeta(optimal_parameters_zeta)
-        d_n = self._plot_optimised_reactions(zd, nominal, ch, p_max, p_min, Temp)
+        zd  = self.codec.unflatten_zeta(optimal_parameters_zeta)
+        d_n = {}
+
+        for rxn in self.unsrt:
+            p       = nominal[rxn]
+            Tp      = Temp[rxn]
+            Theta_p = np.array([Tp / Tp, np.log(Tp), -1.0 / Tp])
+            kmax    = Theta_p.T.dot(p_max[rxn])
+            kmin    = Theta_p.T.dot(p_min[rxn])
+            ka_o    = Theta_p.T.dot(nominal[rxn])
+            p_zet   = p + np.asarray(np.dot(ch[rxn], zd[rxn])).flatten()
+            k_opt   = Theta_p.T.dot(p_zet)
+            d_n[rxn] = abs(p[1] - p_zet[1])
+
+            fig, ax = plt.subplots()
+            ax.set_title(str(rxn))
+            ax.set_xlabel(r"$1000/T$  (K$^{-1}$)")
+            ax.set_ylabel(r"$\log_{10}(k)$")
+            ax.plot(1e3 / Tp, kmax,  'k--', lw=0.8, label="Prior uncertainty limits")
+            ax.plot(1e3 / Tp, kmin,  'k--', lw=0.8)
+            ax.plot(1e3 / Tp, ka_o,  'b-',  lw=1.2, label="Nominal (prior)")
+            ax.plot(1e3 / Tp, k_opt, 'r-',  lw=1.5, label="Optimised (MAP)")
+
+            if posterior_bands is not None and rxn in posterior_bands:
+                b = posterior_bands[rxn]
+                # Interpolate band onto the reaction's own temperature grid
+                ax.fill_between(1e3 / b["T"],
+                                b["k_lo"], b["k_hi"],
+                                color="orange", alpha=0.35,
+                                label=r"Posterior $\pm1\sigma$")
+
+            ax.legend(fontsize=7)
+            os.makedirs("Plots", exist_ok=True)
+            fig.savefig(f"Plots/reaction_{rxn}.png", bbox_inches='tight', dpi=150)
+            plt.close(fig)
+
         print("Δn per reaction:", d_n)
 
         VALUE, EXP, CASE, TEMPERATURE = self.plot_DATA(optimal_parameters)
@@ -1664,3 +1945,4 @@ class OptimizationTool(object):
                 for i, c in enumerate(CASE):
                     if c == case_id:
                         fh.write(f"{TEMPERATURE[i]}\t{EXP[i]}\t{VALUE[i]}\n")
+        return d_n

@@ -147,7 +147,7 @@ def run_sampling_direct(sample,rxn,data,generator,length):
 
 
 class Worker():
-	def __init__(self, workers,path_to_yamlwriter="/data2/STUDY_OF_PARALLEL_COMPUTING/build/yamlwriter.so"):
+	def __init__(self, workers,path_to_yamlwriter=None):
 		self.pool = multiprocessing.Pool(processes=workers)
 		self.pool1 = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
 		self.progress = []
@@ -386,9 +386,8 @@ class SM(object):
 	
 	def getYAML_List(self,params,selection=[]):
 		yaml_list = []
-		#yaml_dict = {}
 		sim_dict = []
-		#print(selection)
+		
 		if len(selection) != 0:
 			selection_params = selection
 			for i in tqdm(range(len(params)),desc="Create Perturbed YAML files"):

@@ -1,7 +1,7 @@
 #python default modules
 import json
 import pickle
-import asyncio
+import yaml 
 import numpy as np
 import scipy as sp
 import pandas as pd
@@ -11,12 +11,6 @@ import concurrent.futures
 import parallel_yaml_writer
 import scipy.stats as stats
 import matplotlib.pyplot as plt
-try:
-    import ruamel_yaml as yaml
-except ImportError:
-    from ruamel import yaml
-import yaml 
-
 import partial_PRS_system as P_PRS
 from scipy.optimize import minimize
 from collections import OrderedDict
@@ -42,6 +36,8 @@ import Uncertainty as uncertainty
 from MechanismParser import Parser
 import simulation_manager2_0 as simulator
 from MechManipulator2_0 import Manipulator
+from Target2CSV import Exporter as Target2CSV
+from VisualAid import TPhiPlotter, ArrheniusPlotter
 from OptimizationTool import OptimizationTool as Optimizer
 
 
@@ -81,7 +77,10 @@ else:
 	print("Please enter a valid input file name as arguement. \n For details of preparing the input file, please see the UserManual\n\nProgram exiting")
 	exit()
 
-#!!!!!!! GET MECHANISM FILE , number of targets  from the input file !!!!!!!!!
+################################################
+# Reading the input YAML file                  #
+################################################
+
 iFile = str(os.getcwd())+"/"+str(sys.argv[1])
 dataCounts = optInputs[count]
 binLoc = optInputs["Bin"]
@@ -90,14 +89,7 @@ locations = optInputs["Locations"]
 startProfile_location = optInputs[startProfile]
 stats_ = optInputs["Stats"]
 global A_fact_samples
-
 A_fact_samples = stats_["Sampling_of_PRS"]
-if "sensitive_parameters" not in stats_:
-	stats_["sensitive_parameters"] = "Principle_SubMatrix"
-	optInputs["Stats"]["sensitive_parameters"] = "Principle_SubMatrix"
-if "Arrhenius_Selection_Type" not in stats_:
-	stats_["Arrhenius_Selection_Type"] = "some"
-	optInputs["Stats"]["Arrhenius_Selection_Type"] = "some"
 unsrt_location = locations[unsrt]
 mech_file_location = locations[mech]
 thermo_file_location = locations[thermoF]
@@ -105,7 +97,6 @@ trans_file_location = locations[transF]
 fileType = inputs[fT]
 samap_executable = optInputs["Bin"]["samap_executable"]
 jpdap_executable = optInputs["Bin"]["jpdap_executable"]
-
 if fileType == "chemkin":
 	file_specific_input = "-f chemkin"
 else:
@@ -113,14 +104,11 @@ else:
 fuel = inputs[fuel]
 gr = inputs[globRxn]
 global_reaction = gr
-
 design_type = stats_[design]
 parallel_threads = dataCounts[countThreads]
 targets_count = int(dataCounts["targets_count"])
 rps_order = stats_[order]
 PRS_type = stats_["PRS_type"]
-#######################READ TARGET FILE ###################
-
 print("\nParallel threads are {}".format(parallel_threads))
 targetLines = open(locations[targets],'r').readlines()
 addendum = yaml.safe_load(open(locations[add],'r').read())
@@ -129,7 +117,6 @@ addendum = yaml.safe_load(open(locations[add],'r').read())
 ##  Unloading the target data	  	           ##
 ## TARGET CLASS CONTAINING EACH TARGET AS A CASE  ##
 ####################################################
-
 
 target_list = []
 c_index = 0
@@ -140,27 +127,32 @@ for target in targetLines[:targets_count]:
 		target = target[:target.index('#')]	
 	add = deepcopy(addendum)
 	t = combustion_target_class.combustion_target(target,add,c_index)
-	string_target+=f"{t.dataSet_id}|{t.target}|{t.species_dict}|{t.temperature}|{t.pressure}|{t.phi}|{t.observed}|{t.std_dvtn}\n"
 	c_index +=1
 	target_list.append(t)
+
 case_dir = range(0,len(target_list))
-print(case_dir)
+print(f"Case directory: (case_dir)")
+print("\n\nOptimization targets identified.\n")
+
+# SAVING THE TARGETS IN A CSV FILE
+df = Target2CSV(target_list).to_dataframe()
+df.to_csv("targets.csv", index=False)
+print("\t Targets exported to targets.csv\n\n")
+
+#Plotting the T-P-phi space
+print("\t Plotting the T-P-phi space...")
+TPhiPlotter(df).plot_t_p_phi(color="Phi", save_path="T-P-phi_space.png", show=True)
+print("T-P-phi space plot saved as T-P-phi_space.png\n\n")
 print("\n\nOptimization targets identified.\nStarted the MUQ process.......\n")
-target_file = open("target_data.txt","w")
-target_file.write(string_target)
-target_file.close()
+
 
 ############################################
 ##  Uncertainty Quantification            ##
-##  					   ##
+##  					   				  ##
 ############################################
 
 if "unsrt.pkl" not in os.listdir():
 	UncertDataSet = uncertainty.uncertaintyData(locations,binLoc);
-	############################################
-	##   Get unsrt data from UncertDataSet    ##
-	############################################
-
 	unsrt_data = UncertDataSet.extract_uncertainty();
 	# Save the object to a file
 	with open('unsrt.pkl', 'wb') as file_:
@@ -172,9 +164,7 @@ else:
 	with open('unsrt.pkl', 'rb') as file_:
 		unsrt_data = pickle.load(file_)
 	print("Uncertainty analysis already finished")
-#for rxn in unsrt_data:
-#	print(unsrt_data[rxn].linked_rIndex)
-raise AssertionError("Pull over")
+
 ###########################################################
 #### Printing the reactions and their index in the file ###
 ###########################################################
@@ -184,13 +174,12 @@ str_rxn = ""
 for i in unsrt_data:
 	string_Rxn += f"{i}\t{unsrt_data[i].index}\n"
 	str_rxn += f"{i}\n"
-file_rxn = open("RXN.csv","w").write(string_Rxn)
-file_rxn_list = open("rxn_list.csv","w").write(str_rxn)
-
+file_rxn = open("ACTIVE_RXN_INDEX.csv","w").write(string_Rxn)
+file_rxn_list = open("ACTIVE_RXN_LIST.csv","w").write(str_rxn)
 
 ######################################################################
 ##  CREATING A DICTIONARY CONTAINING ALL THE DATA FROM UNSRT CLASS  ##
-##		                                                    ##
+##		                                                    		##
 ######################################################################
 
 manipulationDict = {}
@@ -229,7 +218,7 @@ manipulationDict["Cholesky"] = deepcopy(Cholesky_list)#.deepcopy()
 manipulationDict["zeta"] = deepcopy(zeta_list)#.deepcopy()
 manipulationDict["activeParameters"] = deepcopy(activeParameters)#.deepcopy()
 manipulationDict["nominal"] = deepcopy(nominal_list)#.deepcopy()
-print(f"\n\n################################################\nThe total reactions choosen for this study: {len(manipulationDict['activeParameters'])}\n\tThe list is as follows:\n\t")
+print(f"\n\n################################################\nThe total reactions selected for this study: {len(manipulationDict['activeParameters'])}\n\tThe list is as follows:\n\t")
 print("\t"+f"{manipulationDict['activeParameters']}")
 print("\n################################################\n\n")
 
@@ -262,20 +251,17 @@ if PRS_type == "Partial":
 			print("\n\nSensitivity Analysis for A-factor is Done!!")
 			# Printing the errors of script2.py, if any
 			if result.stderr:
-			#	print("Errors:")
-			#	print(result.stderr)
 				f.write("Errors:\n"+result.stderr)	
 			#	raise AssertionError("Sensitivity Analysis Done!!")
 			with open('sens_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
 		else:
 			status_ = "Pending"
-			print("\n\tBrute-force Sensitivity analysis is alsready over!!\n")
+			print("\n\tBrute-force Sensitivity analysis is already over!!\n")
 			with open('sens_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
 	
 	else:
-		#if design_type !="A-facto":
 		if "sens_3p_parameters.pkl" not in os.listdir() :
 			status_ = "Pending"
 			args = [sys.argv[1], 'rxn_list.csv','&>SA_3p.out']
@@ -285,16 +271,15 @@ if PRS_type == "Partial":
 			f.write(result.stdout+"\n")
 			if result.stderr:
 				f.write("Errors:\n"+result.stderr)	
-			#raise AssertionError("Sensitivity Analysis Done!!")
+			print("\n\nSensitivity Analysis for 3 parameters is Done!!")
 			with open('sens_3p_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
 		else:
 			status_ = "Pending"
-			print("\n\t3-Parameter Sensitivity analysis is alsready over!!\n")
+			print("\n\t3-Parameter Sensitivity analysis is already over!!\n")
 			with open('sens_3p_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
-	#print(sensitivity_analysis)
-	#raise AssertionError("Stop")
+	
 	partialPRS_Object = []
 	selected_params_dict = {}
 	design_matrix_dict = {}
@@ -302,10 +287,8 @@ if PRS_type == "Partial":
 	no_of_sim = {}
 	print("\n################################################\n###  Starting to generate Design Matrix      ###\n###  for all targets                        ###\n################################################\n\n")
 	for case in case_dir:
-		#PPRS_system = P_PRS.PartialPRS(sensitivity_analysis[str(case)],unsrt_data,optInputs,target_list,case,activeParameters,design_type)
 		PPRS_system = P_PRS.PartialPRS(sensitivity_analysis[str(case)],unsrt_data,optInputs,target_list,str(case),activeParameters,design_type,status=status_)
 		yaml_loc,design_matrix,selected_params = PPRS_system.partial_DesignMatrix()
-		#print(len(design_matrix))
 		partialPRS_Object.append(PPRS_system)
 		no_of_sim[case] = int(PPRS_system.no_of_sim)
 		yaml_loc_dict[case] = yaml_loc
@@ -316,7 +299,7 @@ if PRS_type == "Partial":
 ##  MUQ-SAC: Method of Uncertainty Quantification and           ##
 ##	Sampling of Arrhenius Curves                                ##
 ##################################################################
-	print("\n\nSensitivity Analysis is already finished!!\n")
+	print("\n\n Generating the perturbed mechanism files for partial-PRS is finished!!\n")
 	SSM = simulator.SM(target_list,optInputs,unsrt_data,design_matrix_dict,tag="Partial")
 	
 else:
@@ -355,29 +338,17 @@ else:
 		no_of_sim_ = len(design_matrix_file)
 		for row in design_matrix_file:
 			design_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
-	#raise AssertionError("Design Matrix created!!")
 	design_matrix_dict = {}
 	for case in case_dir:
 		design_matrix_dict[case] = design_matrix
 		no_of_sim[case] = no_of_sim_
 	
-	SSM = simulator.SM(target_list,optInputs,unsrt_data,design_matrix)
+	SSM = simulator.SM(target_list,optInputs,unsrt_data,design_matrix,tag="Full")
 
 	if "Perturbed_Mech" not in os.listdir():
 		os.mkdir("Perturbed_Mech")
 		print("\nPerturbing the Mechanism files\n")
-		#if "YAML_PERTUBED_FILES.pkl" not in os.listdir():
-			
-		#	yaml_list = SSM.getYAML_List()
 		
-			#with open('YAML_PERTUBED_FILES.pkl', 'wb') as file_:
-			#	pickle.dump(yaml_list, file_)
-		#else:
-			#yaml_list = SSM.getYAML_List()
-			#with open('YAML_PERTUBED_FILES.pkl', 'rb') as file_:
-			
-			#	yaml_list = pickle.load(file_)
-
 		chunk_size = 500
 		params_yaml = [design_matrix[i:i+chunk_size] for i in range(0, len(design_matrix), chunk_size)]
 		count = 0
@@ -393,8 +364,6 @@ else:
 				location_mech.append(os.getcwd()+"/Perturbed_Mech")
 				yaml_loc.append(os.getcwd()+"/Perturbed_Mech/mechanism_"+str(count+i)+".yaml")
 			count+=len(yaml_list)
-			#gen_flag = False
-			#SSM.getPerturbedMechLocation(yaml_list,location_mech,index_list)
 			SSM.getPerturbedMechLocation(yaml_list,location_mech,index_list)
 			print(f"\nGenerated {count} files!!\n")
 		print("\nGenerated the YAML files required for simulations!!\n")
@@ -419,6 +388,7 @@ else:
 		yaml_loc_dict[case] = yaml_loc
 		design_matrix_dict[case] = design_matrix
 		selected_params_dict[case] = selected_params
+print("\n\n Generating the perturbed mechanism files for full-PRS is finished!!\n")
 ##############################################################
 ##     Doing simulations using the design matrix            ## 
 ##     The goal is to test the design matrix                ##
@@ -573,50 +543,107 @@ for case_index,case in enumerate(temp_sim_opt):
 	del xTrain,xTest,yTrain,yTest
 #raise AssertionError("The Target class, Uncertainty class, Design Matrix and Simulations and Response surface")
 os.chdir("..")
+
 ##################################################
 ##        Optimization Procedure                ##
-##   Inputs: Traget list and Response Surfaces  ## 
+##   Inputs: Target list and Response Surfaces  ##
 ##################################################
+
+from VisualAid import PostOptPlotter
+
 if "solution_zeta.save" not in os.listdir():
 
-	opt, opt_zeta,posterior_cov = Optimizer(target_list).run_optimization_with_selected_PRS(unsrt_data,ResponseSurfaces,optInputs)
+    optimizer_obj  = Optimizer(target_list)
+    opt, opt_zeta, posterior_cov = optimizer_obj.run_optimization_with_selected_PRS(
+        unsrt_data, ResponseSurfaces, optInputs)
 
-	string_save = ""
-	for i, j in enumerate(activeParameters):
-		print("\n{}=\t{}".format(activeParameters[i], opt_zeta[i]))
-		string_save+="{}=\t{}\n".format(activeParameters[i], opt_zeta[i])
-	save = open("solution_zeta.save","w").write(string_save)
+    # ── Save solution ──────────────────────────────────────────────────
+    string_save = ""
+    for i, j in enumerate(activeParameters):
+        print("\n{}=\t{}".format(activeParameters[i], opt_zeta[i]))
+        string_save += "{}=\t{}\n".format(activeParameters[i], opt_zeta[i])
+    open("solution_zeta.save", "w").write(string_save)
 
+    # ── Save posterior covariance matrices ─────────────────────────────
+    with open("posterior_cov.pkl", "wb") as _f:
+        pickle.dump(posterior_cov, _f)
 
-	#string_save = ""
-	#for i, j in enumerate(activeParameters):
-	#	print("\n{}=\t{}".format(activeParameters[i], opt[i]))
-	#	string_save+="{}=\t{}\n".format(activeParameters[i], opt[i])
-	#save = open("solution.save","w").write(string_save)
+    # ── Write optimised mechanism ──────────────────────────────────────
+    originalMech  = Parser(mech_file_location).mech
+    copy_of_mech  = deepcopy(originalMech)
+    new_mechanism, a = Manipulator(copy_of_mech, unsrt_data, opt_zeta).doPerturbation()
+    open("Optimized_mech.yaml", "w").write(yaml.safe_dump(new_mechanism, default_flow_style=False))
 
-
-	originalMech = Parser(mech_file_location).mech
-	copy_of_mech = deepcopy(originalMech)#.deepcopy()
-	new_mechanism,a = Manipulator(copy_of_mech,unsrt_data,opt_zeta).doPerturbation()
-
-	#new_mechanism,a,b,c = self.MechManipulator.GeneratePerturbedMechanism(self.target_list[case],self.beta_[i],np.ones(len(selectedParams)),reactionList,self.simulation,"False",extra_arg = self.activeIndexDict)
-	string = yaml.safe_dump(new_mechanism,default_flow_style=False)
-	f = open("new_mech.yaml","w").write(string)
 else:
-	
-	save = open("solution_zeta.save","r").readlines()
-	
-	opt_zeta = []
-	for i in save:
-		opt_zeta.append(float(i.split("=")[1].strip()))
-	originalMech = Parser(mech_file_location).mech
-	copy_of_mech = deepcopy(originalMech)#.deepcopy()
-	new_mechanism,a = Manipulator(copy_of_mech,unsrt_data,opt_zeta).doPerturbation()
-	#print(new_mechanism)
-	#new_mechanism,a,b,c = self.MechManipulator.GeneratePerturbedMechanism(self.target_list[case],self.beta_[i],np.ones(len(selectedParams)),reactionList,self.simulation,"False",extra_arg = self.activeIndexDict)
-	string = yaml.safe_dump(new_mechanism,default_flow_style=False)
-	f = open("new_mech.yaml","w").write(string)
+    # ── Reload existing solution ───────────────────────────────────────
+    save     = open("solution_zeta.save", "r").readlines()
+    opt_zeta = [float(i.split("=")[1].strip()) for i in save]
+
+    originalMech  = Parser(mech_file_location).mech
+    copy_of_mech  = deepcopy(originalMech)
+    new_mechanism, a = Manipulator(copy_of_mech, unsrt_data, opt_zeta).doPerturbation()
+    open("Optimized_mech.yaml", "w").write(yaml.safe_dump(new_mechanism, default_flow_style=False))
+
+    # Recompute posterior covariance if cache exists, else recalculate
+    if "posterior_cov.pkl" in os.listdir():
+        with open("posterior_cov.pkl", "rb") as _f:
+            posterior_cov = pickle.load(_f)
+    else:
+        # ResponseSurfaces and unsrt_data are already in scope from above
+        from OptimizationTool2_0 import OptimizationTool as _OT
+        _tmp = _OT(target_list)
+        _tmp.unsrt          = unsrt_data
+        _tmp.ResponseSurfaces = ResponseSurfaces
+        _tmp.rxn_index      = list(unsrt_data.keys())
+        _tmp.codec          = None
+        # Build codec so unflatten_zeta works
+        from OptimizationTool2_0 import CodecEngine
+        _tmp.codec = CodecEngine(unsrt_data)
+        Sigma_zeta, Sigma_p, H_gn, rxn_slices = \
+            _tmp.build_posterior_covariance(opt_zeta)
+        posterior_cov = {"Sigma_zeta": Sigma_zeta, "Sigma_p": Sigma_p,
+                         "H": H_gn, "rxn_slices": rxn_slices}
+        with open("posterior_cov.pkl", "wb") as _f:
+            pickle.dump(posterior_cov, _f)
 
 
+##################################################
+##   Per-reaction optimisation + posterior plots ##
+##################################################
 
-raise AssertionError("The Target class, Uncertainty class, Design Matrix and Simulations and Response surface")
+os.makedirs("Opt/Plots/Posterior", exist_ok=True)
+
+Sigma_p    = posterior_cov["Sigma_p"]
+rxn_slices = posterior_cov["rxn_slices"]
+opt_zeta_arr = np.asarray(opt_zeta, dtype=float)
+
+# Build per-reaction zeta from the flat vector
+# (same logic as codec.unflatten_zeta but done inline so no dependency)
+_offset = 0
+for rxn in unsrt_data:
+    m_j      = len(unsrt_data[rxn].activeParameters)
+    z_rxn    = opt_zeta_arr[_offset: _offset + m_j]
+    _offset += m_j
+
+    sl       = rxn_slices[rxn]
+    Sp_rxn   = Sigma_p[sl, sl]
+
+    # Full 3-element zeta (pad zeros for partial-PRS reactions)
+    z_full = np.zeros(3, dtype=float)
+    sel    = np.asarray(unsrt_data[rxn].selection, dtype=int)
+    act    = [i for i, s in enumerate(sel) if s == 1]
+    for local_i, global_i in enumerate(act):
+        if local_i < len(z_rxn):
+            z_full[global_i] = z_rxn[local_i]
+
+    plotter = PostOptPlotter(
+        unsrt_data = unsrt_data,
+        rxn        = rxn,
+        zeta_opt   = z_full,
+        Sigma_p_rxn = Sp_rxn,
+        n_sigma    = 1,
+    )
+    out = plotter.plot(location="Opt/Plots/Posterior")
+    print(f"  Saved posterior plot → {out}")
+
+print("\nAll posterior plots saved to  Opt/Plots/Posterior/")

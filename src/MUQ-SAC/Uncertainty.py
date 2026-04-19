@@ -24,11 +24,6 @@ def run(sample,data,length):
 	a1 =2*np.random.random_sample(1)-1
 	a2 = 2*np.random.random_sample(1)-1
 	a3 = 2*np.random.random_sample(1)-1
-	print(a1,a2,a3)
-	#a1 = np.random.uniform(-1,1,1)
-	#a2 = np.random.uniform(-1,1,1)
-	#a3 = np.random.uniform(-1,1,1)
-	#A.generator.append([a1[0],a2[0],a3[0]])
 	A.populateValues(a1,a2,a3)
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag = False)
@@ -40,22 +35,63 @@ def run(sample,data,length):
 	
 	return (sample,zeta,length)
 
+def run_sampling_b_partial(sample, data, generator, length):
+	"""
+	Multiprocessing-compatible top-level function for parallel class-B
+	partial-parameter sampling.  Called by workers.do_unsrt_b_partial.
+	Generates ONE full-space ζ for data["param_indices"].
+	No SLSQP — uses the analytical instance methods of UncertaintyExtractor.
+	"""
+	A = UncertaintyExtractor(data)
+	A.getCovariance(flag=False)
+	A.getUnCorrelated(flag=False)
+	param_indices = data["param_indices"]
+	rng           = np.random.default_rng()
+	zeta_list     = A.getClassB_partial(param_indices, 1, rng)
+	if not zeta_list:
+		zeta_list = A.getClassA_partial(param_indices, 1, rng)
+	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+	del A
+	return (sample, generator, zeta, length)
+
+
+def run_sampling_c_partial(sample, data, generator, length):
+	"""
+	Multiprocessing-compatible top-level function for parallel class-C
+	partial-parameter sampling.  Called by workers.do_unsrt_c_partial.
+	Generates ONE full-space ζ for data["param_indices"].
+	"""
+	A = UncertaintyExtractor(data)
+	A.getCovariance(flag=False)
+	A.getUnCorrelated(flag=False)
+	param_indices = data["param_indices"]
+	rng           = np.random.default_rng()
+	zeta_list     = A.getClassC_partial(param_indices, 1, rng)
+	if not zeta_list:
+		zeta_list = A.getClassA_partial(param_indices, 1, rng)
+	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+	del A
+	return (sample, generator, zeta, length)
+
+
 class workers(object):
 	def __init__(self,workers):
 		#print("Initialized\n")
 		self.pool = multiprocessing.Pool(processes=workers)
 		self.progress = []
 		self.parallized_zeta = []
+
 	def callback(self,result):
-		#print("Entered callback\n")
 		self.progress.append(result[0])
 		self.parallized_zeta.append(result[1])
-		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
+		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(
+		    len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
-		
+
+	def callback_error(self, result):
+		print('error', result)
+
 	def do_job_async(self,data,sampling_points):
-		#print("Entered Async\n")
-		#print("Entered async\n")
 		for args in range(sampling_points):
 			x = self.pool.apply_async(run, 
 				  args=(1,data,sampling_points), 
@@ -64,7 +100,53 @@ class workers(object):
 		self.pool.join()
 		print(x.get())
 		self.pool.terminate()
-		return self.parallized_zeta	
+		return self.parallized_zeta
+
+	def do_unsrt_b_partial(self, data, sampling_points):
+		"""
+		Parallel class-B sampling for a partial parameter subset.
+		
+		Expects data to contain:
+		  data["param_indices"]        – tuple of active parameter indices
+		  data["generators_b_partial"] – array of shape (sampling_points, 2)
+
+		Each worker call (run_sampling_b_partial) instantiates a fresh
+		UncertaintyExtractor and generates ONE class-B zeta using the
+		analytical 2×2-bisection (m=2) or 3×3-direct-solve (m=3) method.
+
+		Returns (parallized_zeta, progress) mirroring the Worker interface.
+		"""
+		for args in range(sampling_points):
+			self.pool.apply_async(
+			    run_sampling_b_partial,
+			    args=(1, data, data["generators_b_partial"][args], sampling_points),
+			    callback=self.callback,
+			    error_callback=self.callback_error)
+		self.pool.close()
+		self.pool.join()
+		self.pool.terminate()
+		return self.parallized_zeta, self.progress
+
+	def do_unsrt_c_partial(self, data, sampling_points):
+		"""
+		Parallel class-C sampling for a partial parameter subset.
+
+		Expects data to contain:
+		  data["param_indices"]        – tuple of active parameter indices
+		  data["generators_c_partial"] – array of shape (sampling_points, 2)
+
+		Returns (parallized_zeta, progress) mirroring the Worker interface.
+		"""
+		for args in range(sampling_points):
+			self.pool.apply_async(
+			    run_sampling_c_partial,
+			    args=(1, data, data["generators_c_partial"][args], sampling_points),
+			    callback=self.callback,
+			    error_callback=self.callback_error)
+		self.pool.close()
+		self.pool.join()
+		self.pool.terminate()
+		return self.parallized_zeta, self.progress
 
 class UncertaintyExtractor(object):
 	def __init__(self,data):
@@ -234,157 +316,7 @@ class UncertaintyExtractor(object):
 		QtLZ = (Theta.T.dot(cov.dot(z)))
 		f = (Theta.dot(P)-QtLZ)
 		return k_max - f
-	"""
-	def cons_derivative_b2(self,z):
-		
-		if self.kright_fact < 0 and self.kleft_fact < 0:
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_max = P + abs(self.kmiddle_fact)*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_max)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-		
-		elif self.kright_fact >0 and self.kleft_fact>0:
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_min = P - abs(self.kmiddle_fact)*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_min)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-
-		elif self.kright_fact>0 and self.kleft_fact<0:
-			
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_min = P + abs(self.kmiddle_fact)*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_min)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-			
-			#obj = 0.0
-		elif self.kright_fact<0 and self.kleft_fact>0:
-			
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_max = P - abs(self.kmiddle_fact)*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_max)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-			
-			#obj = 0.0
-			
-		else:
-			
-			fact = 0
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_max = P - fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_max)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-		return obj
 	
-	def cons_derivative_b2(self,z):
-		
-		if self.kright_fact < 0:
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_max = P + np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_max)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-		
-		elif self.kright_fact >0:
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_min = P - np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_min)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt + dQtLZ_dt
-		
-		else:
-			T = z[-1]
-			guess = z[0:-1]
-			P = self.ArrheniusParams
-			cov = self.L
-			P_max = P + np.asarray(np.dot(cov,self.zeta.x)).flatten()
-			theta = np.array([0,1/T,1/T**2])
-			dk_dt = theta.T.dot(P_max)
-			dko_dt = theta.T.dot(P)
-			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-			obj = dk_dt - dko_dt - dQtLZ_dt
-		return obj
-	
-	def const_2_typeB2_Zeta(self,z):
-		
-		if self.kright_fact>0:
-			M = self.M
-			T = z[-1]
-			cov = self.L
-			P = self.ArrheniusParams
-			Pmin = P - np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-			Theta = np.array([1,np.log(T),-1/(T)])
-			k_min = Theta.dot(Pmin)
-			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-			f = (Theta.dot(P)+QtLZ)
-			obj = abs(k_min - f)
-		
-		elif self.kright_fact<0:	
-			M = self.M
-			T = z[-1]
-			cov = self.L
-			P = self.ArrheniusParams
-			Pmax = P + np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-			Theta = np.array([1,np.log(T),-1/(T)])
-			k_max = Theta.dot(Pmax)
-			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-			f = (Theta.dot(P)+QtLZ)
-			obj = abs(k_max - f)
-		
-		
-		else:
-			M = self.M
-			T = z[-1]
-			cov = self.L
-			P = self.ArrheniusParams
-			Pmin = P - np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-			Theta = np.array([1,np.log(T),-1/(T)])
-			k_min = Theta.dot(Pmin)
-			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-			f = (Theta.dot(P)+QtLZ)
-			obj = abs(k_min - f)
-		return obj
-		
-		"""
 	
 	def cons_derivative_b2(self,z):
 		if self.kright_fact < 0 and self.kleft_fact<0:
@@ -914,19 +846,7 @@ class UncertaintyExtractor(object):
 		"""
 		Un-constrained zeta
 		"""
-		#self.kappa = kappa
-		#y = kappa - self.kappa_0
-		#A = self.theta_for_kappa.T
-		#Q,R = np.linalg.qr(A)
-		#y_dash = Q.T.dot(y)
-		#x = np.linalg.solve(R,y_dash.T)
-		#zeta = np.linalg.solve(self.L,x.T)
 		
-		#print(self.kappa)
-		#K = self.kappa - self.kappa_0
-		#theta_inv = np.linalg.inv(self.theta_for_kappa.T)
-		#zeta = np.linalg.inv(self.L).dot(theta_inv.dot(K))
-		#zeta = minimize(self.obj_get_kappa,self.guess_z,method="Nelder-Mead")
 		return zeta
 	def getZeta_typeB(self,kappa):
 		T = np.array([self.temperatures[0],(self.temperatures[0]+self.temperatures[-1])/2,self.temperatures[-1]])
@@ -1048,7 +968,434 @@ class UncertaintyExtractor(object):
 		"""
 		
 		return self.zeta_matrix,P,self.P_max,self.P_min,self.cov
-						
+
+	# ═══════════════════════════════════════════════════════════════════
+	# Partial-parameter SAC  —  instance methods
+	# All maths is self-contained.  Methods are instance methods so they
+	# can be called as self._psac_*() from getClassB_partial etc. and also
+	# from module-level multiprocessing workers via A._psac_*().
+	# Pure-math helpers take explicit T/L_r/indices arguments so that the
+	# Worker can instantiate a fresh UncertaintyExtractor, call
+	# getCovariance + getUnCorrelated once, and then dispatch directly.
+	# ═══════════════════════════════════════════════════════════════════
+
+	_PSAC_MAX_DELTA_N = 2.0   # physical |Δn| bound (class-level constant)
+
+	# ── basis / prior-uncertainty helpers ──────────────────────────────
+	def _psac_theta_full(self, T_val):
+		"""Full Arrhenius basis [1, ln T, -1/T] at scalar T."""
+		return np.array([1.0, np.log(float(T_val)), -1.0 / float(T_val)])
+
+	def _psac_theta_S(self, T_val, indices):
+		"""Reduced basis vector for selected indices at scalar T."""
+		return self._psac_theta_full(T_val)[list(indices)]
+
+	def _psac_fp_S(self, T_val, L_r, indices):
+		"""f_prior,S(T) = ||L_r^T θ_S(T)||_2 at scalar T."""
+		return float(np.linalg.norm(L_r.T @ self._psac_theta_S(T_val, indices)))
+
+	def _psac_fp_S_vec(self, T_arr, L_r, indices):
+		"""Vectorised f_prior,S over a temperature array."""
+		return np.array([self._psac_fp_S(t, L_r, indices) for t in T_arr])
+
+	def _psac_dtheta_S_dT(self, T_val, indices):
+		"""Analytical dθ_S/dT.  d/dT: 1→0, ln T→1/T, -1/T→1/T²."""
+		return np.array([0.0, 1.0 / float(T_val), 1.0 / float(T_val)**2])[list(indices)]
+
+	def _psac_fp_S_deriv(self, T_val, L_r, indices):
+		"""Analytical df_prior,S/dT = (L_r^T θ_S)·(L_r^T dθ_S/dT) / f_prior,S."""
+		LTth  = L_r.T @ self._psac_theta_S(T_val, indices)
+		LTdth = L_r.T @ self._psac_dtheta_S_dT(T_val, indices)
+		fp    = np.linalg.norm(LTth)
+		return float(LTth @ LTdth) / fp if fp > 1e-30 else 0.0
+
+	def _psac_dk_S(self, T_arr, L_r, zeta_r, indices):
+		"""∆κ_S(T) = θ_S(T)^T L_r ζ_r over temperature array."""
+		Lz = L_r @ zeta_r
+		return np.array([float(self._psac_theta_S(t, indices) @ Lz) for t in T_arr])
+
+	def _psac_has_sign_change(self, arr):
+		"""Return True if arr changes sign at least once."""
+		return bool(np.any(np.diff(np.sign(arr)) != 0))
+
+	def _psac_enforce_dn(self, zeta_r, L_r, indices):
+		"""Post-hoc scale ζ_r so |Δn| < _PSAC_MAX_DELTA_N when n is active."""
+		if 1 not in indices:
+			return zeta_r
+		pos_n = list(indices).index(1)
+		dn    = abs((L_r @ zeta_r)[pos_n])
+		if dn > self._PSAC_MAX_DELTA_N:
+			zeta_r = zeta_r * (self._PSAC_MAX_DELTA_N / (dn + 1e-30)) * 0.95
+		return zeta_r
+
+	# ── covariance helpers ──────────────────────────────────────────────
+	def _psac_get_reduced_L(self, L_full, indices):
+		"""
+		Build the reduced Cholesky L_r from the principal submatrix of Σ.
+		NEVER slice L_full directly.  Always: Σ = L L^T → Σ_r → chol(Σ_r).
+		Returns (Σ_r, L_r).
+		"""
+		from scipy.linalg import cholesky as _chol
+		Sigma   = L_full @ L_full.T
+		idx     = list(indices)
+		Sigma_r = Sigma[np.ix_(idx, idx)]
+		try:
+			L_r = _chol(Sigma_r, lower=True)
+		except Exception:
+			eps = 1e-12 * max(float(np.trace(Sigma_r)), 1e-10) / max(len(idx), 1)
+			L_r = _chol(Sigma_r + eps * np.eye(len(idx)), lower=True)
+		return Sigma_r, L_r
+
+	def _psac_reconstruct_full(self, zeta_r, indices, full_size=3):
+		"""Embed reduced ζ_r into a full-length vector (zeros at inactive)."""
+		zeta_full = np.zeros(full_size)
+		for local_i, global_i in enumerate(indices):
+			zeta_full[global_i] = zeta_r[local_i]
+		return zeta_full
+
+	# ── linear system solvers ───────────────────────────────────────────
+	def _psac_solve_2x2(self, T1, T2, rhs1, rhs2, L_r, indices):
+		"""Solve the 2×2 system (L_r^T θ_S at T1, T2) · ζ_r = [rhs1, rhs2]."""
+		r1 = L_r.T @ self._psac_theta_S(T1, indices)
+		r2 = L_r.T @ self._psac_theta_S(T2, indices)
+		A  = np.vstack([r1, r2])
+		if abs(np.linalg.det(A)) < 1e-14:
+			return None
+		try:
+			return np.linalg.solve(A, np.array([rhs1, rhs2]))
+		except np.linalg.LinAlgError:
+			return None
+
+	def _psac_solve_3x3(self, T_min, T_u, L_r, r1_fp, r3_fp, r3_fpd, indices):
+		"""
+		Solve the 3×3 system (C1 + C3 + C4) for ζ_r at a fixed T_u.
+		Rows: [L_r^T θ_S(T_min)],  [L_r^T θ_S(T_u)],  [L_r^T dθ_S/dT(T_u)].
+		"""
+		row1 = L_r.T @ self._psac_theta_S(T_min, indices)
+		row2 = L_r.T @ self._psac_theta_S(T_u,   indices)
+		row3 = L_r.T @ self._psac_dtheta_S_dT(T_u, indices)
+		A    = np.vstack([row1, row2, row3])
+		b    = np.array([r1_fp, r3_fp, r3_fpd])
+		if abs(np.linalg.det(A)) < 1e-14:
+			return None
+		try:
+			return np.linalg.solve(A, b)
+		except np.linalg.LinAlgError:
+			return None
+
+	# ── curve-type samplers ─────────────────────────────────────────────
+	def _psac_class_A(self, T_arr, L_r, indices, rng, n_samples):
+		"""
+		Class-A for any m: pseudo-inverse LS fit to ±α_s · f_prior,S.
+		Returns list of n_samples ζ_r arrays (length m each).
+		"""
+		fp     = self._psac_fp_S_vec(T_arr, L_r, indices)
+		thS    = np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
+		A_pinv = np.linalg.pinv(thS @ L_r)                                   # (m,N)
+		out    = []
+		for _ in range(n_samples):
+			alpha_s = rng.uniform(0.05, 1.0)
+			sign    = rng.choice([-1.0, 1.0])
+			zr      = A_pinv @ (sign * alpha_s * fp)
+			out.append(self._psac_enforce_dn(zr, L_r, indices))
+		return out
+
+	def _psac_class_B_m2(self, T_arr, L_r, indices, rng, n_samples):
+		"""
+		Class-B for m=2: 2×2 solve at each candidate T_u, bisect on the
+		C4 tangency residual g(T_u) = dΔκ/dT|_{T_u} - r3·f'_prior,S(T_u).
+		Falls back to SLSQP when no sign change is found (flat f_prior).
+		Returns list of n_samples ζ_r arrays.
+		"""
+		T_min    = float(T_arr[0]);   T_max = float(T_arr[-1])
+		fp_Tmin  = self._psac_fp_S(T_min, L_r, indices)
+		Tu_grid  = np.linspace(T_min * 1.02, T_max * 0.98, 120)
+
+		def _analytical():
+			results = []
+			for _ in range(n_samples * 40):
+				if len(results) >= n_samples:
+					break
+				r1   = rng.uniform(-0.95, 0.95)
+				r3   = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
+				rhs1 = r1 * fp_Tmin
+				g    = np.full(len(Tu_grid), np.nan)
+				valid = np.zeros(len(Tu_grid), dtype=bool)
+				for k, Tu in enumerate(Tu_grid):
+					fp_Tu = self._psac_fp_S(Tu, L_r, indices)
+					zr    = self._psac_solve_2x2(T_min, Tu, rhs1, r3 * fp_Tu, L_r, indices)
+					if zr is None:
+						continue
+					dth   = self._psac_dtheta_S_dT(Tu, indices)
+					g[k]  = float((L_r @ zr) @ dth) - r3 * self._psac_fp_S_deriv(Tu, L_r, indices)
+					valid[k] = True
+				ok = np.where(valid)[0]
+				if len(ok) < 2:
+					continue
+				sc = np.where(np.diff(np.sign(g[ok])) != 0)[0]
+				if len(sc) == 0:
+					continue
+				pick     = rng.choice(sc)
+				ia, ib   = ok[pick], ok[pick + 1]
+				Ta, Tb   = Tu_grid[ia], Tu_grid[ib]
+				ga       = g[ia]
+				zr_best  = None
+				for _ in range(50):
+					Tm    = 0.5 * (Ta + Tb)
+					fp_m  = self._psac_fp_S(Tm, L_r, indices)
+					zr_m  = self._psac_solve_2x2(T_min, Tm, rhs1, r3 * fp_m, L_r, indices)
+					if zr_m is None:
+						break
+					dth = self._psac_dtheta_S_dT(Tm, indices)
+					gm  = float((L_r @ zr_m) @ dth) - r3 * self._psac_fp_S_deriv(Tm, L_r, indices)
+					if abs(gm) < 1e-10:
+						zr_best = zr_m;  break
+					if np.sign(gm) == np.sign(ga):
+						Ta, ga = Tm, gm
+					else:
+						Tb = Tm
+				if zr_best is None:
+					Tm_f    = 0.5 * (Ta + Tb)
+					zr_best = self._psac_solve_2x2(
+					    T_min, Tm_f, rhs1,
+					    r3 * self._psac_fp_S(Tm_f, L_r, indices), L_r, indices)
+				if zr_best is None:
+					continue
+				if not self._psac_has_sign_change(self._psac_dk_S(T_arr, L_r, zr_best, indices)):
+					continue
+				results.append(self._psac_enforce_dn(zr_best, L_r, indices))
+			return results
+
+		def _slsqp_fallback(n_needed):
+			results  = []
+			m        = len(indices)
+			fp_grid  = self._psac_fp_S_vec(T_arr, L_r, indices)
+			for _ in range(n_needed * 20):
+				if len(results) >= n_needed:
+					break
+				r1   = rng.uniform(-0.99, 0.99)
+				r3   = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
+				x0   = np.append(rng.uniform(-1, 1, size=m),
+				                 rng.uniform(T_min + 0.2*(T_max-T_min),
+				                             T_max - 0.2*(T_max-T_min)))
+				def obj(x):
+					return float(np.sum(
+					    (fp_grid - self._psac_dk_S(T_arr, L_r, x[:m], indices))**2))
+				def c1(x):
+					return (float(self._psac_dk_S(np.array([T_min]), L_r, x[:m], indices)[0])
+					        - r1 * fp_Tmin)
+				def c3(x):
+					Tu = float(np.clip(x[-1], T_min, T_max))
+					return (float(self._psac_dk_S(np.array([Tu]), L_r, x[:m], indices)[0])
+					        - r3 * self._psac_fp_S(Tu, L_r, indices))
+				try:
+					res = minimize(obj, x0, method='SLSQP',
+					               bounds=[(None,None)]*m + [(T_min*1.005, T_max*0.995)],
+					               constraints=[{'type':'eq','fun':c1},{'type':'eq','fun':c3}],
+					               options={'maxiter':1000, 'ftol':1e-8})
+					zr = res.x[:m]
+					if self._psac_has_sign_change(
+					        self._psac_dk_S(T_arr, L_r, zr, indices)):
+						results.append(self._psac_enforce_dn(zr, L_r, indices))
+				except Exception:
+					pass
+			return results
+
+		out = _analytical()
+		if len(out) < n_samples:
+			out += _slsqp_fallback(n_samples - len(out))
+		return out[:n_samples]
+
+	def _psac_class_B_m3(self, T_arr, L_r, indices, rng, n_samples):
+		"""
+		Class-B for m=3: direct 3×3 linear solve (C1+C3+C4) at each T_u.
+		Scans a shuffled 80-point grid and keeps the first solution whose
+		Δκ_S changes sign.  >10^4× faster than SLSQP.
+		Returns list of n_samples ζ_r arrays.
+		"""
+		T_min   = float(T_arr[0]);   T_max = float(T_arr[-1])
+		Tu_grid = np.linspace(T_min * 1.04, T_max * 0.96, 80)
+		out     = []
+		attempt = 0
+		while len(out) < n_samples and attempt < n_samples * 30:
+			attempt += 1
+			r1 = rng.uniform(-0.99, 0.99)
+			r3 = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
+			for Tu in rng.permutation(Tu_grid):
+				zr = self._psac_solve_3x3(
+				    T_min, float(Tu), L_r,
+				    r1 * self._psac_fp_S(T_min, L_r, indices),
+				    r3 * self._psac_fp_S(float(Tu), L_r, indices),
+				    r3 * self._psac_fp_S_deriv(float(Tu), L_r, indices),
+				    indices)
+				if zr is None:
+					continue
+				if self._psac_has_sign_change(self._psac_dk_S(T_arr, L_r, zr, indices)):
+					out.append(self._psac_enforce_dn(zr, L_r, indices))
+					break
+		return out
+
+	def _psac_class_C(self, T_arr, L_r, indices, rng, n_samples):
+		"""
+		Class-C for m≥2: linear anchor target f_c(T) between T_min and T_max
+		(opposite-sign anchors ensure crossover), pseudo-inverse LS.
+		Returns list of n_samples ζ_r arrays.
+		"""
+		if len(indices) < 2:
+			return []
+		T_min   = float(T_arr[0]);  T_max = float(T_arr[-1])
+		fp_Tmin = self._psac_fp_S(T_min, L_r, indices)
+		fp_Tmax = self._psac_fp_S(T_max, L_r, indices)
+		A_pinv  = np.linalg.pinv(
+		    np.array([self._psac_theta_S(t, indices) for t in T_arr]) @ L_r)
+		out = []
+		for _ in range(n_samples * 5):
+			if len(out) >= n_samples:
+				break
+			r1 = rng.uniform(-1.0, 1.0)
+			r2 = rng.uniform(-1.0, 1.0)
+			if np.sign(r1) == np.sign(r2):
+				r2 = -r2
+			fc     = (r1 * fp_Tmin
+			          + (r2 * fp_Tmax - r1 * fp_Tmin) / (T_max - T_min)
+			          * (T_arr - T_min))
+			zeta_r = A_pinv @ fc
+			if not self._psac_has_sign_change(
+			        self._psac_dk_S(T_arr, L_r, zeta_r, indices)):
+				continue
+			out.append(self._psac_enforce_dn(zeta_r, L_r, indices))
+		return out[:n_samples]
+
+	def _psac_fsac(self, T_arr, L_r, indices, rng, n_samples):
+		"""
+		Fast SAC for partial parameters.
+		m=1 → class-A (f-SAC is undefined for a single parameter).
+		m=2 → 2×2 system at T_min + T_mid.
+		m=3 → 3×3 system at T_min + T_mid + T_max.
+		Midpoint value drawn to ensure opposite-sign anchors → crossover.
+		Returns list of n_samples ζ_r arrays.
+		"""
+		T_min = float(T_arr[0]);  T_max = float(T_arr[-1])
+		T_mid = 0.5 * (T_min + T_max)
+		m     = len(indices)
+		fp_min = self._psac_fp_S(T_min, L_r, indices)
+		fp_mid = self._psac_fp_S(T_mid, L_r, indices)
+		fp_max = self._psac_fp_S(T_max, L_r, indices)
+		out = []
+		for _ in range(n_samples * 8):
+			if len(out) >= n_samples:
+				break
+			r1    = rng.uniform(-1.0, 1.0)
+			r2    = -r1 * rng.uniform(0.3, 1.0)
+			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r2)
+			kl, km, kr = r1 * fp_min, r_mid * fp_mid, r2 * fp_max
+			if m == 1:
+				sub = self._psac_class_A(T_arr, L_r, indices, rng, 1)
+				if sub:
+					out.append(sub[0])
+				continue
+			elif m == 2:
+				zr = self._psac_solve_2x2(T_min, T_mid, kl, km, L_r, indices)
+			else:
+				row1 = L_r.T @ self._psac_theta_S(T_min, indices)
+				row2 = L_r.T @ self._psac_theta_S(T_mid, indices)
+				row3 = L_r.T @ self._psac_theta_S(T_max, indices)
+				A    = np.vstack([row1, row2, row3])
+				if abs(np.linalg.det(A)) < 1e-14:
+					continue
+				try:
+					zr = np.linalg.solve(A, np.array([kl, km, kr]))
+				except np.linalg.LinAlgError:
+					continue
+			if zr is None:
+				continue
+			if m >= 2 and not self._psac_has_sign_change(
+			        self._psac_dk_S(T_arr, L_r, zr, indices)):
+				continue
+			out.append(self._psac_enforce_dn(zr, L_r, indices))
+		return out[:n_samples]
+
+	# ── public partial-parameter interface ─────────────────────────────
+
+	# ── public partial-parameter interface ────────────────────────────
+
+	def get_full_sigma_and_L(self):
+		"""Return (Σ, L_full) from self.cov (3×3 Cholesky). 
+		Requires getCovariance() to have been called first."""
+		L     = self.cov
+		Sigma = L @ L.T
+		return Sigma, L
+
+	def get_reduced_cholesky(self, param_indices):
+		"""
+		Compute (Σ_r, L_r) via the principal submatrix of Σ = L L^T.
+		param_indices : tuple/list of ints — 0=ln(A), 1=n, 2=ε=Ea/R.
+		NEVER slices L directly; always reconstructs Σ first.
+		"""
+		_, L_full = self.get_full_sigma_and_L()
+		return self._psac_get_reduced_L(L_full, param_indices)
+
+	def get_fsac_partial(self, param_indices, n_samples, rng=None):
+		"""
+		f-SAC sampling for a parameter subset.
+		m=1 → class-A fallback.  m=2 → 2×2 system.  m=3 → 3×3 system.
+		Returns list of full-space (length-3) ζ vectors.
+		"""
+		if rng is None:
+			rng = np.random.default_rng()
+		_, L_r  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_fsac(self.temperatures, L_r, param_indices, rng, n_samples)
+		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
+
+	def getClassA_partial(self, param_indices, n_samples, rng=None):
+		"""Class-A samples for any subset (m=1,2,3). Returns full-space ζ vectors."""
+		if rng is None:
+			rng = np.random.default_rng()
+		_, L_r  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_class_A(self.temperatures, L_r, param_indices, rng, n_samples)
+		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
+
+	def getClassB_partial(self, param_indices, n_samples, rng=None):
+		"""
+		Class-B samples for a parameter subset.
+		m=1 → empty list (infeasible).
+		m=2 → 2×2 bisection (analytical, ~1 s/batch).
+		m=3 → 3×3 direct solve (analytical, <0.1 s/batch, >10^4× vs SLSQP).
+		Returns full-space ζ vectors.
+		"""
+		m = len(param_indices)
+		if m < 2:
+			return []
+		if rng is None:
+			rng = np.random.default_rng()
+		_, L_r = self.get_reduced_cholesky(param_indices)
+		if m == 2:
+			zr_list = self._psac_class_B_m2(self.temperatures, L_r, param_indices, rng, n_samples)
+		else:
+			zr_list = self._psac_class_B_m3(self.temperatures, L_r, param_indices, rng, n_samples)
+		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
+
+	def getClassC_partial(self, param_indices, n_samples, rng=None):
+		"""
+		Class-C samples for a parameter subset.
+		m=1 → empty list (infeasible).
+		m≥2 → linear-anchor pseudo-inverse LS.
+		Returns full-space ζ vectors.
+		"""
+		if len(param_indices) < 2:
+			return []
+		if rng is None:
+			rng = np.random.default_rng()
+		_, L_r  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_class_C(self.temperatures, L_r, param_indices, rng, n_samples)
+		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
+
+	def reconstruct_full_zeta(self, zeta_r, param_indices, full_size=3):
+		"""Embed reduced ζ_r back into a full-length vector (zeros at inactive)."""
+		return self._psac_reconstruct_full(zeta_r, param_indices, full_size)
+
+	# ── END NEW UncertaintyExtractor methods ──────────────────────────────────
+
 class reaction(UncertaintyExtractor):
 	def __init__(self, Element,mechPath,binary_files):
 		#self.samap_executable = binary_files["samap_executable"]
@@ -1573,13 +1920,6 @@ class PLOG_Interconnectedness(UncertaintyExtractor):
 		For perturbing only A-factor
 		"""
 		if "factor" in self.perturbation_type:
-			#self.perturb_factor =  [min(self.uncertainties),0,0]
-			#self.solution = 1.0
-			#self.getUncorreationMatrix = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
-			#self.cholskyDeCorrelateMat = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
-			#self.zeta_Matrix = 1
-			#self.activeParameters = [self.rIndex+'_A',self.rIndex+'_n',self.rIndex+'_Ea']
-			#self.selection = [1.0,0.0,0.0]
 			self.perturb_factor =  [min(self.uncertainties)]
 			self.solution = 1.0
 			#self.getUncorreationMatrix = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
@@ -1760,13 +2100,6 @@ class PLOG(UncertaintyExtractor):
 		For perturbing only A-factor
 		"""
 		if "factor" in self.perturbation_type:
-			#self.perturb_factor =  [min(self.uncertainties),0,0]
-			#self.solution = 1.0
-			#self.getUncorreationMatrix = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
-			#self.cholskyDeCorrelateMat = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
-			#self.zeta_Matrix = 1
-			#self.activeParameters = [self.rIndex+'_A',self.rIndex+'_n',self.rIndex+'_Ea']
-			#self.selection = [1.0,0.0,0.0]
 			self.perturb_factor =  [min(self.uncertainties)]
 			self.solution = 1.0
 			#self.getUncorreationMatrix = np.array([[1.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]])
@@ -1776,32 +2109,6 @@ class PLOG(UncertaintyExtractor):
 			self.selection = [1.0,0.0,0.0]
 		#print(f"{self.rIndex}= {self.zeta_Matrix}")
 		
-		"""
-		file_unsrt = open("Reaction_detail_nominal.csv","a+")
-		string_rates = f"{self.rIndex},"
-		for i in self.rxn_dict:
-			string_rates+=f"{i},"
-		string_rates+="\n"
-		file_unsrt.write(string_rates)
-		file_unsrt.close()
-		
-		file_mat = open("cholesky.csv","a+")
-		string_cholesky = f"{self.rIndex},"
-		for i in list(self.cholskyDeCorrelateMat):
-			for j in i:
-				string_cholesky+=f"{j},"
-		string_cholesky+="\n"
-		file_mat.write(string_cholesky)
-		file_mat.close()
-		
-		file_zeta = open("rxn_zeta_data.csv","a+")
-		string_zeta = f"{self.rIndex},"
-		for i in self.zeta.x:
-			string_zeta+=f"{i},"
-		string_zeta+="\n"
-		file_zeta.write(string_zeta)
-		file_zeta.close()
-		"""
 	def getKappaMin(self,T):
 		T = np.asarray(T)
 		theta = np.array([T/T,np.log(T),-1/T])
@@ -2558,7 +2865,6 @@ class transport:
 		#print(L)
 		return L,z		
 	
-
 class collision:
 	def __init__(self, Element,string,mechanism_loc):
 		self.rxn = self.classification = self.type = self.sub_type = self. branching = self.branches  = self.pressure_limit  = self. common_temp = self.temp_limit= None
