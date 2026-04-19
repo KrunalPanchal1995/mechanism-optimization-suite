@@ -44,7 +44,7 @@ class PartialPRS(object):
 		Any other value attempts to reload state from previously saved CSV
 		files (restart mode).
 	"""
- 	def __init__(
+	def __init__(
 		self,
 		sensitivity_dict,
 		unsrt_data,

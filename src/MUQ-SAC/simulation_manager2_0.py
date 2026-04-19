@@ -21,8 +21,8 @@ import make_input_file
 #import make_input_file2_0_A_factor 
 from MechManipulator2_0 import Manipulator as manipulator
 #from MechManipulator3_0_A_factor import Manipulator as manipulator
-import data_management2_0_A_factor as data_management
-from MechanismParser2_0_A_factor import Parser
+import data_management as data_management
+from MechanismParser import Parser
 from importlib import import_module
 
 sys.path.append('/yamlwriter.so')  # Adjust this path to the correct build directory

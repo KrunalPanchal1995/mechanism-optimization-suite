@@ -9,7 +9,7 @@ class TPhiPlotter:
     def __init__(self, df: pd.DataFrame):
         self.df = df
 
-    def plot_t_p_phi(self, color: str = "dilution", save_path: str | Path | None = None, show: bool = True) -> None:
+    def plot_t_p_phi(self, color: str = "dilution", save_path: str = None, show: bool = False) -> None:
         """
         Plot a 3D scatter of (T, P, phi) colored by a chosen column.
 
