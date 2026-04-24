@@ -32,13 +32,13 @@ class combustion_target():
 		self.molecularWt["H2O"] = 0
 		self.molecularWt["CH4"] = 16
 		self.molecularWt["NC7H16"] = 100.21
+		self.molecularWt["C4H6"] = 54
+		self.molecularWt["OME3"] = 136
 		self.molecularWt["MB-C5H10O2"] = 86
 		self.molecularWt["CH2O"] = 30
 		self.molecularWt["NC12H26"] = 170
 		self.molecularWt["C7H8"] = 92
-		self.molecularWt["OME3"] = 136
 		self.molecularWt["IC16H34"] = 226
-		self.molecularWt["CH2O"] = 30
 		self.stoichiometry = {}
 		self.stoichiometry["H2"] = 0.5
 		self.stoichiometry["CO"] = 0.5
@@ -56,18 +56,20 @@ class combustion_target():
 		self.stoichiometry["CO2"] = 0.0
 		self.stoichiometry["CH4"] = 2.0
 		self.stoichiometry["NC7H16"] = 11
+		self.stoichiometry["C4H6"] = 5.5
+		self.stoichiometry["OME3"] = 6
 		self.stoichiometry["MB-C5H10O2"] = 6.5
 		self.stoichiometry["CH2O"] = 1
 		self.stoichiometry["NC12H26"] = 25
 		self.stoichiometry["C7H8"] = 11
-		self.stoichiometry["OME3"] = 6.0
 		self.stoichiometry["IC16H34"] = 33
-		self.stoichiometry["CH2O"] = 1.0
 		self.stoichiometry["C12H23"] = 17.75
-		self.stoichiometry["C3H8"] = 5
+		self.stoichiometry["C3H8"] = 5.0
 		self.data = data
+		#print(self.data)
 		parameters = self.data.split('|')
-		self.dataSet_id = parameters[1].strip("\t")
+		#print(parameters)
+		self.dataSet_id = parameters[1].strip('\t')
 		self.calculated = 0
 		self.x = None
 		self.index = index
@@ -310,6 +312,10 @@ class combustion_target():
 			self.pressure = float(self.pressure)*101325
 		if self.units["P"].strip("	") == "Pa":
 			self.pressure = float(self.pressure)
+		
+		if self.units["observed"].strip(" ") == "ms":
+			self.observed = float(self.observed)*1000 #Convetin it to us
+		
 		if "solver" not in self.add:
 			self.add["solver"] = "FlameMaster"
 		if "Thermodiffusion" not in self.add:
@@ -344,6 +350,8 @@ class combustion_target():
 			self.add["curve"] = 0.015
 		if "volume_profile_type" not in self.add:
 		    self.add["volume_profile_type"] = "csv_file"
+		if "dt" not in self.add:
+			self.add["dt"] = 1e-5
 		if "loglevel" not in self.add:
 			self.add["loglevel"] = 1		
 		if "auto" not in self.add:
@@ -367,7 +375,7 @@ class combustion_target():
 		if "residenceTime" not in self.add:
 			self.add["residenceTime"] = 1
 		if "EndTime" not in self.add:
-			self.add["EndTime"] = 1 #s
+			self.add["EndTime"] = 0.04 #s
 		if "time_step" not in self.add:
 			self.add["time_step"] = 2000 #steps		
 		if "flw_method" not in self.add:
@@ -390,12 +398,10 @@ class combustion_target():
 			self.add["flf_target"] = "H" #m**3	
 		if "flf_cond" not in self.add:
 			self.add["flf_cond"] = "max" #m**3	
+		if "estimateTIG" not in self.add:
+			self.add["estimateTIG"] = 0.4
 		if "T_amb" not in self.add:
 			self.add["T_ambient"] = 298
-		
-		if "estimateTIG" not in self.add:
-			self.add["estimateTIG"] = 1.0
-		
 		else:
 			self.add["T_amb"] = "AmbientTemp is {}".format(self.add["T_ambient"])
 		if "isIsotherm" not in self.add:

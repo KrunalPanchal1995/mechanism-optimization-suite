@@ -9,14 +9,30 @@ from MechanismParser import Parser
 ###
 
 class Manipulator:
-	def __init__(self,copy_of_mech,unsrt_object,perturbation):
+	def __init__(self,copy_of_mech,unsrt_object,perturbation,convertor=None):
 		self.mechanism = deepcopy(copy_of_mech)
 		#self.mechanism = Parser(mechanism_location).mech
 		self.unsrt = unsrt_object
 		self.perturbation = perturbation
 		#print(perturbation)
 		self.rxn_list = [rxn for rxn in self.unsrt]
+		self.convertor = None
+		self.convertor_dict = None
+		if convertor != None:
+			self.convertor = convertor
 		
+	def getRxnConvertorDict(self):
+		convertor = {}
+		count = 0
+		for rxn in self.rxn_list:
+			len_active_parameters = len(self.unsrt[rxn].activeParameters)
+			temp = []			
+			for i in range(len_active_parameters):
+				temp.append(self.convertor[count])
+				count+=1
+			convertor[rxn] = np.asarray(temp)		
+		return convertor
+	
 	def getRxnPerturbationDict(self):
 		perturb = {}
 		count = 0
@@ -28,6 +44,7 @@ class Manipulator:
 				count+=1
 			perturb[rxn] = np.asarray(temp)		
 		return perturb
+	
 	def del_mech(self):
 		del self.mechanism
 	
@@ -60,13 +77,16 @@ class Manipulator:
 		perturbation_factor = self.unsrt[rxn].perturb_factor
 		p0 = self.unsrt[rxn].nominal
 		unsrt_perturbation = np.asarray(cov.dot(beta)).flatten()
-		convertor = np.asarray(self.unsrt[rxn].selection)
+		if self.convertor_dict:
+			convertor = self.convertor_dict[rxn]
+		else:
+			convertor = np.asarray(self.unsrt[rxn].selection)
 		p = p0+convertor*unsrt_perturbation
-		#print(f"\t{rxn}\t{beta}\n\t{convertor}\n\t{self.unsrt[rxn].L}\n\t{p0}\n\t{p}\n")
+		
 		"""
 		The new perturbed reaction replaces the prior Arrhenius parameters 
 		"""
-		print()
+		
 		#print("Before")
 		#print(mechanism["reactions"][index]["rate-constant"])
 		reaction_details = mechanism["reactions"][index]["rate-constant"]
@@ -89,7 +109,10 @@ class Manipulator:
 		perturbation_factor = self.unsrt[rxn].perturb_factor
 		#selection = np.asarray(self.unsrt[rxn].selection)
 		unsrt_perturbation = np.asarray(cov.dot(beta)).flatten()
-		convertor = np.asarray(self.unsrt[rxn].selection)
+		if self.convertor_dict:
+			convertor = self.convertor_dict[rxn]
+		else:
+			convertor = np.asarray(self.unsrt[rxn].selection)
 		
 		p = p0+convertor*unsrt_perturbation
 		pressure_limit = self.unsrt[rxn].pressure_limit
@@ -123,7 +146,10 @@ class Manipulator:
 		perturbation_factor = self.unsrt[rxn].perturb_factor
 		#p0 = self.unsrt[rxn].nominal
 		#unsrt_perturbation = np.asarray(cov.dot(selection*beta.dot(perturbation_factor))).flatten()
-		convertor = np.asarray(self.unsrt[rxn].selection)
+		if self.convertor_dict:
+			convertor = self.convertor_dict[rxn]
+		else:
+			convertor = np.asarray(self.unsrt[rxn].selection)
 		#p = p0+convertor*unsrt_perturbation
 		#print("==================================\nPerturbation Started!!\n")
 		#for index in indexes:
@@ -161,7 +187,10 @@ class Manipulator:
 		perturbation_factor = self.unsrt[rxn].perturb_factor
 		p0 = self.unsrt[rxn].nominal
 		unsrt_perturbation = np.asarray(cov.dot(beta)).flatten()
-		convertor = np.asarray(self.unsrt[rxn].selection)
+		if self.convertor_dict:
+			convertor = self.convertor_dict[rxn]
+		else:
+			convertor = np.asarray(self.unsrt[rxn].selection)
 		
 		p = p0+convertor*unsrt_perturbation
 		
@@ -188,6 +217,8 @@ class Manipulator:
 	def doPerturbation(self):
 		rxn_type = self.getRxnType()
 		perturb = self.getRxnPerturbationDict()
+		if self.convertor:
+			self.convertor_dict = self.getRxnConvertorDict()
 		mechanism = self.mechanism
 		
 		for rxn in self.rxn_list:

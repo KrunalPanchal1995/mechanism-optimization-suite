@@ -371,26 +371,28 @@ class SM(object):
 		return  yaml_dict,instring_dict,s_run_dict,case_dir,run_convert_dict,run_list,extract,sim_dict,pre_file
 	
 	
-	def getYAML_List(self,params,parameter="all"):
+	def getYAML_List(self,params,parameter="all",fact = 1.0):
 		yaml_list = []
 		#yaml_dict = {}
 		sim_dict = []
 		if parameter == "A":
 			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([1.0,0.0,0.0])
+				self.unsrt[rxn].selection = np.array([fact,0.0,0.0])
 		elif parameter == "n":
 			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([0.0,1.0,0.0])
+				self.unsrt[rxn].selection = np.array([0.0,fact,0.0])
 		elif parameter == "Ea":
 			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([0.0,0.0,1.0])
+				self.unsrt[rxn].selection = np.array([0.0,0.0,fact])
 		else:
 			self.unsrt = self.unsrt
+		
 		for i in tqdm(range(len(params)),desc="Create Perturbed YAML files"):
 			beta_ = params[i]
 			mani = manipulator(self.prior_mech,self.unsrt,beta_)
 			yaml,sim = mani.doPerturbation()
 			yaml_list.append(yaml)		
+		
 		for rxn in self.unsrt:
 			self.unsrt[rxn].selection = np.array([1.0,1.0,1.0])	
 		return yaml_list

@@ -493,8 +493,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -850,8 +849,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -1056,7 +1054,7 @@ pressureList = timeHistory["Pressure  (bar)"]
 
 #Actual defination for RCM using temperature profile
 tempe = timeHistory["Temperature  (K)"].to_numpy()
-time_ = timeHistory["Time  (sec)"].to_numpy()
+time_ = timeHistory.index.to_numpy()
 smooth_temperature = gaussian_filter1d(tempe, sigma=5)  # Adjust sigma for smoothness
 
 # Plot
@@ -1080,20 +1078,16 @@ else:
 	new_T_1 = find_local_peak_in_range(time_,tempe,t1,1.06*t1)
 	t1_dash = new_T_1['time']
 	T_1_dash = new_T_1['temperature']
+max_T_2 = find_slope_change_points(time_,smooth_temperature,t2,1.5*t2)
 
-try:
-	max_T_2 = find_slope_change_points(time_,smooth_temperature,t2,1.5*t2)
-	if max_T_2['first_slope_decrease_point']:
-		t2_dash = max_T_2['first_slope_decrease_point']['time']
-		T_2_dash = max_T_2['first_slope_decrease_point']['temperature']
-	else:   
-		new_T_2 = find_critical_point(time_,smooth_temperature,t2,1.5*t2)
-		
-		t2_dash = new_T_2['time']
-		T_2_dash = new_T_2['temperature']
-except:
-	t2_dash = t2
-	T_2_dash = T_2
+if max_T_2['first_slope_decrease_point']:
+	t2_dash = max_T_2['first_slope_decrease_point']['time']
+	T_2_dash = max_T_2['first_slope_decrease_point']['temperature']
+else:   
+	new_T_2 = find_critical_point(time_,smooth_temperature,t2,1.5*t2)
+	
+	t2_dash = new_T_2['time']
+	T_2_dash = new_T_2['temperature']
 
 
 max_T_3 = find_nearest_temperature(time_,tempe,(t2+t2_dash)/2)
@@ -1227,8 +1221,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -1469,8 +1462,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -1681,8 +1673,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -1974,8 +1965,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -2157,8 +2147,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:
@@ -2401,8 +2390,7 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		index = int(slope.argmax())
 		peaks,_ = find_peaks(conc)
 		if len(peaks)>1:
-			peak_values = conc[peaks]
-			peak_ind = peak_values.argmax() 
+			peak_ind = abs(np.asarray(peaks) - index).argmin()
 		elif len(peaks) == 1:
 			peak_ind = 0
 		else:

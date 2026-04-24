@@ -43,21 +43,26 @@ class ArrheniusPlotter(object):
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
 		z = np.array([1,0,0])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		zeta = self.getZetaMax()
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
 		return np.asarray(func)
 	
 	def getPerturbed_n_curve(self):
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
-		z = np.array([0,1,0])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		zeta = self.getZetaMax()
+		z = np.array([0,100,0])
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
 		return np.asarray(func)
 	
 	def getPerturbed_Ea_curve(self):
+		nom = self.getNominalParams()
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
-		z = np.array([0,0,100])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		z = np.array([0,0,200])
+		zeta = self.getZetaMax()
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
+		#raise AssertionError("Perturbing Ea")
 		return np.asarray(func)
 	
 	def getNominalCurve(self):
@@ -87,6 +92,7 @@ class ArrheniusPlotter(object):
 	def plot_perturbed_Arrhenius_parameters(self,location="Plots"):
 		self.UQ_plot_loc = location
 		os.makedirs(location,exist_ok = True)
+		#print(self.rxn)
 		fig = plt.figure()
 		T = self.getTemperatures()
 		Kappa_o = self.getNominalCurve()
@@ -95,6 +101,7 @@ class ArrheniusPlotter(object):
 		Z_a = self.getPerturbed_A_curve()
 		Z_n = self.getPerturbed_n_curve()
 		Z_e = self.getPerturbed_Ea_curve()
+		#print(Kappa_o,Z_e)
 		plt.plot(1/T,Kappa_o,"b-",label="Nominal Curve")
 		plt.plot(1/T,Kappa_o + Kappa_max,"r-",label=r"Arrhenius Curve (f($\zeta$))")
 		plt.plot(1/T,Kappa_o-Kappa_max,"r-")
@@ -106,4 +113,5 @@ class ArrheniusPlotter(object):
 		plt.xlabel("Temperatures (1/K)")
 		plt.ylabel(r"Rate Coefficient $(\kappa)$")
 		plt.legend()
+		#plt.show()
 		plt.savefig(location+f"/{self.rxn}.pdf",bbox_inches="tight")		
