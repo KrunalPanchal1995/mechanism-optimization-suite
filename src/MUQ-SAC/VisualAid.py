@@ -1,8 +1,8 @@
-import os
 import numpy as np
 import pandas as pd
+import os
+import re
 import matplotlib.pyplot as plt
-from pathlib import Path
 
 class TPhiPlotter:
     """3D plotting utilities for T–P–phi space."""
@@ -80,21 +80,26 @@ class ArrheniusPlotter(object):
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
 		z = np.array([1,0,0])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		zeta = self.getZetaMax()
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
 		return np.asarray(func)
 	
 	def getPerturbed_n_curve(self):
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
-		z = np.array([0,1,0])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		zeta = self.getZetaMax()
+		z = np.array([0,100,0])
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
 		return np.asarray(func)
 	
 	def getPerturbed_Ea_curve(self):
+		nom = self.getNominalParams()
 		L = self.getCholeskyCovariance()
 		Theta =   self.getTheta()
-		z = np.array([0,0,100])
-		func = [(i.T.dot(L.dot(z))) for i in Theta.T]
+		z = np.array([0,0,200])
+		zeta = self.getZetaMax()
+		func = [(i.T.dot(z*(L.dot(zeta)))) for i in Theta.T]
+		#raise AssertionError("Perturbing Ea")
 		return np.asarray(func)
 	
 	def getNominalCurve(self):
@@ -124,6 +129,7 @@ class ArrheniusPlotter(object):
 	def plot_perturbed_Arrhenius_parameters(self,location="Plots"):
 		self.UQ_plot_loc = location
 		os.makedirs(location,exist_ok = True)
+		#print(self.rxn)
 		fig = plt.figure()
 		T = self.getTemperatures()
 		Kappa_o = self.getNominalCurve()
@@ -132,6 +138,7 @@ class ArrheniusPlotter(object):
 		Z_a = self.getPerturbed_A_curve()
 		Z_n = self.getPerturbed_n_curve()
 		Z_e = self.getPerturbed_Ea_curve()
+		#print(Kappa_o,Z_e)
 		plt.plot(1/T,Kappa_o,"b-",label="Nominal Curve")
 		plt.plot(1/T,Kappa_o + Kappa_max,"r-",label=r"Arrhenius Curve (f($\zeta$))")
 		plt.plot(1/T,Kappa_o-Kappa_max,"r-")
@@ -143,7 +150,267 @@ class ArrheniusPlotter(object):
 		plt.xlabel("Temperatures (1/K)")
 		plt.ylabel(r"Rate Coefficient $(\kappa)$")
 		plt.legend()
+		#plt.show()
 		plt.savefig(location+f"/{self.rxn}.pdf",bbox_inches="tight")		
+
+
+class DesignMatrixPlotter(object):
+	"""
+	Plots class-A Design Matrix (DM) samples for the three Arrhenius parameters
+	(A, n, Ea) on a per-reaction basis.
+
+	For each reaction the figure contains:
+	  - the nominal log-rate curve  κ₀(T)
+	  - the full-3-param UQ bounds  κ₀ ± M·‖L^T·θ(T)‖
+	  - class-A DM sample curves (upper and lower) for:
+	        • only ln(A) perturbed to 0.1·f_prior(T)   [red]
+	        • only n     perturbed to 0.1·f_prior(T)   [green]
+	        • only Ea    perturbed to 0.1·f_prior(T)   [magenta]
+
+	Figures are stored at:
+	    <location>/<sanitised_rxn_name>/<sanitised_rxn_name>.pdf
+
+	Parameters
+	----------
+	unsrt_data : dict
+	    The unsrt_data object loaded from unsrt.pkl.
+	dm_A_path : str
+	    Path to DesignMatrix_A.csv  (output of getSA_3P_samples with param_type="A")
+	dm_n_path : str
+	    Path to DesignMatrix_n.csv  (output of getSA_3P_samples with param_type="n")
+	dm_Ea_path : str
+	    Path to DesignMatrix_Ea.csv (output of getSA_3P_samples with param_type="Ea")
+	T_min, T_max : float
+	    Temperature range for the Arrhenius plot (K).
+	n_T : int
+	    Number of temperature points.
+
+	Usage
+	-----
+	    import pickle, VisualAid as VA
+	    with open('unsrt.pkl', 'rb') as f:
+	        unsrt_data = pickle.load(f)
+	    plotter = VA.DesignMatrixPlotter(unsrt_data)
+	    plotter.plot_dm_samples(location="DM_plots")
+	"""
+
+	def __init__(self, unsrt_data,
+	             dm_A_path="DesignMatrix_A.csv",
+	             dm_n_path="DesignMatrix_n.csv",
+	             dm_Ea_path="DesignMatrix_Ea.csv",
+	             T_min=900, T_max=1200, n_T=200):
+		self.unsrt_data = unsrt_data
+		self.rxn_list   = list(unsrt_data.keys())
+		self.M          = 3.0 / np.log(10.0)   # same convention as ArrheniusPlotter
+
+		# Temperature grid and log-rate basis vectors Θ(T) = [1, ln T, -1/T]
+		self.T     = np.linspace(T_min, T_max, n_T)
+		
+		self.Theta = np.array([self.T / self.T,   # row 0: ones
+		                       np.log(self.T),     # row 1: ln T
+		                       -1.0 / self.T])     # row 2: -1/T
+		# Theta.T has shape (n_T, 3); Theta.T[i] is the 3-vector at T[i]
+
+		# Load block-diagonal design matrices  shape: (N_rxns, total_params)
+		self.dm_A  = self._load_csv(dm_A_path)
+		self.dm_n  = self._load_csv(dm_n_path)
+		self.dm_Ea = self._load_csv(dm_Ea_path)
+
+		# Print shape diagnostics to catch CSV/unsrt_data mismatches early
+		self._validate_dm_shapes()
+
+	# ── private helpers ────────────────────────────────────────────────────
+
+	@staticmethod
+	def _load_csv(path):
+		"""Read a CSV (tolerates trailing commas) → 2-D numpy float array."""
+		rows = []
+		with open(path, 'r') as fh:
+			for line in fh:
+				line = line.strip().rstrip(',')
+				if line:
+					rows.append([float(v) for v in line.split(',')])
+		return np.array(rows)
+
+	def _validate_dm_shapes(self):
+		"""
+		Print shape diagnostics so any CSV/unsrt_data mismatch is immediately
+		visible in the log, and raise early if a DM has zero columns.
+		"""
+		N = len(self.rxn_list)
+		print(f"\n[DesignMatrixPlotter] N_rxns = {N}")
+		for tag, dm in [("A", self.dm_A), ("n", self.dm_n), ("Ea", self.dm_Ea)]:
+			print(f"  DesignMatrix_{tag}.csv shape : {dm.shape}")
+			if dm.ndim != 2 or dm.shape[1] == 0:
+				raise ValueError(
+					f"DesignMatrix_{tag} loaded with unexpected shape {dm.shape}. "
+					"Check that the CSV file exists and is non-empty."
+				)
+		print()
+
+	def _extract_zr(self, dm, rxn_idx):
+		"""
+		Extract the scalar ζ_r for reaction rxn_idx from the diagonal
+		p_design_matrix (N×N).  The p_design_matrix is diagonal: element
+		[i, i] holds the single reduced-space zeta for reaction i.
+
+		Also handles the N×3N full-block layout (legacy / unoverwritten file)
+		by returning the entire 3-vector so _delta_curve_partial can use it
+		via the reduced-Cholesky path.  In practice sens_3_params always
+		overwrites with p_design_matrix so N×N is the normal case.
+		"""
+		N     = len(self.rxn_list)
+		ncols = dm.shape[1]
+		if ncols == N:
+			# p_design_matrix (N×N diagonal): ζ_r is a scalar at [i, i]
+			return np.array([dm[rxn_idx, rxn_idx]])
+		elif ncols == N * 3:
+			# full block-diagonal (N×3N): full ζ_r of length 3
+			start = rxn_idx * 3
+			return np.asarray(dm[rxn_idx, start:start + 3], dtype=float)
+		else:
+			raise ValueError(
+				f"Unexpected DM shape {dm.shape} for {N} reactions. "
+				f"Expected ({N}, {N}) for p_design_matrix "
+				f"or ({N}, {N * 3}) for full design_matrix."
+			)
+
+	@staticmethod
+	def _sanitize(name):
+		"""Replace characters that are illegal in directory / file names."""
+		return re.sub(r'[\\/:*?"<>|]', '_', name).replace(' ', '_')
+
+	def _nominal_curve(self, rxn):
+		"""κ₀(T) = Θ(T)^T · P₀  (log-space nominal rate)."""
+		P0 = np.asarray(self.unsrt_data[rxn].nominal)
+		return np.array([self.Theta.T[i].dot(P0) for i in range(len(self.T))])
+
+	def _uq_band(self, rxn):
+		"""
+		Full-3-param symmetric UQ band: M · ‖L^T · θ(T)‖ at every temperature.
+		L = unsrt_data[rxn].cov  (3×3 lower-triangular Cholesky factor of Σ).
+		Identical formula to ArrheniusPlotter.getUncertFunc().
+		"""
+		L = self.unsrt_data[rxn].cov
+		return np.array([self.M * np.linalg.norm(L.T.dot(self.Theta.T[i]))
+		                 for i in range(len(self.T))])
+
+	def _delta_curve_partial(self, rxn, zr, param_idx):
+		"""
+		Compute the perturbation δκ(T) for a single-parameter class-A sample.
+
+		Correct math (mirrors _psac_class_A_SA in Uncertainty.py):
+		  1. L_r = get_reduced_cholesky([param_idx])[1]
+		           — Cholesky of the principal submatrix Σ_r of Σ.
+		           For m=1 this is a (1,1) matrix: L_r[0,0] = √Σ[p,p].
+		  2. δp_r = L_r @ ζ_r        (shape (m,))
+		  3. δp_full = zeros(3);  δp_full[param_idx] = δp_r[0]
+		  4. δκ(T) = Θ(T)^T · δp_full   at every temperature.
+
+		This is NOT the same as (L_full @ ζ_full_embedded) because L_r is the
+		Cholesky of the marginal variance of that single parameter, whereas
+		L_full[param_idx, param_idx] is the diagonal of the full Cholesky —
+		the two differ whenever the Arrhenius parameters are correlated.
+
+		Parameters
+		----------
+		rxn       : str   — reaction key in unsrt_data
+		zr        : array — reduced-space ζ_r (length 1 for N×N DM, 3 for N×3N)
+		param_idx : int   — 0=ln(A), 1=n, 2=Ea/R
+		"""
+		_, L_r = self.unsrt_data[rxn].get_reduced_cholesky([param_idx])
+		# ζ_r for this parameter is zr[0] (scalar) in the N×N case;
+		# use only the component at param_idx for safety in the N×3N case.
+		zr_scalar = np.array([float(zr[0]) if len(zr) == 1 else float(zr[param_idx])])
+		delta_p_r   = L_r @ zr_scalar          # shape (1,)
+		delta_p_full = np.zeros(3)
+		delta_p_full[param_idx] = delta_p_r[0]
+		return np.array([self.Theta.T[i].dot(delta_p_full) for i in range(len(self.T))])
+
+	# ── public plotting method ─────────────────────────────────────────────
+
+	def plot_dm_samples(self, location="DM_plots"):
+		"""
+		Generate and save one PDF per reaction to
+		    ``<location>/<rxn_name>/<rxn_name>.pdf``
+
+		Parameters
+		----------
+		location : str
+		    Root output directory (created if absent).
+		"""
+		inv_T = 1.0 / self.T
+
+		for rxn_idx, rxn in enumerate(self.rxn_list):
+			safe_name  = self._sanitize(rxn)
+			rxn_folder = os.path.join(location, safe_name)
+			os.makedirs(rxn_folder, exist_ok=True)
+
+			# ── compute all curves ────────────────────────────────────────
+			K0    = self._nominal_curve(rxn)
+			uq    = self._uq_band(rxn)
+
+			# Extract scalar ζ_r from each diagonal p_design_matrix and
+			# compute δκ(T) via the reduced Cholesky L_r for that parameter.
+			zr_A  = self._extract_zr(self.dm_A,  rxn_idx)
+			zr_n  = self._extract_zr(self.dm_n,  rxn_idx)
+			zr_Ea = self._extract_zr(self.dm_Ea, rxn_idx)
+
+			dK_A  = self._delta_curve_partial(rxn, zr_A,  param_idx=0)
+			dK_n  = self._delta_curve_partial(rxn, zr_n,  param_idx=1)
+			dK_Ea = self._delta_curve_partial(rxn, zr_Ea, param_idx=2)
+
+			# ── build figure ──────────────────────────────────────────────
+			fig, ax = plt.subplots(figsize=(8, 5))
+
+			# Nominal curve
+			ax.plot(inv_T, K0,
+			        'b-', lw=2.0,
+			        label=r'Nominal $\kappa_0(T)$')
+
+			# Full-UQ limits (all 3 correlated Arrhenius params)
+			ax.plot(inv_T, K0 + uq,
+			        'k--', lw=1.5,
+			        label=r'Full UQ limits (3-param Cholesky, $\pm$)')
+			ax.plot(inv_T, K0 - uq,
+			        'k--', lw=1.5)
+
+			# Class-A sample: only ln(A) perturbed
+			ax.plot(inv_T, K0 + dK_A,
+			        'r-', lw=1.2,
+			        label=r'Class-A: $\delta\!\ln A$ only '
+			              r'$(0.1\,f_{\rm prior})$')
+			ax.plot(inv_T, K0 - dK_A,
+			        'r-', lw=1.2)
+
+			# Class-A sample: only n perturbed
+			ax.plot(inv_T, K0 + dK_n,
+			        'g-', lw=1.2,
+			        label=r'Class-A: $\delta n$ only '
+			              r'$(0.1\,f_{\rm prior})$')
+			ax.plot(inv_T, K0 - dK_n,
+			        'g-', lw=1.2)
+
+			# Class-A sample: only Ea perturbed
+			ax.plot(inv_T, K0 + dK_Ea,
+			        'm-', lw=1.2,
+			        label=r'Class-A: $\delta E_a$ only '
+			              r'$(0.1\,f_{\rm prior})$')
+			ax.plot(inv_T, K0 - dK_Ea,
+			        'm-', lw=1.2)
+
+			ax.set_xlabel(r'$1/T\;\mathrm{(K^{-1})}$', fontsize=12)
+			ax.set_ylabel(r'$\ln\kappa$', fontsize=12)
+			ax.set_title(rxn, fontsize=11)
+			ax.legend(fontsize=8, loc='best')
+			fig.tight_layout()
+
+			out_path = os.path.join(rxn_folder, f"{safe_name}.pdf")
+			fig.savefig(out_path, bbox_inches='tight')
+			plt.close(fig)
+			print(f"  [DM Plot] Saved: {out_path}")
+
+		print(f"\nAll DM plots written to '{location}/'")
 
 class PostOptPlotter:
     """
@@ -290,3 +557,4 @@ class PostOptPlotter:
         fig.savefig(out_path, bbox_inches="tight", dpi=150)
         plt.close(fig)
         return out_path
+

@@ -130,12 +130,12 @@ class DesignMatrix(object):
 	
 	def getSA_samples(self,factor):
 		design_matrix = []
-		design_matrix.extend(list(float(factor)*np.eye(self.rxn_len)))
+		design_matrix.extend(list(float(factor)*np.eye(self.n)))
 		return np.asarray(design_matrix)
 	
 	def getNominal_samples(self):
 		design_matrix = []
-		design_matrix.append(list(np.zeros(self.rxn_len)))
+		design_matrix.append(list(np.zeros(self.n)))
 		return	design_matrix
 	
 	# ── NEW: partial-parameter curve generators ────────────────────────────
@@ -171,6 +171,14 @@ class DesignMatrix(object):
 		for rxn in self.unsrt:
 			idx = rxn_param_indices[rxn]
 			curves[rxn] = self.unsrt[rxn].getClassA_partial(idx, n_a, rng,perturb_fact = perturb_fact)
+		return curves
+	
+	def getClassA_Curves_partial_SA(self, n_a, rxn_param_indices, rng,perturb_fact = None):
+		"""Class-A samples per reaction using its selected parameter subset."""
+		curves = {}
+		for rxn in self.unsrt:
+			idx = rxn_param_indices[rxn]
+			curves[rxn] = self.unsrt[rxn].getClassA_partial_SA(idx, n_a, rng,perturb_fact = perturb_fact)
 		return curves
 
 	def getClassB_Curves_partial(self, n_b, rxn_param_indices, rng):
@@ -250,12 +258,14 @@ class DesignMatrix(object):
 		tic = time.time()
 		n_a = 1
 		rxn_param_indices = self._get_rxn_param_indices(selected_params)
+		print(rxn_param_indices)
 		rng = np.random.default_rng()
 		# ── Class-A (partial) ─────────────────────────────────────────
 		cache_file = f'a_type_samples_partial_{param_type}.pkl'          # ← consistent name
 		if cache_file not in os.listdir():
 			print(f"\nGenerating partial class-A curves (n={n_a} per rxn) ...")
-			a_curves = self.getClassA_Curves_partial(n_a, rxn_param_indices, rng, perturb_fact=perturb_fact)
+			a_curves = self.getClassA_Curves_partial_SA(n_a, rxn_param_indices, rng, perturb_fact=perturb_fact)
+			raise AssertionError("Stop!")
 			with open(cache_file, 'wb') as fh:
 				pickle.dump(a_curves, fh)
 		else:
@@ -327,7 +337,7 @@ class DesignMatrix(object):
 		open(f'pSelectionMatrix_{param_type}.csv',  'w').write(matrix_to_csv(p_selection_matrix))
 		open(f'SelectionMatrix_{param_type}.csv',   'w').write(matrix_to_csv(selection_matrix))
 
-		return selection_matrix, p_design_matrix
+		return p_selection_matrix, p_design_matrix
 				
 	def getSample_partial(self,case_index,selected_params):	
 		print("\nStarting to generate partial-design matrix!!\n")

@@ -17,9 +17,11 @@ except ImportError:
 import concurrent.futures
 import Uncertainty
 ### Program specific modules
-import make_input_file 
+import make_input_file
+#import make_input_file2_0_A_factor 
 from MechManipulator2_0 import Manipulator as manipulator
-import data_management
+#from MechManipulator3_0_A_factor import Manipulator as manipulator
+import data_management as data_management
 from MechanismParser import Parser
 from importlib import import_module
 
@@ -97,9 +99,10 @@ def run_map(params,total):
 	runScript = open(location+"/run","w").write(params[1])
 	#subprocess.call(["chmod","+x",location+"/run_convertor"])
 	subprocess.call(["chmod","+x",location+"/run"])
-	yaml_string = yaml.dump(params[-2],default_flow_style=False)
-	with open(location+"/mechanism.yaml","w") as yamlfile:
-		yamlfile.write(yaml_string)
+	yamlwriter.dump_to_yaml(location,f"mechanism.yaml",params[-2])
+	#yaml_string = yaml.dump(params[-2],default_flow_style=False)
+	#with open(location+"/mechanism.yaml","w") as yamlfile:
+	#	yamlfile.write(yaml_string)
 
 	subprocess.call(["cp",params[-1],location])
 	#subprocess.call(["cp",params[-2],location])
@@ -144,7 +147,7 @@ def run_sampling_direct(sample,rxn,data,generator,length):
 
 
 class Worker():
-	def __init__(self, workers,path_to_yamlwriter="/data2/STUDY_OF_PARALLEL_COMPUTING/build/yamlwriter.so"):
+	def __init__(self, workers,path_to_yamlwriter=None):
 		self.pool = multiprocessing.Pool(processes=workers)
 		self.pool1 = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
 		self.progress = []
@@ -282,7 +285,7 @@ class Worker():
 
 
 class SM(object):
-	def __init__(self,target_list,target_data,unsrt_data,design_matrix):
+	def __init__(self,target_list,target_data,unsrt_data,design_matrix,tag="Full"):
 		# Need to find the active parameters, perturbation of those parameters in parallel
 		"""
 		
@@ -295,13 +298,23 @@ class SM(object):
 		Required Inputs:
 		  
 		"""
-		
+		self.prs_type = target_data["Stats"]["PRS_type"]
 		
 		self.target_list = target_list
 		self.target_data = target_data
 		self.unsrt = unsrt_data
-		self.design_matrix = design_matrix
+		#if self.prs_type == "Full":
+		#	self.design_matrix = design_matrix
+		#else:
+		
 		self.case_dir = range(0,len(target_list))
+		
+		if tag == "Full":
+			self.design_matrix_dict = {}
+			for case in self.case_dir:
+				self.design_matrix_dict[case] = design_matrix
+		else:
+			self.design_matrix_dict = design_matrix
 		self.file_type = target_data["Inputs"]["fileType"]
 		self.order = target_data["Stats"]["Order_of_PRS"]
 		self.parallel_threads = target_data["Counts"]["parallel_threads"]
@@ -316,7 +329,7 @@ class SM(object):
 		self.prior_mech = Prior_Mechanism
 		self.copy_of_mech = copy.deepcopy(Prior_Mechanism)
 		self.allowed_count = target_data["Counts"]["parallel_threads"]
-		self.fuel = "NC7H16"
+		self.fuel = "MB-C5H10O2"#Only useful when using direct simulations!!
 		self.build_path = target_data["Bin"]["yaml_writer"]
 		#print(type(self.build_path))
 		sys.path.append(str(self.build_path))
@@ -371,28 +384,26 @@ class SM(object):
 		return  yaml_dict,instring_dict,s_run_dict,case_dir,run_convert_dict,run_list,extract,sim_dict,pre_file
 	
 	
-	def getYAML_List(self,params,parameter="all"):
+	def getYAML_List(self,params,selection=[]):
 		yaml_list = []
-		#yaml_dict = {}
 		sim_dict = []
-		if parameter == "A":
-			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([1.0,0.0,0.0])
-		elif parameter == "n":
-			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([0.0,1.0,0.0])
-		elif parameter == "Ea":
-			for rxn in self.unsrt:
-				self.unsrt[rxn].selection = np.array([0.0,0.0,1.0])
+		
+		if len(selection) != 0:
+			selection_params = selection
+			for i in tqdm(range(len(params)),desc="Create Perturbed YAML files"):
+				beta_ = params[i]
+				select = selection_params[i]
+				mani = manipulator(self.prior_mech,self.unsrt,beta_,selection = select)
+				yaml,sim = mani.doPerturbation()
+				yaml_list.append(yaml)		
+		
 		else:
-			self.unsrt = self.unsrt
-		for i in tqdm(range(len(params)),desc="Create Perturbed YAML files"):
-			beta_ = params[i]
-			mani = manipulator(self.prior_mech,self.unsrt,beta_)
-			yaml,sim = mani.doPerturbation()
-			yaml_list.append(yaml)		
-		for rxn in self.unsrt:
-			self.unsrt[rxn].selection = np.array([1.0,1.0,1.0])	
+			for i in tqdm(range(len(params)),desc="Create Perturbed YAML files"):
+				beta_ = params[i]
+				mani = manipulator(self.prior_mech,self.unsrt,beta_)
+				yaml,sim = mani.doPerturbation()
+				yaml_list.append(yaml)		
+			
 		return yaml_list
 	
 	def getPerturbedMechLocation(self,yaml_list,location_mech,index_list):
@@ -400,25 +411,10 @@ class SM(object):
 		W = Worker(self.allowed_count,self.build_path)
 		W.do_job_map_create_3(params)
 		del W
-		#chunk_size = 500
-		#params_yaml = [params[i:i+chunk_size] for i in range(0, len(params), chunk_size)]
-		#location_chunck = [location_mech[i:i+chunk_size] for i in range(0, len(location_mech), chunk_size)]
-		#yaml_chunck = [yaml_list[i:i+chunk_size] for i in range(0, len(yaml_list), chunk_size)]
-		#index_chunck = [index_list[i:i+chunk_size] for i in range(0, len(index_list), chunk_size)]
-		#tic = time.time()
-		#for i,args in tqdm(enumerate(params_yaml),desc="Starting to dump the perturbed Mech"):
-		#		W = Worker(self.allowed_count,self.build_path)
-		#		W.do_job_map_create_3(args)
-		#		del W
-			
-			#W = Worker(allowed_count,self.build_path)
-			#W.do_job_map_create_2(params_yaml)
-			#del W	
-			#parallel_yaml_writer.process_yaml_files(args,location_chunck[i],"mechanism",index_chunck[i],self.allowed_count)
-		#tok = time.time()	
+
 		
 	
-	def getDirectoryList(self,case,ind,yaml_loc):
+	def getDirectoryList(self,case,ind,yaml_loc_dict):
 		"""
 		Creating each directories in parallel
 		_____________________________________
@@ -436,6 +432,7 @@ class SM(object):
 			os.mkdir("case-"+str(case))
 			os.chdir("case-"+str(case))
 		
+		
 		start = str(os.getcwd())
 		#yaml_dict = {}
 		instring_dict = {}
@@ -448,13 +445,14 @@ class SM(object):
 		#sim_dict = {}
 		#memo = {}
 		#print(len(self.design_matrix))
-		for i in tqdm(range(len(self.design_matrix)),desc="Zipping all files"):
-			#if self.pert_mech_file == "":
-			#	self.beta_ = self.design_matrix[i]
-			#	mani = manipulator(self.prior_mech,self.unsrt,self.beta_)
-			#else:
-			#	mech_file = self.pert_mech_file[i].strip("\n")
-			#print(self.beta_)
+		yaml_loc = yaml_loc_dict[case]
+		#if self.prs_type == "Full":
+		#	design_matrix = self.design_matrix[case]
+		#else:
+		design_matrix = self.design_matrix_dict[case]
+		#print(len(design_matrix))	
+		for i in tqdm(range(len(design_matrix)),desc="Zipping all files"):
+			
 			if os.path.isdir(os.getcwd()+"/"+str(i)) == True and os.path.isdir(os.getcwd()+"/"+str(i)+"/output") != True:
 				shutil.rmtree(str(i))
 				if self.pert_mech_file == "":
@@ -519,7 +517,7 @@ class SM(object):
 		dir_run_list = []
 		output_list = []
 		beta_transformed = np.ones(len(beta))
-		for ind,case in enumerate(case_index):
+		for ind,case in enumerate(range(cases)):
 			file_dict = {}
 			file_dict["beta"] = beta
 			"""
@@ -532,7 +530,7 @@ class SM(object):
 			beta_ = np.asarray(beta)
 			
 			file_dict["mechanism"],sim = manipulator(self.copy_of_mech,self.unsrt,beta_).doPerturbation()
-			file_dict["simulationInputString"],file_dict["file_convertor_script"],file_dict["run_script"],file_dict["extractString"] = make_input_file.create_input_file(case,self.target_data,self.target_list[case])	
+			file_dict["simulationInputString"],file_dict["file_convertor_script"],file_dict["run_script"],file_dict["extractString"] = make_input_file2_0_A_factor.create_input_file(case,self.target_data,self.target_list[case])	
 			file_dict["run_convert"] = start+"/case-"+str(case)+"/run_convertor"
 			file_dict["run_list"] = start+"/case-"+str(case)+"/run"
 			file_dict["mkdir"] = start+"/case-"+str(case)
@@ -549,7 +547,7 @@ class SM(object):
 
 		#Prior_Mechanism = Parser(self.mech_loc).mech
 		#self.copy_of_mech = copy.deepcopy(Prior_Mechanism)
-		print(f"Starting direct simulations: Iteration number {iter_number}, total cases to simulate: {len(case_index)}")
+		print(f"Starting direct simulations: Iteration number {iter_number}, total cases to simulate: {cases}")
 		dictionary_list,mkdir_list,dir_run_list,run_convert_list,output_list = self.getSimulationFiles(case_index,cases,beta,iter_number)
 		start_time = time.time()
 			
@@ -589,7 +587,7 @@ class SM(object):
 		os.chdir('..')
 		directSimulation = []
 		#print(case_index)
-		for i,index in enumerate(case_index):
+		for i,index in enumerate(range(cases)):
 			eta_list = data_management.extract_direct_simulation_values(index,output_list[i],self.target_list,self.fuel)
 			directSimulation.extend(eta_list)
 		os.chdir("..")
@@ -597,6 +595,10 @@ class SM(object):
 		#sample.write(f"{iter_number},{objective}\n")
 		return directSimulation
 	
+	def do_direct_sim(self,beta,case_index,cases,iter_number,objective):
+		directSimulation = self.getSimulatedValues(beta,case_index,cases,iter_number,objective)
+		return np.asarray(directSimulation)
+		
 	def make_nominal_dir_in_parallel(self):
 		#Prior_Mechanism = Parser(self.mech_loc).mech
 		#self.copy_of_mech = copy.deepcopy(Prior_Mechanism)
@@ -713,7 +715,7 @@ class SM(object):
 				instring_dict,s_run_dict,dir_list,run_convert_dict,run_list,extract_list = self.getDirectoryList(case,case_index,yaml_loc)
 
 				
-				
+				design_matrix = self.design_matrix_dict[case]
 				###########################################
 				##   Generated directories in parallel   ##
 				##                                       ##
@@ -738,7 +740,7 @@ class SM(object):
 				run = []
 				locations = []
 				extract = []
-				for i in tqdm(range(len(self.design_matrix))):
+				for i in tqdm(range(len(design_matrix))):
 					instring.append(instring_dict[str(i)])
 					#yaml_list.append(yaml_dict[str(i)])
 					run.append(s_run_dict[str(i)])
@@ -758,25 +760,6 @@ class SM(object):
 				del V
 				
 				print("\n\t\tImportant files other than yaml mechanism file is created\n")
-				###############################################################
-				##   Generated required files      (YAML files)    	      ##
-				##       				                     ##
-				##############################################################
-				#params_yaml = list(zip(locations,yaml_list))
-				#chunk_size = 1000
-				#chunks = [params_yaml[i:i+chunk_size] for i in range(0, len(params_yaml), chunk_size)]
-				
-				#tic = time.time()
-				#for args in chunks:
-				#	W = Worker(allowed_count,self.build_path)
-				#	W.do_job_map_create_2(args)
-				#	del W
-				
-				#W = Worker(allowed_count,self.build_path)
-				#W.do_job_map_create_2(params_yaml)
-				#del W	#parallel_yaml_writer.process_yaml_files(yaml_list,locations,"mechanism",allowed_count)
-				#tok = time.time()
-				#print("\tRequired files for case - {} is generated in {:.2f} hours, {:.2f} minutes, {:.2f} seconds time\n".format(case,(tok-tic)/3600,((tok-tic)%3600)/60,(tok-tic)%60))
 				
 				###########################################
 				##   Running the files                   ##
