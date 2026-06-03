@@ -195,7 +195,7 @@ class DesignMatrix(object):
 	def getNominal_samples(self):
 		design_matrix = []
 		design_matrix.append(list(np.zeros(self.rxn_len)))
-		return	design_matrix
+		return design_matrix
 	
 	def getSamples(self):
 		print("\nStarting to generate design matrix!!\n")

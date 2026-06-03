@@ -517,17 +517,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -874,17 +884,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -1251,17 +1271,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -1493,17 +1523,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -1705,17 +1745,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -1998,17 +2048,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -2181,17 +2241,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -2425,17 +2495,27 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 		intercept = int(np.diff(slope).argmax())
 		tau = df.index.to_numpy()[intercept]
 	elif cond == "dt-max" and species == "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(np.asarray(pList))
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = np.asarray(pList)
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Cantera's adaptive solver produces duplicate time points (dt=0),
+		# giving inf or NaN in slope.  np.argmax returns the NaN index
+		# (last duplicate entry) instead of the real peak — mask those out.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "dt-max" and species != "p":
-		time = np.diff(df.index.to_numpy())
-		conc = np.diff(df[species].to_numpy())
-		slope = conc/time
-		index = int(slope.argmax())
-		tau = df.index.to_numpy()[index]
+		time_arr = df.index.to_numpy()
+		conc_arr = df[species].to_numpy()
+		dt_arr   = np.diff(time_arr)
+		dp_arr   = np.diff(conc_arr)
+		# Same adaptive-solver duplicate-time fix as for pressure.
+		valid    = dt_arr > 1e-9
+		slope    = np.where(valid, dp_arr / np.where(valid, dt_arr, 1.0), -np.inf)
+		index    = int(np.argmax(slope))
+		tau      = time_arr[index]
 	elif cond == "specific":
 		if specified_value.split(";")[0] == None:
 			raise Assertionerror("Input required for specified_value in ignition delay")
@@ -2616,7 +2696,10 @@ if saveAll:
 
 timeHistory = pd.read_csv("time_history.csv",index_col=0)
 pressureList = timeHistory["Pressure  (bar)"]
-species = f"Mole_fraction_{delay_def}  ()"
+if "p" not in "{delay_def}":
+	species = f"Mole_fraction_{delay_def}  ()"
+else:
+	species = f"{delay_def}"
 tau = ignitionDelay(timeHistory,pressureList,species,"{delay_cond}","{specific_cond}",{exp_conc})
 
 # Output the results
