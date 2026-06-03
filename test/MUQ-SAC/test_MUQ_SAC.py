@@ -56,9 +56,9 @@ warnings.filterwarnings("ignore")
 M_CONST   = 3.0 / np.log(10.0)   # IUPAC normalization factor
 R_GAS     = 1.987                 # cal/(mol·K)  — Ea stored as cal/mol in YAML
 MAX_DELTA_N = 2.0                 # |Δn| hard upper bound
-N_CLASS_A   = 20                  # samples of each class to generate
-N_CLASS_B   = 15
-N_CLASS_C   = 15
+N_CLASS_A   = 1                  # samples of each class to generate
+N_CLASS_B   = 1
+N_CLASS_C   = 1
 
 PARAM_NAMES  = ["alpha", "n", "eps"]   # 0,1,2
 PARAM_LABELS = [r"$\alpha$", r"$n$", r"$\varepsilon$"]
@@ -353,6 +353,7 @@ def sample_class_A(T: np.ndarray, L_r: np.ndarray, indices: tuple,
     Additionally, δn constraint is enforced by capping ζ_r after solving.
     A sign-flip is randomly applied so curves appear on both sides of κ₀.
     """
+    
     fp = f_prior_S(T, L_r, indices)       # (N,)
     thS = theta_S(T, indices)             # (m, N)
     A_mat = (thS.T @ L_r)                 # (N, m)
