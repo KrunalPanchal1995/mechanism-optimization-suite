@@ -1,0 +1,40 @@
+[+] Loading YAML: n-Heptane/n_heptane_159.yaml
+    1534 reactions found
+[+] Parsing XML: n-Heptane/n_Heptane_HTC_factor.xml
+    18 reactions found
+
+[+] Class-B method : original_m3
+[+] Available methods: ['original_m3', 'original_m2']
+
+=================================================================
+  Reaction: nc7h16 + h => c7h15-3 + h2:N/A
+=================================================================
+  Computing L_full for: nc7h16 + h => c7h15-3 + h2
+    L_full diag: [ 1.2905  0.0762 17.9405]  (1.96s)
+    m=3  [A, n, Ea]  method=original_m3  ...
+         fun: 2.1440836690295097e-12
+     jac: array([-8.38132190e-09,  7.59925144e-09, -1.71931748e-07])
+ message: 'Optimization terminated successfully'
+    nfev: 35
+     nit: 8
+    njev: 8
+  status: 0
+ success: True
+       x: array([ 1.07422862,  0.73689976, -0.03775096])
+  100/100 samples  204.30s
+      Plot saved → Output_B_m3_Original_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/curves.pdf
+      Plot saved → Output_B_m3_Original_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/curves_plain.pdf
+      Plot saved → Output_B_m3_Original_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/delta_kappa.pdf
+    Wrote Output_B_m3_Original_100/nc7h16_p_h_c7h15-3_p_h2/info.json
+
+    ── Timing summary for nc7h16_p_h_c7h15-3_p_h2 ──
+    Config          m  Indices       Generated   Time (s)
+    -------------------------------------------------------
+    A_n_Ea          3  (0,1,2)             100     204.30s
+
+Traceback (most recent call last):
+  File "/home/krithika/mechanism-optimization-suite/test/MUQ-SAC/BENCHMARK/Generate_Class_B_curves.py", line 1679, in <module>
+    main()
+  File "/home/krithika/mechanism-optimization-suite/test/MUQ-SAC/BENCHMARK/Generate_Class_B_curves.py", line 1672, in main
+    raise AssertionError("Testing single reaction run; remove this line to process all reactions.")
+AssertionError: Testing single reaction run; remove this line to process all reactions.

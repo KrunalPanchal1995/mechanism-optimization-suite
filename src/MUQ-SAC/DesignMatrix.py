@@ -189,10 +189,10 @@ class DesignMatrix(object):
 		curves = {}
 		for rxn in self.unsrt:
 			idx = rxn_param_indices[rxn]
-			if len(idx) < 2:
+			#if len(idx) < 2:
 				# class-B infeasible for m=1; caller pads with extra class-A
-				curves[rxn] = []
-				continue
+			#	curves[rxn] = []
+			#	continue
 			generator = np.random.random_sample((n_b, 2))
 			data = self.unsrt[rxn].data
 			data["generators_b_partial"] = generator
@@ -217,9 +217,9 @@ class DesignMatrix(object):
 		curves = {}
 		for rxn in self.unsrt:
 			idx = rxn_param_indices[rxn]
-			if len(idx) < 2:
-				curves[rxn] = []
-				continue
+			#if len(idx) < 2:
+			#	curves[rxn] = []
+			#	continue
 			generator = np.random.random_sample((n_c, 2))
 			data = self.unsrt[rxn].data
 			data["generators_c_partial"] = generator
@@ -330,7 +330,7 @@ class DesignMatrix(object):
 			n_b        = int(0.45 * self.sim * 0.2)
 			n_c        = int(self.sim * 0.2) - n_a - n_b
 			unshuffled = int(self.sim * 0.2)
-			n_fsac     = unshuffled
+			n_fsac     = int(self.sim * 0.1)
 
 			# ── Directory setup ────────────────────────────────────────────
 			if "DM_FOR_PARTIAL_PRS" not in os.listdir():

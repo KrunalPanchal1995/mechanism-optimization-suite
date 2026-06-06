@@ -6,25 +6,241 @@ import subprocess
 import subprocess as sub
 import threading
 import combustion_target_class
-
+import make_input_file as MakeFile
+from tqdm import tqdm
+import multiprocessing
+import sys
+import traceback
+from pathlib import Path
 
 class RunCmd(threading.Thread):
-    def __init__(self, cmd, timeout):
-        threading.Thread.__init__(self)
-        self.cmd = cmd
-        self.timeout = timeout
+	def __init__(self, cmd, timeout):
+		threading.Thread.__init__(self)
+		self.cmd = cmd
+		self.timeout = timeout
 
-    def run(self):
-        self.p = sub.Popen(self.cmd)
-        self.p.wait()
+	def run(self):
+		self.p = sub.Popen(self.cmd)
+		self.p.wait()
 
-    def Run(self):
-        self.start()
-        self.join(self.timeout)
+	def Run(self):
+		self.start()
+		self.join(self.timeout)
 
-        if self.is_alive():
-            self.p.terminate()      #use self.p.kill() if process needs a kill -9
-            self.join()
+		if self.is_alive():
+			self.p.terminate()	  #use self.p.kill() if process needs a kill -9
+			self.join()
+
+
+
+def run_sim(index, case, input_, caseID, path, total):
+	eta = "N/A"
+	ETA = "N/A"
+	
+	string = path
+	start = os.getcwd()
+	loc = "/".join(path.split("/")[:-1])
+	file_name = path.split("/")[-1]
+	try:
+		# -------------------------------
+		# Step 1: Change directory
+		# -------------------------------
+		try:
+			print(f"[INFO] Initial cwd: {start}")
+			print(f"[INFO] Target path: {loc}")
+			
+			#path:/data/SA_SRIVATSAV/LTC/Opt/case-44/2610/output/tau.out
+			os.chdir(loc)
+			os.chdir("..")
+			workdir = os.getcwd()
+
+			print(f"[INFO] Working directory changed to: {workdir}")
+
+		except Exception as e:
+			print(f"[ERROR] Failed while changing directory to path={loc}")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+		# -------------------------------
+		# Step 2: Build paths
+		# -------------------------------
+		try:
+			dir_name = path.split("/")[-3]
+			case_name = path.split("/")[-4]
+			base_path = Path("/".join(path.split("/")[:-5]))
+			perturbed_path = base_path / "Perturbed_Mech"
+			fallback_path = base_path / "YAML_FILES_FOR_PARTIAL_PRS" /f"{caseID}"
+			
+			if perturbed_path.exists():
+				Perturbed_location = str(perturbed_path)
+			else:
+				Perturbed_location = str(fallback_path)
+			
+			run_cantera = os.path.join(workdir, "cantera_1.py")
+
+			print(f"[INFO] dir_name: {dir_name}")
+			print(f"[INFO] case_name: {case_name}")
+			print(f"[INFO] Perturbed_location: {Perturbed_location}")
+			print(f"[INFO] run_cantera path: {run_cantera}")
+
+		except Exception as e:
+			print("[ERROR] Failed while constructing paths")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+		# -------------------------------
+		# Step 3: Create cantera input string
+		# -------------------------------
+		try:
+			mech_path = f"mechanism.yaml"
+			print(f"[INFO] Mechanism file path: {mech_path}")
+
+			instring, a, b, c = MakeFile.create_input_file(
+				caseID,
+				input_,
+				case,
+				mech_file=mech_path
+			)
+
+			if not instring:
+				raise ValueError("MakeFile.create_input_file returned empty instring")
+
+			print("[INFO] cantera input string created successfully")
+
+		except Exception as e:
+			print("[ERROR] Failed while creating cantera input file content")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+		# -------------------------------
+		# Step 4: Write cantera_1.py
+		# -------------------------------
+		try:
+			if os.path.exists(run_cantera):
+				os.remove(run_cantera)
+			
+			with open(run_cantera, "w") as f:
+				f.write(instring)
+
+			print(f"[INFO] cantera_1.py written successfully at: {run_cantera}")
+
+			if not os.path.exists(run_cantera):
+				raise FileNotFoundError(f"cantera_1.py was not created at {run_cantera}")
+
+		except Exception as e:
+			print("[ERROR] Failed while writing cantera_1.py")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+		# -------------------------------
+		# Step 5: Run cantera_1.py
+		# -------------------------------
+		try:
+			solve_out = os.path.join(workdir, "solve_1.out")
+			print(f"[INFO] Running cantera_1.py in {workdir}")
+			print(f"[INFO] Output log: {solve_out}")
+
+			with open(solve_out, "w") as f:
+				result = subprocess.call(
+					["python3.9", run_cantera],
+					stdout=f,
+					stderr=subprocess.STDOUT
+				)
+
+			print(f"[INFO] Subprocess return code: {result}")
+
+			if result != 0:
+				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}")
+
+		except Exception as e:
+			print("[ERROR] Failed while executing cantera_1.py")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+		# -------------------------------
+		# Step 6: Read tau.out
+		# -------------------------------
+		try:
+			tau_file = os.path.join(loc,file_name)
+			print(f"[INFO] Looking for tau file at: {tau_file}")
+
+			if not os.path.exists(tau_file):
+				raise FileNotFoundError(f"{file_name} not found at {tau_file}")
+
+			with open(tau_file, "r") as f:
+				out_file = f.readlines()
+
+			string = tau_file
+
+			if len(out_file) < 2:
+				raise ValueError(f"{file_name} has insufficient lines: {len(out_file)}")
+
+			line = out_file[1].split()
+			print(f"[INFO] Parsed tau.out line: {line}")
+
+			if len(line) == 2:
+				eta = np.log(float(line[1]) * 10)
+				ETA = float(line[1])
+			else:
+				print("[WARNING] tau.out second line does not have 2 columns, using fallback values")
+				eta = np.log(100 * 10000)
+				ETA = 100 * 10000
+
+		except Exception as e:
+			print("[ERROR] Failed while reading/parsing tau.out")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
+
+	finally:
+		try:
+			os.chdir(start)
+			print(f"[INFO] Returned to original cwd: {start}")
+		except Exception as e:
+			print(f"[ERROR] Failed to return to original cwd: {start}")
+			print(f"[ERROR] Exception: {e}")
+
+	return (index, eta, ETA, string, total)
+
+class Worker():
+	def __init__(self, workers):
+		self.pool = multiprocessing.Pool(processes=workers)
+		self.results = []
+		self.progress = []
+	def update_progress(self, total):
+			update_progress(self.progress, total)	
+	def callback_run(self, result):
+		self.results.append(result)
+		self.progress.append(result[0])
+		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
+		sys.stdout.flush()
+		#f = open('../progress','+a')
+		#f.write(result[0]+"/run"+"\n")
+		#f.close()
+		
+	def callback_error(self,result):
+		print('error', result)
+  
+	def do_job_async(self,location,case,optInput,caseID):
+		for index,args in enumerate(location):
+			self.pool.apply_async(run_sim, 
+				  args=(index,case,optInput,caseID,args,len(location)), 
+				  callback=self.callback_run,error_callback=self.callback_error)
+		self.pool.close()
+		self.pool.join()
+		self.pool.terminate()	
+		self.results.sort(key=lambda x: x[0])  # Sort by the second-to-last element (row identifier)
+		
+		# Extract sorted values
+		sorted_eta = [result[1] for result in self.results]
+		sorted_ETA = [result[2] for result in self.results]
+		sorted_string = [result[3] for result in self.results]
+		return sorted_eta,sorted_ETA,sorted_string
 
 #Extract_reactinons pre exponential factor from mechanism file using sorted numbers. dummy function not called in main code. replaced with a regular expression.
 def extract_reaction_coeff(mech):
@@ -75,73 +291,126 @@ def extract_index_and_uncertainty(uns):
 
 #Once the simulations are completed, this function goes through all the locations where FlameMaster simulation is performed and read the output value based on the type of target.
 #and print as a text file containg four columns. First three contain location information and last column contain  target value.
-def generate_SA_target_value_tables(locations, t_list, case, fuel):
-	#print(locations)
-	#print(os.getcwd())
-	#raise AssertionError("Generating PRS from the data available")
+def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 	list_fuel = []
+
 	if "dict" in str(type(fuel)):
 		for i in fuel:
 			list_fuel.append(fuel[i])
 		fuel = list_fuel[0]
-	
-	#print(fuel)
+
 	data_loc = []
 	for location in locations:
-		#print(location)
 		list_loc = location.split("/")
 		for i in list_loc:
-			if i == "case-"+str(case).strip():
+			if i == "case-" + str(case).strip():
 				data_loc.append(location.strip("\n"))
 
-	
-	data =''
+	data = ''
 	failed_sim = ""
 	ETA = []
 	eta = []
+
+	# --------------------------------------------------
+	# First pass: identify failed simulations
+	# --------------------------------------------------
+	re_run_sim_dict = {}
+	count = 0
+
+	for i in data_loc:
+		eta_, ETA_, file_path = extract_output(
+			t_list[case],
+			fuel,
+			i[:-4] + "/output/",
+			data_loc.index(i),
+			input_=input_,
+			caseID=case
+		)
+
+		if "N/A" in str(eta_):
+			re_run_sim_dict[count] = file_path
+			count += 1
+
+	re_run_loc = []
+	if re_run_sim_dict:
+		for i in re_run_sim_dict:
+			re_run_loc.append(re_run_sim_dict[i])
+
+	# --------------------------------------------------
+	# Re-run failed simulations
+	# --------------------------------------------------
+	if len(re_run_loc) != 0:
+		print("#############______________________################\n")
+		print(
+			f"\t\tFor Case-{case}:\n"
+			f"\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} "
+			f"did not return expected results\n"
+			f"\t\tRe-running those simulations........\n\n\n"
+		)
+
+		W = Worker(100)
+
+		sorted_eta, sorted_ETA, sorted_Path = W.do_job_async(
+			re_run_loc,
+			t_list[case],
+			input_,
+			case
+		)
+
+		del W
+
+		print(
+			f"\t\tSimulations ended successfully\n\n"
+			f"#############______________________################\n"
+		)
+
+	# --------------------------------------------------
+	# Second pass: collect final results
+	# --------------------------------------------------
 	folderName = []
+
 	for i in data_loc:
 		pathList = i.split("/")
-		file_loc = open("./eta_file_location.txt","+a")
+		file_loc = open("./eta_file_location.txt", "+a")
+
 		start = pathList.index("case-{}".format(case))
-		#print(start)
-		#print(i[:-4]+"output/")
-		#print(t_list[case])
-		#print(data_loc.index(i))
-		#print(i)
-		
-		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-4]+"/output/",data_loc.index(i))
-		#print(eta,file_path)
-		#print(file_path,eta)
-		#eta = np.exp(eta)/10
-		if "N/A" in str(eta):
-			#print(eta)
-			#print(file_path)
-			file_loc.write(file_path+"\n")
-			folderName.append(pathList[start+1])
-			fN = pathList[start+1]
-			#print(folderName)
-			#print(eta)
-			failed_sim += "{}\t{}\n".format(fN , ETA_)
+
+		eta_, ETA_, file_path = extract_output(
+			t_list[case],
+			fuel,
+			i[:-4] + "/output/",
+			data_loc.index(i),
+			input_=input_,
+			caseID=case
+		)
+
+		if "N/A" in str(eta_):
+			file_loc.write(file_path + "\n")
+
+			folderName.append(pathList[start + 1])
+			fN = pathList[start + 1]
+
+			failed_sim += "{}\t{}\n".format(fN, ETA_)
 			file_loc.close()
-			
-		else:	
-			#print(eta)
-			#print(file_path)
-			file_loc.write(file_path+"\n")
-			folderName.append(pathList[start+1])
-			fN = pathList[start+1]
-			#print(folderName)
-			#print(eta)
-			data += "{}\t{}\n".format(fN , ETA_)
+
+		else:
+			file_loc.write(file_path + "\n")
+
+			folderName.append(pathList[start + 1])
+			fN = pathList[start + 1]
+
+			data += "{}\t{}\n".format(fN, ETA_)
 			file_loc.close()
+
 			ETA.append(ETA_)
 			eta.append(eta_)
-	return data,failed_sim,folderName,ETA,eta
+
+	return data, failed_sim, folderName, ETA, eta
 	
 	
-def generate_target_value_tables(locations, t_list, case, fuel):
+def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 	list_fuel = []
+	optInputs = input_
 	if "dict" in str(type(fuel)):
 		for i in fuel:
 			list_fuel.append(fuel[i])
@@ -162,22 +431,43 @@ def generate_target_value_tables(locations, t_list, case, fuel):
 	data =''
 	failed_sim = ""
 	ETA = []
+	eta = []
+	re_run_sim_dict = {}
+	count = 0
+	for i in data_loc:
+		eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)		
+		if "N/A" in str(eta_):
+			re_run_sim_dict[count] = file_path
+			count+=1
+	
+	re_run_loc = []
+	if re_run_sim_dict != {}:
+		for i in re_run_sim_dict:
+			re_run_loc.append(re_run_sim_dict[i])
+	
+	if len(re_run_loc)!=0:
+		print("#############______________________################\n")
+		print(f"\t\tFor Case-{case}:\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not returned expected results\n\t\tRe-running those simulations........\n\n\n")
+		W = Worker(100)
+		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(re_run_loc,t_list[case],optInputs,case)
+		del W
+		print(f"\t\tSimulations ended successfully\n\n#############______________________################\n")
+		#raise AssertionError("Stop!")
 	for i in data_loc:
 		pathList = i.split("/")
 		file_loc = open("./eta_file_location.txt","+a")
 		start = pathList.index("case-{}".format(case))
 
-		eta,ETA_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i))
-		#eta = np.exp(eta)/10
-		#print(eta,file_path)
-		if "N/A" in str(eta):
+		#print(i)
+		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)
+		if "N/A" in str(eta_):
 			#print(eta)
 			#print(file_path)
 			file_loc.write(file_path+"\n")
 			folderName = pathList[start+1]
 			#print(folderName)
 			#print(eta)
-			failed_sim += "{}\t{}\n".format(folderName , eta)
+			failed_sim += "{}\t{}\n".format(folderName , eta_)
 			file_loc.close()
 			
 		else:	
@@ -187,10 +477,12 @@ def generate_target_value_tables(locations, t_list, case, fuel):
 			folderName = pathList[start+1]
 			#print(folderName)
 			#print(eta)
-			data += "{}\t{}\n".format(folderName , eta)
+			data += "{}\t{}\n".format(folderName , eta_)
 			file_loc.close()
 			ETA.append(ETA_)
-	return data,failed_sim,ETA
+			eta.append(eta_)
+	return data,failed_sim,eta
+
 
 def extract_direct_simulation_values(case,loc,target_list,fuel):
 	data =''
@@ -215,13 +507,14 @@ def extract_direct_simulation_values(case,loc,target_list,fuel):
 		eta_list.append(float(eta))
 	return eta_list
 
+
 #function extracts output from the given text file based on the called location where it currently is. Called in the previous function.		
-def extract_output(case,fuel,path,index):
-	
-	eta = string = None
+def extract_output(case,fuel,path,index,input_=None,caseID=None):
+	eta = string = ETA = None
 	#print(case.target)
 	if case.target.strip() == "RCM":
 		if "cantera" in case.add["solver"]:
+			string = path +"RCM.out"
 			if "RCM.out" in os.listdir(path):
 				out_file = open(path+"RCM.out",'r').readlines()
 				string = path +"RCM.out"
@@ -239,8 +532,11 @@ def extract_output(case,fuel,path,index):
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
+		
 		elif "CHEMKIN_PRO" in case.add["solver"]:
+			#print("True")
+			#print(path)
+			#print(os.listdir(path))
 			if "RCM.out" in os.listdir(path):
 				out_file = open(path+"RCM.out",'r').readlines()
 				string = path +"RCM.out"
@@ -254,12 +550,13 @@ def extract_output(case,fuel,path,index):
 				else:
 					eta = np.log(100*10000)
 					ETA = 100*10000
-				
 			else:
 				eta = "N/A"
 				ETA = eta
 				string = path+"RCM.out"
+				
 	elif case.target.strip() == "JSR":
+		string = path +"jsr.out"
 		if "cantera" in case.add["solver"]:
 			if "jsr.out" in os.listdir(path):
 				out_file = open(path+"jsr.out",'r').readlines()
@@ -269,18 +566,19 @@ def extract_output(case,fuel,path,index):
 				#print(len(line))
 				#print(line)
 				if len(line) == 2:
-					eta = np.exp(np.exp(float(line[1])))
+					eta = np.log(float(line[1])*10)
 					ETA = float(line[1]) 	#us/micro seconds
 				else:
-					eta = 100
+					eta = np.log(100*10000)
 					ETA = 100
 				
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
+				string = path+"jsr.out"
 	
 	elif case.target.strip() == "Tig":
+		string = path +"tau.out"
 		if "cantera" in case.add["solver"]:
 			if "tau.out" in os.listdir(path):
 				out_file = open(path+"tau.out",'r').readlines()
@@ -295,12 +593,18 @@ def extract_output(case,fuel,path,index):
 				else:
 					eta = np.log(100*10000)
 					ETA = 100*10000
-				
+			
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
+				string = path+"tau.out"
+		
+		
 		elif "CHEMKIN_PRO" in case.add["solver"]:
+			string = path +"tau.out"
+			#print("True")
+			#print(path)
+			#print(os.listdir(path))
 			if "tau.out" in os.listdir(path):
 				out_file = open(path+"tau.out",'r').readlines()
 				string = path +"tau.out"
@@ -314,11 +618,12 @@ def extract_output(case,fuel,path,index):
 				else:
 					eta = np.log(100*10000)
 					ETA = 100*10000
-				
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
+				string = path+"tau.out"
+		
+		
 		else:
 			#print("Tig is the target and FlameMaster is the solver")
 			
@@ -448,7 +753,7 @@ def extract_output(case,fuel,path,index):
 		if "cantera" in case.add["solver"]:
 			out_file = open(path+"flf.out",'r').readlines()
 			string = path +"flf.out"
-			line = out_file[1].split("    ")
+			line = out_file[1].split("	")
 			#print(line)
 			if len(line) == 2:
 				eta = float(line[1])
@@ -514,9 +819,7 @@ def extract_output(case,fuel,path,index):
 				else:
 					eta = 100
 #			
-	return eta,ETA,string			
-				
-
+	return eta,ETA,string	
 #Generate an optimized mechanism based on the optimized vector. 
 def generate_optimized_mechanism(mech_file_location, reaction_index, unsrt_data, opt_x):
 	mech_file = open(mech_file_location,'r')

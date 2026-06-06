@@ -265,7 +265,7 @@ class DesignMatrix(object):
 		if cache_file not in os.listdir():
 			print(f"\nGenerating partial class-A curves (n={n_a} per rxn) ...")
 			a_curves = self.getClassA_Curves_partial_SA(n_a, rxn_param_indices, rng, perturb_fact=perturb_fact)
-			raise AssertionError("Stop!")
+			#raise AssertionError("Stop!")
 			with open(cache_file, 'wb') as fh:
 				pickle.dump(a_curves, fh)
 		else:
@@ -1019,3 +1019,4 @@ class Worker():
 		self.pool.join()
 		self.pool.terminate()
 		return self.parallized_zeta, self.generator
+

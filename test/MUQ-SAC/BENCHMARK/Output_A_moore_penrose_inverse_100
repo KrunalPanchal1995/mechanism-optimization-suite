@@ -1,0 +1,52 @@
+(base) krithika@krithika:~/mechanism-optimization-suite/test/MUQ-SAC/BENCHMARK$ python3.9 Generate_Class_A_curves.py 
+[+] Loading YAML mechanism: n-Heptane/n_heptane_159.yaml
+    1534 reactions found in YAML
+[+] Parsing XML: n-Heptane/n_Heptane_HTC_factor.xml
+    18 reactions found in XML
+
+=================================================================
+  Reaction: nc7h16 + ho2 => c7h15-2 + h2o2:N/A
+=================================================================
+  Computing L_full for: nc7h16 + ho2 => c7h15-2 + h2o2
+    L_full diag: [ 1.2905  0.0762 17.9405]  (0.97s)
+    m=1  [A]  ...  100/100 samples  0.0071s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/A/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/A/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/A/delta_kappa.pdf
+    m=1  [n]  ...  100/100 samples  0.0049s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/n/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/n/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/n/delta_kappa.pdf
+    m=1  [Ea]  ...  100/100 samples  0.0065s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/Ea/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/Ea/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m1/Ea/delta_kappa.pdf
+    m=2  [A, n]  ...  100/100 samples  0.0061s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_n/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_n/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_n/delta_kappa.pdf
+    m=2  [A, Ea]  ...  100/100 samples  0.0064s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_Ea/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_Ea/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/A_Ea/delta_kappa.pdf
+    m=2  [n, Ea]  ...  100/100 samples  0.0060s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/n_Ea/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/n_Ea/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m2/n_Ea/delta_kappa.pdf
+    m=3  [A, n, Ea]  ...  100/100 samples  0.0049s
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m3/A_n_Ea/curves.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m3/A_n_Ea/curves_plain.pdf
+      Plot saved → Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/m3/A_n_Ea/delta_kappa.pdf
+    Wrote Output_A_moore_pe/nc7h16_p_ho2_c7h15-2_p_h2o2/info.json
+
+    ── Timing summary for nc7h16_p_ho2_c7h15-2_p_h2o2 ──
+    Config          m  Indices       Generated   Time (s)
+    ----------------------------------------------------
+    A               1  (0)                 100     0.0071s
+    n               1  (1)                 100     0.0049s
+    Ea              1  (2)                 100     0.0065s
+    A_n             2  (0,1)               100     0.0061s
+    A_Ea            2  (0,2)               100     0.0064s
+    n_Ea            2  (1,2)               100     0.0060s
+    A_n_Ea          3  (0,1,2)             100     0.0049s
+

@@ -777,9 +777,9 @@ def main():
     import sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # ── Configuration ─────────────────────────────────────────────────────
-    XML_PATH   = "MB_R_ALL_ECM_2025.xml"
-    YAML_PATH  = "MB_MB2D_LALIT_2024.yaml"   # set to None to skip nominal params
-    OUTPUT_DIR = Path("output_A_100")
+    XML_PATH   = "n-Heptane/n_Heptane_HTC_factor.xml"
+    YAML_PATH  = "n-Heptane/n_heptane_159.yaml"   # set to None to skip nominal params
+    OUTPUT_DIR = Path("Output_A_moore_penrose_inverse_100")
     N_SAMP     = N_SAMPLES
     SEED       = RANDOM_SEED
 

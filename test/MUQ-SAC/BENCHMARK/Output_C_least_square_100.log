@@ -1,0 +1,49 @@
+[+] Loading YAML: n-Heptane/n_heptane_159.yaml
+    1534 reactions found
+[+] Parsing XML: n-Heptane/n_Heptane_HTC_factor.xml
+    18 reactions found
+
+[+] Class-C method : least_squares
+[+] Available methods: ['original_m3', 'original_m2', 'least_squares']
+
+=================================================================
+  Reaction: nc7h16 + h => c7h15-3 + h2:N/A
+=================================================================
+  Computing L_full for: nc7h16 + h => c7h15-3 + h2
+    L_full diag: [ 1.2905  0.0762 17.9405]  (0.99s)
+    m=2  [A, n]  method=least_squares  ...
+      100/100 samples  0.02s
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_n/curves.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_n/curves_plain.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_n/delta_kappa.pdf
+    m=2  [A, Ea]  method=least_squares  ...
+      100/100 samples  0.02s
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_Ea/curves.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_Ea/curves_plain.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/A_Ea/delta_kappa.pdf
+    m=2  [n, Ea]  method=least_squares  ...
+      100/100 samples  0.02s
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/n_Ea/curves.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/n_Ea/curves_plain.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m2/n_Ea/delta_kappa.pdf
+    m=3  [A, n, Ea]  method=least_squares  ...
+      100/100 samples  0.02s
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/curves.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/curves_plain.pdf
+      Plot saved → Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/m3/A_n_Ea/delta_kappa.pdf
+    Wrote Output_C_least_squares_100/nc7h16_p_h_c7h15-3_p_h2/info.json
+
+    ── Timing summary for nc7h16_p_h_c7h15-3_p_h2 ──
+    Config          m  Indices       Generated   Time (s)
+    -------------------------------------------------------
+    A_n             2  (0,1)               100       0.02s
+    A_Ea            2  (0,2)               100       0.02s
+    n_Ea            2  (1,2)               100       0.02s
+    A_n_Ea          3  (0,1,2)             100       0.02s
+
+Traceback (most recent call last):
+  File "/home/krithika/mechanism-optimization-suite/test/MUQ-SAC/BENCHMARK/Generate_Class_C_curves.py", line 1530, in <module>
+    main()
+  File "/home/krithika/mechanism-optimization-suite/test/MUQ-SAC/BENCHMARK/Generate_Class_C_curves.py", line 1523, in main
+    raise AssertionError("Debug stop after first reaction")  # remove to process all
+AssertionError: Debug stop after first reaction

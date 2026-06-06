@@ -408,9 +408,7 @@ M_CONFIGS = [
 ]
 """
 M_CONFIGS = [
-    (2, "A_n",    (0, 1)),
-    (2, "A_Ea",   (0, 2)),
-    (2, "n_Ea",   (1, 2)),
+    (3, "A_n_Ea", (0, 1, 2))
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -587,6 +585,82 @@ def _determine_constraint_signs(kleft_factor, kright_factor):
 # SECTION 5 ─ ORIGINAL CLASS-B SAMPLERS (readable names, adapted from benchmark.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _build_bound_constraints(temperatures, uncertainties, dk_z_at_T,
+                              n_bound_pts: int = 20):
+    """
+    Return a list of SLSQP 'ineq' dicts enforcing
+        |Δκ(Tᵢ)| ≤ |uncertainties[i]|  for a downsampled temperature grid.
+
+    Two constraints per grid point:
+        uᵢ - Δκ(Tᵢ) ≥ 0   (upper bound)
+        uᵢ + Δκ(Tᵢ) ≥ 0   (lower bound)
+
+    Parameters
+    ----------
+    temperatures  : (N,) array of temperatures [K]
+    uncertainties : (N,) per-temperature uncertainty magnitudes
+    dk_z_at_T     : callable (T, z) → float  (Δκ at a single temperature)
+    n_bound_pts   : number of grid points to sample (default 20)
+
+    Returns
+    -------
+    bound_cons : list of constraint dicts
+    """
+    stride = max(1, len(temperatures) // n_bound_pts)
+    T_grid = temperatures[::stride]
+    u_grid = np.abs(uncertainties[::stride])
+
+    bound_cons = []
+    for Ti, ui in zip(T_grid, u_grid):
+        Ti, ui = float(Ti), float(ui)
+        bound_cons.append({
+            'type': 'ineq',
+            'fun': lambda z, Ti=Ti, ui=ui:  ui - dk_z_at_T(Ti, z[:3])  # upper
+        })
+        bound_cons.append({
+            'type': 'ineq',
+            'fun': lambda z, Ti=Ti, ui=ui:  ui + dk_z_at_T(Ti, z[:3])  # lower
+        })
+    return bound_cons
+
+
+def _enforce_uncertainty_bounds(zr, L, temperatures, uncertainties):
+    """
+    Post-processing safety net: radially scale zr so that
+        |θ(T) @ L @ zr| ≤ |uncertainty(T)|  for ALL T in the array.
+
+    Radial scaling preserves curve shape and the C1/C3 anchor ratios
+    (since both zr and r·dk_unc scale together).
+
+    Parameters
+    ----------
+    zr            : (3,) optimised zeta vector
+    L             : (3,3) lower-triangular Cholesky factor (L_full)
+    temperatures  : (N,) temperature array [K]
+    uncertainties : (N,) per-temperature uncertainty magnitudes
+
+    Returns
+    -------
+    zr_clipped : (3,) scaled zeta (direction preserved, magnitude reduced if needed)
+    max_ratio  : float — peak |Δκ| / uncertainty ratio before scaling
+                 (> 1.0 flags a violation was detected and corrected)
+    """
+    Theta = np.column_stack([                           # shape (N, 3)
+        np.ones_like(temperatures),
+        np.log(temperatures),
+        -1.0 / temperatures
+    ])
+    dk_vals   = Theta @ (L @ zr)                        # shape (N,)
+    u_vals    = np.abs(uncertainties)
+    ratios    = np.abs(dk_vals) / (u_vals + 1e-14)      # guard div-by-zero
+    max_ratio = float(np.max(ratios))
+
+    if max_ratio > 1.0:
+        zr = zr / max_ratio
+
+    return zr, max_ratio
+
+
 def generate_class_B_original_full_parameters(
         nominal, temperatures, L_full, uncertainties, indices, sub_dir,
         n_samples, rng):
@@ -597,14 +671,23 @@ def generate_class_B_original_full_parameters(
     Constraints C1–C4 are enforced on the full-space Δκ using L_full.
     SHGO is used as the primary solver; SLSQP is the fallback.
 
-    This is the method published in the MUQ-SAC paper.
+    Uncertainty bounds are enforced at two levels:
+      Layer 1 (optimizer)       — inequality constraints |Δκ(Tᵢ)| ≤ uᵢ on a
+                                  20-point temperature grid, active during SHGO/SLSQP.
+      Layer 2 (post-processing) — radial scaling of zr if any residual violation
+                                  survives after _enforce_dn_constraint.
+
+    This is the method published in the MUQ-SAC paper, extended with bound
+    enforcement.
 
     Parameters
     ----------
+    nominal       : (3,) nominal log-rate Arrhenius parameter vector
     temperatures  : (N,) array of temperatures in K
     L_full        : (3, 3) lower-triangular Cholesky factor from MUQ
     uncertainties : (N,) array of uncertainty values
     indices       : must be (0, 1, 2) for this method
+    sub_dir       : Path object for animation output (currently commented out)
     n_samples     : number of samples to generate
     rng           : numpy Generator for random r1, r2 draws
 
@@ -612,12 +695,12 @@ def generate_class_B_original_full_parameters(
     -------
     zeta_list : list of zeta_r arrays, each shape (3,)
     """
-    T_min   = float(temperatures[0])
-    T_max   = float(temperatures[-1])
-    L       = L_full
+    T_min    = float(temperatures[0])
+    T_max    = float(temperatures[-1])
+    L        = L_full
     zeta_unc = _compute_uncorrelated_direction(L, temperatures, uncertainties)
 
-    # Helper closures – rate curve values and derivatives
+    # ── helper closures: rate curve values and derivatives ────────────────
     def dk_unc_at_T(Tv):
         return float(theta_full(np.array([Tv]))[:, 0] @ L @ zeta_unc)
 
@@ -638,10 +721,10 @@ def generate_class_B_original_full_parameters(
                           -1.0 / temperatures])
         QtLZ  = np.array([th @ L @ z[:3] for th in Theta.T])
         obj   = float(np.dot(uncertainties - QtLZ, uncertainties - QtLZ))
-        viz.record(z[:3], obj, L, (0, 1, 2))   # ← only new line
+        viz.record(z[:3], obj, L, (0, 1, 2))
         return obj
 
-    # Nominal curve — full 3-param theta
+    # ── nominal curve (full 3-param theta) ────────────────────────────────
     Theta_full = np.array([temperatures / temperatures,
                            np.log(temperatures),
                            -1.0 / temperatures])
@@ -655,21 +738,28 @@ def generate_class_B_original_full_parameters(
         T_max         = T_max,
         ftol          = 1e-6,
     )
-    
+
+    # ── Layer 1: build bound-inequality constraints (computed once) ────────
+    # These enforce |Δκ(Tᵢ)| ≤ uᵢ on a 20-point grid inside the optimizer.
+    bound_constraints = _build_bound_constraints(
+        temperatures, uncertainties, dk_z_at_T, n_bound_pts=20
+    )
+
     zeta_list = []
     for _ in range(n_samples):
         r1 = float(rng.uniform(-1.0, 1.0))
         r2 = float(rng.uniform(-1.0, 1.0))
         sign_C2, sign_C4, kmiddle = _determine_constraint_signs(r1, r2)
 
-        # re-set per-sample anchor points
-        _dk_min        = dk_unc_at_T(T_min)       # note: dk_unc_at_T not dk_unc_S_at_T
+        # ── per-sample anchor points ───────────────────────────────────────
+        _dk_min        = dk_unc_at_T(T_min)
         _dk_max        = dk_unc_at_T(T_max)
         idx_min        = int(np.argmin(np.abs(temperatures - T_min)))
         idx_max        = int(np.argmin(np.abs(temperatures - T_max)))
-        viz.anchor_min = (1.0/T_min, QtPo[idx_min] + r1 * _dk_min)
-        viz.anchor_max = (1.0/T_max, QtPo[idx_max] + r2 * _dk_max)
+        viz.anchor_min = (1.0 / T_min, QtPo[idx_min] + r1 * _dk_min)
+        viz.anchor_max = (1.0 / T_max, QtPo[idx_max] + r2 * _dk_max)
 
+        # ── equality constraints C1–C4 ────────────────────────────────────
         def c1(z): return r1 * dk_unc_at_T(T_min) - dk_z_at_T(T_min, z[:3])
         def c3(z): return r2 * dk_unc_at_T(T_max) - dk_z_at_T(T_max, z[:3])
         def c2(z):
@@ -679,26 +769,30 @@ def generate_class_B_original_full_parameters(
             Tu = float(np.clip(z[-1], T_min + 1, T_max - 1))
             return sign_C4 * kmiddle * ddk_unc_at_T(Tu) - ddk_z_at_T(Tu, z[:3])
 
-        constraints = [{'type': 'eq', 'fun': c1},
-                       {'type': 'eq', 'fun': c2},
-                       {'type': 'eq', 'fun': c3},
-                       {'type': 'eq', 'fun': c4}]
-        bounds = [(-10000, 10000)] * 3 + [(200, 3500)]
+        # ── full constraint list: C1–C4 + bound inequalities ──────────────
+        constraints = [
+            {'type': 'eq', 'fun': c1},
+            {'type': 'eq', 'fun': c2},
+            {'type': 'eq', 'fun': c3},
+            {'type': 'eq', 'fun': c4},
+        ] + bound_constraints                          # ← Layer 1 appended
+
+        bounds = [(-1000, 1000)] * 3 + [(200, 3500)]
         x0     = np.array([10, 10, 100, (T_min + T_max) / 2])
 
         t_sample = time.perf_counter()
         try:
             sol = shgo(mismatch_objective, bounds,
-                       constraints=constraints,n=64, iters=1,
-                        sampling_method='sobol',
-                        minimizer_kwargs={
-                            "method": "SLSQP",
-                            "options": {
-                                "maxiter": 50,     # default is 15000 — massively reduce
-                                "ftol": 1e-7,      # loosen slightly from default 1e-12
-                                "maxfun": 100,     # cap f-evals per local run
-                            }
-                        })
+                       constraints=constraints, n=128, iters=2,
+                       sampling_method='sobol',
+                       minimizer_kwargs={
+                           "method": "SLSQP",
+                           "options": {
+                               "maxiter": 50,
+                               "ftol":    1e-7,
+                               "maxfun":  100,
+                           }
+                       })
             zr = sol.x[:3]
         except Exception:
             try:
@@ -708,18 +802,35 @@ def generate_class_B_original_full_parameters(
                 zr = sol.x[:3]
             except Exception:
                 zr = x0[:3]
+
         elapsed = time.perf_counter() - t_sample
         if elapsed > ORIG_TIME_CAP_S:
-            print(f"      [!] original_m3 sample took {elapsed:.1f}s (cap={ORIG_TIME_CAP_S}s)")
-        zeta_list.append(_enforce_dn_constraint(np.asarray(zr), L_full, (0, 1, 2)))
-        
-        saved_path = viz.build_and_save(
-            filename  = f"classB_orig_sample_{_:03d}.mp4",
-            sample_id = _,
-            folder    = str(sub_dir)
+            print(f"      [!] original_m3 sample took {elapsed:.1f}s "
+                  f"(cap={ORIG_TIME_CAP_S}s)")
+
+        # ── _enforce_dn_constraint (existing, preserves ||zeta|| norm) ────
+        zr_dn = _enforce_dn_constraint(np.asarray(zr), L_full, (0, 1, 2))
+
+        # ── Layer 2: post-processing bound safety net ─────────────────────
+        # Radially scales zr_dn if any temperature point still violates
+        # |Δκ(T)| ≤ uncertainty(T) after the optimizer + dn constraint.
+        zr_final, max_ratio = _enforce_uncertainty_bounds(
+            zr_dn, L_full, temperatures, uncertainties
         )
-        if saved_path:
-            speed_up_animation(saved_path, speedup=10)
+        if max_ratio > 1.0:
+            print(f"      [!] sample {_:03d}: residual bound violation "
+                  f"ratio = {max_ratio:.4f} — scaled down in post-processing.")
+
+        zeta_list.append(zr_final)
+
+        # saved_path = viz.build_and_save(
+        #     filename  = f"classB_orig_sample_{_:03d}.mp4",
+        #     sample_id = _,
+        #     folder    = str(sub_dir)
+        # )
+        # if saved_path:
+        #     speed_up_animation(saved_path, speedup=10)
+
     return zeta_list
 
 
@@ -1516,10 +1627,10 @@ def main():
     import sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # ── Configuration ─────────────────────────────────────────────────────
-    XML_PATH   = "MB_R_ALL_ECM_2025.xml"
-    YAML_PATH  = "MB_MB2D_LALIT_2024.yaml"   # optional; None to skip
-    OUTPUT_DIR = Path("output_B_m2_original_100")
-    METHOD     = "original_m2"     # "original_m3" / "original_m2" or any
+    XML_PATH   = "n-Heptane/n_Heptane_HTC_factor.xml"
+    YAML_PATH  = "n-Heptane/n_heptane_159.yaml"   # set to None to skip nominal params
+    OUTPUT_DIR = Path("Output_B_m3_Original_100")
+    METHOD     = "original_m3"     # "original_m3" / "original_m2" or any
                                     # registered key in CLASS_B_METHOD_REGISTRY
                                     # m2_no_c2_adhoc_dn
                                     # m2_with_c2_adhoc_dn

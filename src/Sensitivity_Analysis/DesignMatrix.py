@@ -130,13 +130,13 @@ class DesignMatrix(object):
 	
 	def getSA_samples(self,factor):
 		design_matrix = []
-		design_matrix.extend(list(float(factor)*np.eye(self.rxn_len)))
+		design_matrix.extend(list(float(factor)*np.eye(self.n)))
 		return np.asarray(design_matrix)
 	
 	def getNominal_samples(self):
 		design_matrix = []
-		design_matrix.append(list(np.zeros(self.rxn_len)))
-		return design_matrix
+		design_matrix.append(list(np.zeros(self.n)))
+		return	design_matrix
 	
 	# ── NEW: partial-parameter curve generators ────────────────────────────
 
@@ -246,88 +246,94 @@ class DesignMatrix(object):
 		return curves
 
 	# ── END NEW partial generators ─────────────────────────────────────────
-	def getSA_3P_samples(self, selected_params, param_type="A", perturb_fact=0.1):
+	def getSA_3P_samples(self, selected_params, param_type="A",perturb_fact=0.1):
 		tic = time.time()
 		n_a = 1
 		rxn_param_indices = self._get_rxn_param_indices(selected_params)
-		rng = np.random.default_rng()
+
 		# ── Class-A (partial) ─────────────────────────────────────────
-		cache_file = f'a_type_samples_partial_{param_type}.pkl'          # ← consistent name
-		if cache_file not in os.listdir():
+		if "a_type_samples_partial.pkl" not in os.listdir(cache_dir):
 			print(f"\nGenerating partial class-A curves (n={n_a} per rxn) ...")
-			a_curves = self.getClassA_Curves_partial(n_a, rxn_param_indices, rng, perturb_fact=perturb_fact)
-			with open(cache_file, 'wb') as fh:
+			a_curves = self.getClassA_Curves_partial(n_a, rxn_param_indices, rng, perturb_fact = perturb_fact)
+			with open(f'a_type_samples_partial_' + param_type + '.pkl', 'wb') as fh:
 				pickle.dump(a_curves, fh)
 		else:
-			with open(cache_file, 'rb') as fh:
+			with open(f'a_type_samples_partial_' + param_type + '.pkl', 'rb') as fh:
 				a_curves = pickle.load(fh)
 			print("\nPartial class-A curves loaded from cache")
 
-		# ── Populate V_ — always force shape (n_a, slen) ──────────────
+		# ── Populate V_ ───────────────────────────────────────────────
 		V_ = {}
 		for rxn in tqdm(self.unsrt, desc="Populating V_ (partial)"):
-			arr = np.atleast_2d(np.asarray(a_curves.get(rxn, [])))
-			V_[rxn] = arr                           # shape: (n_a, slen)
+			a_p = list(a_curves.get(rxn, []))
+			V_[rxn] = np.asarray(a_p)   # shape: (n_a, m_rxn)
 
-		rxn_list = list(self.unsrt)
-		N_rxns   = len(rxn_list)
-
-		# ── Sample lengths and column offsets ─────────────────────────
-		sample_len = {rxn: V_[rxn].shape[1] for rxn in rxn_list}
+		# ── Compute column offsets for each reaction ───────────────────
+		rxn_list   = list(self.unsrt)
+		N_rxns     = len(rxn_list)
+		total_params = sum(len(rxn_param_indices[rxn]) for rxn in rxn_list)
 
 		col_offset = {}
 		offset = 0
 		for rxn in rxn_list:
 			col_offset[rxn] = offset
-			offset += sample_len[rxn]
-		total_params = offset
+			offset += len(rxn_param_indices[rxn])
 
 		# ── Build diagonal design matrix ───────────────────────────────
+		# Shape: (N_rxns, total_params)
+		# Row i: zeros everywhere except at column block i → a_type sample of rxn i
 		design_matrix    = np.zeros((N_rxns, total_params))
-		selection_matrix = np.zeros((N_rxns, total_params))
+		selection_matrix = np.zeros((N_rxns, total_params))   # all 1.0 (full)
+		p_design_matrix  = np.zeros((N_rxns, int(np.sum(selected_params))))
+		p_selection_matrix = np.zeros((N_rxns, total_params)) # 1.0 only for selected
+
+		p_col = 0   # running index into the compressed (selected-only) columns
 
 		for i, rxn in enumerate(rxn_list):
-			start  = col_offset[rxn]
-			slen   = sample_len[rxn]
-			sample = V_[rxn][0]
-			design_matrix[i,    start:start + slen] = sample
-			selection_matrix[i, start:start + slen] = 1.0
+			start = col_offset[rxn]
+			m     = len(rxn_param_indices[rxn])
+			end   = start + m
+
+			sample = V_[rxn][0]   # shape (m,), n_a=1 so index 0
+			design_matrix[i, start:end] = sample
+			selection_matrix[i, start:end] = 1.0
 
 		# ── Build p_design_matrix and p_selection_matrix ──────────────
-		selected_global_cols  = [idx for idx, flag in enumerate(selected_params) if flag == 1]
-		selected_set          = set(selected_global_cols)
-		compressed_idx_lookup = {g: ci for ci, g in enumerate(selected_global_cols)}
+		# p_design_matrix  : only selected columns, diagonal layout
+		# p_selection_matrix: full width, 1.0 only where selected AND on diagonal block
 
-		p_design_matrix    = np.zeros((N_rxns, len(selected_global_cols)))
+		# Determine which global column indices are selected
+		selected_global_cols = [idx for idx, flag in enumerate(selected_params) if flag == 1]
+		selected_set         = set(selected_global_cols)
+
+		p_design_matrix   = np.zeros((N_rxns, len(selected_global_cols)))
 		p_selection_matrix = np.zeros((N_rxns, total_params))
 
 		for i, rxn in enumerate(rxn_list):
 			start  = col_offset[rxn]
-			slen   = sample_len[rxn]
+			m      = len(rxn_param_indices[rxn])
+			end    = start + m
 			sample = V_[rxn][0]
 
-			for local_j in range(slen):
-				global_j = start + local_j          # ← KEY FIX: global col = offset + local position
+			for local_j, global_j in enumerate(range(start, end)):
 				if global_j in selected_set:
-					compressed_j = compressed_idx_lookup[global_j]
-					p_design_matrix[i,    compressed_j] = sample[local_j]
+					compressed_j = selected_global_cols.index(global_j)
+					p_design_matrix[i, compressed_j]    = sample[local_j]
 					p_selection_matrix[i, global_j]     = 1.0
 
 		tok = time.time()
-		print(f"\nTime to build diagonal A1 DM : {tok - tic:.1f} s")
-		print(f"  design_matrix shape         : {design_matrix.shape}")
-		print(f"  p_design_matrix shape       : {p_design_matrix.shape}")
+		print(f"\nTime to build diagonal A1 DM: {tok - tic:.1f} s")
 
 		# ── Write CSV files ────────────────────────────────────────────
 		def matrix_to_csv(mat):
 			return "\n".join(",".join(f"{v}" for v in row) for row in mat) + "\n"
 
-		open(f'DesignMatrix_{param_type}.csv',      'w').write(matrix_to_csv(design_matrix))
-		open(f'pDesignMatrix_{param_type}.csv',     'w').write(matrix_to_csv(p_design_matrix))
-		open(f'pSelectionMatrix_{param_type}.csv',  'w').write(matrix_to_csv(p_selection_matrix))
-		open(f'SelectionMatrix_{param_type}.csv',   'w').write(matrix_to_csv(selection_matrix))
+		open(f'DesignMatrix_{param_type}.csv',     'w').write(matrix_to_csv(design_matrix))
+		open(f'pDesignMatrix_{param_type}.csv',    'w').write(matrix_to_csv(p_design_matrix))
+		open(f'pSelectionMatrix_{param_type}.csv', 'w').write(matrix_to_csv(p_selection_matrix))
+		open(f'SelectionMatrix_{param_type}.csv',  'w').write(matrix_to_csv(selection_matrix))
 
-		return selection_matrix, p_design_matrix
+		return selection_matrix,p_design_matrix
 				
 	def getSample_partial(self,case_index,selected_params):	
 		print("\nStarting to generate partial-design matrix!!\n")

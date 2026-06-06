@@ -1882,7 +1882,7 @@ ct.Wall(r, env, velocity=VolumeProfile(keywords));
 
 reactorNetwork = ct.ReactorNet([r])
 
-reactorNetwork.max_time_step = 0.0001
+#reactorNetwork.max_time_step = 0.0001
 
 stateVariableNames = [r.component_name(item) for item in range(r.n_vars)]
 timeHistory = pd.DataFrame(columns=stateVariableNames)
@@ -2008,7 +2008,7 @@ else:
 gas.TPX = reactorTemperature, reactorPressure,{species_conc}
 r = ct.IdealGasReactor(contents=gas, name="Batch Reactor")
 reactorNetwork = ct.ReactorNet([r])
-reactorNetwork.max_time_step = 0.0001
+#reactorNetwork.max_time_step = 0.0001
 stateVariableNames = [r.component_name(item) for item in range(r.n_vars)]
 timeHistory = pd.DataFrame(columns=stateVariableNames)
 #index_a = stateVariableNames.index("{delay_def}")

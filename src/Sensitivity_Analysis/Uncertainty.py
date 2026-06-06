@@ -1115,10 +1115,10 @@ class UncertaintyExtractor(object):
 		Class-A for any m: pseudo-inverse LS fit to ±α_s · f_prior,S.
 		Returns list of n_samples ζ_r arrays (length m each).
 		"""
-		fp     = self._psac_fp_S_vec(T_arr, L_r, indices)
-		print(fp)
+		#fp     = self._psac_fp_S_vec(T_arr, L_r, indices)
+		#print(fp)
 		fp     = self.get_psacUncertFunc()
-		print(fp)
+		#print(fp)
 		thS    = np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
 		A_pinv = np.linalg.pinv(thS @ L_r)                                   # (m,N)
 		out    = []
@@ -1395,7 +1395,7 @@ class UncertaintyExtractor(object):
 			rng = np.random.default_rng()
 		_, L_r  = self.get_reduced_cholesky(param_indices)
 		zr_list = self._psac_class_A_SA(self.temperatures, L_r, param_indices, rng, n_samples,perturb_factor=perturb_fact)
-		print(zr_list)
+		#print(zr_list)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
 	def getClassB_partial(self, param_indices, n_samples, rng=None):

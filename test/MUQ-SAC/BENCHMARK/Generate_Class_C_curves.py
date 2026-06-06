@@ -387,7 +387,8 @@ class ClassCSearchViz:
 
         # ── save ──────────────────────────────────────────────────────
         try:
-            writer = animation.FFMpegWriter(fps=15, bitrate=2400)
+            writer = animation.FFMpegWriter(fps=15, codec = "mpeg4", bitrate=2400)
+            
             ani.save(filename, writer=writer, dpi=120)
             print(f"      [viz] saved → {filename}")
             saved_path = filename
@@ -607,9 +608,14 @@ def generate_class_C_curves(
     inv_T     = 1.0 / temperatures
     inv_T_min = 1.0 / T_max    # note: T_max → smallest 1/T
     inv_T_max = 1.0 / T_min    # note: T_min → largest 1/T
+    thfull	   = theta_full(T_arr)		   # (3, N)
+    LT_th		   = L_full.T @ thfull				 # (3, N)
+    f_prior_vals  = np.linalg.norm(LT_th, axis=0)	 # (N,)
+    fp_Tmin	   = f_prior_vals[0]
+    fp_Tmax	   = f_prior_vals[-1]
 
-    fp_Tmin = float(f_prior_S(np.array([T_min]), L_r, indices)[0])
-    fp_Tmax = float(f_prior_S(np.array([T_max]), L_r, indices)[0])
+    #fp_Tmin = float(f_prior_S(np.array([T_min]), L_r, indices)[0])
+    #fp_Tmax = float(f_prior_S(np.array([T_max]), L_r, indices)[0])
 
     # Pre-compute pinv once — reused for every attempt
     thS    = theta_S(temperatures, indices)   # (m, N)
@@ -678,6 +684,7 @@ def generate_class_C_curves(
         zeta_list.append(zeta_r)
         ramp_targets.append(fc.copy())
         # ── save per-sample animation ─────────────────────────────────
+        """
         saved_path = viz.build_and_save(
             filename  = f"classC_ls_sample_{sample_idx:03d}.mp4",
             sample_id = sample_idx,
@@ -686,7 +693,7 @@ def generate_class_C_curves(
         if saved_path:
             speed_up_animation(saved_path, speedup=10)
         sample_idx += 1
-
+		"""
     return zeta_list, ramp_targets
 
 
@@ -1228,10 +1235,10 @@ def plot_delta_kappa_standalone(sub_dir, T, L_r, indices, zeta_list,
                 label='Samples' if i == 0 else None)
 
     # Ramp targets f_c(T)
-    if ramp_targets is not None:
-        for i, fc in enumerate(ramp_targets):
-            ax.plot(inv_T, fc, color='darkorange', lw=1.3, ls='--', alpha=0.5,
-                    label='Ramp $f_c$' if i == 0 else None)
+    #if ramp_targets is not None:
+    #    for i, fc in enumerate(ramp_targets):
+    #        ax.plot(inv_T, fc, color='darkorange', lw=1.3, ls='--', alpha=0.5,
+    #                label='Ramp $f_c$' if i == 0 else None)
 
     # ±f_prior_S envelope
     ax.fill_between(inv_T, -fp_S, fp_S, alpha=0.10, color='dimgrey')
@@ -1477,9 +1484,9 @@ def main():
     import sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # ── Configuration ─────────────────────────────────────────────────────
-    XML_PATH   = "MB_R_ALL_ECM_2025.xml"
-    YAML_PATH  = "MB_MB2D_LALIT_2024.yaml"   # optional; None to skip
-    OUTPUT_DIR = Path("output_C_least_squares_100")  # root for all reaction subfolders
+    XML_PATH   = "n-Heptane/n_Heptane_HTC_factor.xml"
+    YAML_PATH  = "n-Heptane/n_heptane_159.yaml"   # set to None to skip nominal params   # optional; None to skip
+    OUTPUT_DIR = Path("Output_C_least_squares_100")  # root for all reaction subfolders
     METHOD     = "least_squares"     # dispatcher auto-selects original_m2/m3
                                     # or pass any registered key
                                     # least_squares

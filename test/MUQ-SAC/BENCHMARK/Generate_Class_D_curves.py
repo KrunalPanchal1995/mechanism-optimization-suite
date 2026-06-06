@@ -427,6 +427,10 @@ def theta_S(T, indices):
     """Reduced basis Θ_S(T) of shape (m, N)."""
     return theta_full(T)[list(indices), :]
 
+def f_prior(T, L_full):
+    """f_prior_S(T) = ‖L_r^T Θ_S(T)‖₂ for each T in array."""
+    thS = theta_full(T)
+    return np.array([np.linalg.norm(L_full.T @ col) for col in thS.T])
 
 def f_prior_full(T, L_full):
     """f_prior(T) = ‖L^T θ(T)‖₂ for each T (uses full L)."""
@@ -587,7 +591,86 @@ def _determine_constraint_signs(kleft_factor, kright_factor):
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 5 ─ ORIGINAL Class-D SAMPLERS (readable names, adapted from benchmark.py)
 # ─────────────────────────────────────────────────────────────────────────────
+def generate_class_D_matrix(
+        nominal, temperatures, L_full, uncertainties,
+        indices, sub_dir, n_samples, rng):
 
+    if len(indices) != 2:
+        raise ValueError(
+            "Matrix form of Class-D is only valid "
+            "for m=2 subsets."
+        )
+
+    idx = list(indices)
+
+    # L_r via get_reduced_L (confirmed correct)
+    _, _, L_r = get_reduced_L(L_full, idx)   # (m, m)
+
+    T_min = float(temperatures[0])
+    T_max = float(temperatures[-1])
+
+    # f_prior from full L at all temperatures
+    thfull       = theta_full(temperatures)           # (3, N)
+    LT_th        = L_full.T @ thfull                 # (3, N)
+    f_prior_vals = np.linalg.norm(LT_th, axis=0)     # (N,)
+    fp_min       = f_prior_vals[0]
+    fp_max       = f_prior_vals[-1]
+
+    # Reduced theta at endpoints — extract rows manually
+    thfull_min = theta_full(np.array([T_min]))[:, 0]  # (3,)
+    thfull_max = theta_full(np.array([T_max]))[:, 0]  # (3,)
+    thS_min    = thfull_min[idx]                       # (m,)
+    thS_max    = thfull_max[idx]                       # (m,)
+
+    # Build M (2x2) — computed once
+    M = np.stack([
+        thS_min @ L_r,    # (m,) @ (m,m) = (m,)
+        thS_max @ L_r     # (m,) @ (m,m) = (m,)
+    ], axis=0)             # (2, m) = (2, 2)
+
+    if abs(np.linalg.det(M)) < 1e-12:
+        raise ValueError(
+            f"M is singular for indices={indices}."
+        )
+
+    M_inv = np.linalg.inv(M)              # (2, 2), once
+
+    zeta_list = []
+    for k in range(n_samples):
+        accepted = False
+        for attempt in range(200):
+            r1 = float(rng.uniform(-1.0, 1.0))
+            r2 = float(rng.uniform(-1.0, 1.0))
+
+            d      = np.array([r1 * fp_min,
+                               r2 * fp_max])
+            zeta_r = M_inv @ d                 # (2,)
+
+            dk = delta_kappa(
+                temperatures, L_r, zeta_r, indices
+            )
+
+            if np.all(
+                np.abs(dk) <= f_prior_vals + 1e-10
+            ):
+                accepted = True
+                break
+
+        if not accepted:
+            print(
+                f"  [!] Sample {k}: validation failed "
+                f"after 200 attempts for "
+                f"indices={indices}."
+            )
+
+        zeta_list.append(
+            _enforce_dn_constraint(
+                np.asarray(zeta_r), L_r, indices
+            )
+        )
+
+    return zeta_list
+    
 def generate_class_D_original_full_parameters(
         nominal, temperatures, L_full, uncertainties, indices, sub_dir,
         n_samples, rng):
@@ -709,7 +792,7 @@ def generate_class_D_original_full_parameters(
                 zr = x0[:3]
         elapsed = time.perf_counter() - t_sample
         if elapsed > ORIG_TIME_CAP_S:
-            print(f"      [!] original_m3 sample took {elapsed:.1f}s (cap={ORIG_TIME_CAP_S}s)")
+            print(f"      [!] original_m3 sample took {elapsed:.4f}s (cap={ORIG_TIME_CAP_S}s)")
         zeta_list.append(_enforce_dn_constraint(np.asarray(zr), L_full, (0, 1, 2)))
         
         #saved_path = viz.build_and_save(
@@ -874,7 +957,7 @@ def generate_class_D_original_reduced_parameters(
                 zr = x0[:2]
         elapsed = time.perf_counter() - t_sample
         if elapsed > ORIG_TIME_CAP_S:
-            print(f"      [!] original_m2 sample took {elapsed:.1f}s (cap={ORIG_TIME_CAP_S}s)")
+            print(f"      [!] original_m2 sample took {elapsed:.4f}s (cap={ORIG_TIME_CAP_S}s)")
         zeta_list.append(np.asarray(zr))            # C5 now enforced inside optimizer
         
         #saved_path = viz.build_and_save(
@@ -956,6 +1039,7 @@ CLASS_D_METHOD_REGISTRY = {
     # ── Published methods ──────────────────────────────────────────────────
     "original_m3": generate_class_D_original_full_parameters,
     "original_m2": generate_class_D_original_reduced_parameters,
+    "matrix": generate_class_D_matrix,
 
     # ── Add faster / analytical methods below as they are developed ───────
     
@@ -1180,15 +1264,18 @@ def plot_curves_plain_blue(sub_dir, T, L_r, indices, zeta_list,
     plt.close(fig)
     print(f"      Plot saved → {pdf_path}")
 
-def plot_delta_kappa_standalone(sub_dir, T, L_r, indices, zeta_list,
-                                 rxn_eq, m_level, folder, curve_class="A",
-                                 ramp_targets=None):
+def plot_delta_kappa_standalone(sub_dir, T, L_full, L_r, indices, zeta_list,
+                                 rxn_eq, m_level, folder, curve_class="A"):
     """Save a full-width Δκ vs 1000/T plot as delta_kappa.pdf."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     if not zeta_list:
         return
 
     inv_T  = 1000.0 / T
-    fp_S   = f_prior_S(T, L_r, indices)
+    fp_S   = f_prior(T, L_full)
     dk_all = np.vstack([delta_kappa(T, L_r, zr, indices) for zr in zeta_list])
 
     param_label = ", ".join(PARAM_NAMES[i] for i in indices)
@@ -1200,28 +1287,18 @@ def plot_delta_kappa_standalone(sub_dir, T, L_r, indices, zeta_list,
     #    fontsize=9
     #)
 
-    # Sampled Δκ curves — red
-    for i, dk in enumerate(dk_all):
-        ax.plot(inv_T, dk, color='red', alpha=0.5, linewidth=1.2,
-                label='Samples' if i == 0 else None)
+    for dk in dk_all:
+        ax.plot(inv_T, dk, color="red", alpha=0.35, linewidth=1.1)
 
-    # Ramp targets f_c(T)
-    if ramp_targets is not None:
-        for i, fc in enumerate(ramp_targets):
-            ax.plot(inv_T, fc, color='darkorange', lw=1.3, ls='--', alpha=0.5,
-                    label='Ramp $f_c$' if i == 0 else None)
-
-    # ±f_prior_S envelope
-    ax.fill_between(inv_T, -fp_S, fp_S, alpha=0.10, color='dimgrey')
-    ax.plot(inv_T,  fp_S, color='dimgrey', lw=1.4, ls='--',
-            label=r'$\pm f_{\mathrm{prior},S}$')
-    ax.plot(inv_T, -fp_S, color='dimgrey', lw=1.4, ls='--')
-    ax.axhline(0, color='black', lw=0.6, ls=':')
+    ax.plot(inv_T,  fp_S, color="black", lw=1.4, ls="--",
+            label=r"$\pm f_{\mathrm{prior},S}$")
+    ax.plot(inv_T, -fp_S, color="black", lw=1.4, ls="--")
+    ax.axhline(0, color="black", lw=0.6, ls=":")
 
     ax.set_xlabel(r"$1000/T$  (K$^{-1}$)", fontsize=11)
     ax.set_ylabel(r"$\Delta\kappa_S(T)$", fontsize=11)
     #ax.set_title(r"Perturbation curves $\Delta\kappa_S(T)$", fontsize=10)
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=11)
     ax.grid(True, alpha=0.25)
 
     plt.tight_layout()
@@ -1229,6 +1306,7 @@ def plot_delta_kappa_standalone(sub_dir, T, L_r, indices, zeta_list,
     fig.savefig(pdf_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"      Plot saved → {pdf_path}")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 7 ─ PARSING HELPERS  (ported verbatim from benchmark.py)
@@ -1438,7 +1516,7 @@ def process_reaction(rxn_tag, rxn_data, output_root, method,
             zeta_list = []
         wall_time   = time.perf_counter() - t_start
         n_generated = len(zeta_list)
-        print(f"  {n_generated}/{n_samples} samples  {wall_time:.2f}s")
+        print(f"  {n_generated}/{n_samples} samples  {wall_time:.4f}s")
 
         if n_generated > 0:
             np.save(sub_dir / "zeta_samples.npy", np.vstack(zeta_list))
@@ -1464,9 +1542,9 @@ def process_reaction(rxn_tag, rxn_data, output_root, method,
                 uncertainties=uncertainties, nominal=nominal, ramp_targets=None
             )
             plot_delta_kappa_standalone(
-                sub_dir, T, L_r, indices, zeta_list,
-                rxn_eq=rxn_eq, m_level=m_level, folder=folder, curve_class="D",
-                ramp_targets=None
+                sub_dir, T, L_full, L_r, indices, zeta_list,
+                rxn_eq=rxn_eq, m_level=m_level,
+                folder=folder, curve_class="A"   # ← "B" or "C"
             )
 
         config_records.append({
@@ -1486,7 +1564,7 @@ def process_reaction(rxn_tag, rxn_data, output_root, method,
     for rec in config_records:
         idx_str = "(" + ",".join(str(i) for i in rec["indices"]) + ")"
         print(f"    {rec['folder']:<14} {rec['m']:>2}  {idx_str:<12} "
-              f"{rec['n_generated']:>10}  {rec['wall_time_s']:>9.2f}s")
+              f"{rec['n_generated']:>10}  {rec['wall_time_s']:>9.4f}s")
     print()
 
 
@@ -1498,10 +1576,10 @@ def main():
     import sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # ── Configuration ─────────────────────────────────────────────────────
-    XML_PATH   = "MB_R_ALL_ECM_2025.xml"
-    YAML_PATH  = "MB_MB2D_LALIT_2024.yaml"   # optional; None to skip
-    OUTPUT_DIR = Path("output_D_original_100")
-    METHOD     = "original_m2"     # "original_m3" / "original_m2" or any
+    XML_PATH   = "n-Heptane/n_Heptane_HTC_factor.xml"
+    YAML_PATH  = "n-Heptane/n_heptane_159.yaml"   # set to None to skip nominal params   # optional; None to skip
+    OUTPUT_DIR = Path("Output_D_matrix_100")
+    METHOD     = "matrix"     # "original_m3" / "original_m2" or any
                                     # registered key in CLASS_D_METHOD_REGISTRY
                                     # m2_no_c2_adhoc_dn
                                     # m2_with_c2_adhoc_dn

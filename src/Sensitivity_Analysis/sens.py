@@ -150,14 +150,14 @@ target_file.close()
 ###    Creating Design Matrix for    ####
 ###    sensitivity analysis          ####
 #########################################
-
+unsrt_data = []
 """
 For sensitivity analysis we create two design matrix
 	- for one, we multiply all reactions by a factor of 2
 	- for second, we devide all reactions by a factor of 0.5
 """
 if "DesignMatrix_x0_a_fact.csv" not in os.listdir():
-	design_matrix_x0 = DM.DesignMatrix(selected_reactions,design_type,len(reaction_dict)).getNominal_samples()
+	design_matrix_x0 = DM.DesignMatrix(unsrt_data,design_type,len(reaction_dict),ind=len(reaction_dict)).getNominal_samples()
 	s =""
 	for row in design_matrix_x0:
 		for element in row:
@@ -171,7 +171,7 @@ else:
 		design_matrix_x0.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
 		
 if "DesignMatrix_x2_a_fact.csv" not in os.listdir():
-	design_matrix_x2 = DM.DesignMatrix(selected_reactions,design_type,len(reaction_dict)).getSA_samples(np.log(2.0))
+	design_matrix_x2 = DM.DesignMatrix(unsrt_data,design_type,len(reaction_dict),ind=len(reaction_dict)).getSA_samples(np.log(2.0))
 	s =""
 	for row in design_matrix_x2:
 		for element in row:
@@ -280,7 +280,7 @@ for case in case_dir:
 	else:
 		os.chdir(SAdir)
 		os.chdir("nominal/case-"+str(case))	
-		data_sheet_x0,failed_sim_x0,index_x0, ETA_x0,eta_x0 = data_management.generate_SA_target_value_tables(FlameMaster_Execution_location_x0, target_list, case, fuel)
+		data_sheet_x0,failed_sim_x0,index_x0, ETA_x0,eta_x0 = data_management.generate_SA_target_value_tables(FlameMaster_Execution_location_x0, target_list, case, fuel,input_=optInputs)
 		#print(data_sheet)
 		#raise AssertionError("!STOP")
 		temp_sim_opt_x0[str(case)] = {}
@@ -311,7 +311,7 @@ for case in case_dir:
 	else:
 		os.chdir(SAdir)
 		os.chdir("multiply/case-"+str(case))	
-		data_sheet_x2,failed_sim_x2,index_x2, ETA_x2,eta_x2 = data_management.generate_SA_target_value_tables(FlameMaster_Execution_location_x2, target_list, case, fuel)
+		data_sheet_x2,failed_sim_x2,index_x2, ETA_x2,eta_x2 = data_management.generate_SA_target_value_tables(FlameMaster_Execution_location_x2, target_list, case, fuel,input_=optInputs)
 		#print(data_sheet)
 		#raise AssertionError("!STOP")
 		#print(ETA_x2)

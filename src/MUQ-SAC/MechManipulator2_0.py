@@ -59,22 +59,70 @@ class Manipulator:
 
 	def getRxnPerturbationDict(self):
 		"""
-		Split the flat perturbation and selection vectors into per-reaction dicts.
+		Split the perturbation and selection vectors into per-reaction dicts.
+
+		Handles two formats, auto-detected by len(perturbation):
+
+		Full-space format  (full PRS / A1+B1+C1, original behaviour)
+		─────────────────────────────────────────────────────────────
+		  len(perturbation) == sum(activeParameters per rxn)  (e.g. 3*N_rxns)
+		  perturbation and selection are consumed sequentially,
+		  n = len(activeParameters) elements per reaction.
+
+		Compressed-diagonal format  (SA mode, one value per reaction)
+		──────────────────────────────────────────────────────────────
+		  len(perturbation) == N_rxns
+		  selection has exactly 3 entries per reaction (pSelectionMatrix layout,
+		  length 3*N_rxns).
+		  For reaction j:
+		    sel_3 = selection[3j : 3j+3]  — which Arrhenius param is active
+		    [1,0,0] → A-factor   [0,1,0] → n   [0,0,1] → Ea/R
+		    [0,0,0] → inactive   → beta = zeros → _compute returns nominal
+		  perturbation[j] is the single zeta scalar placed at the active position.
 
 		Returns
 		-------
-		perturb     : dict  rxn → np.ndarray of zeta values for this reaction
-		select_dict : dict  rxn → np.ndarray of selection flags (0 or 1)
+		perturb     : dict  rxn → np.ndarray  zeta vector (length n_params)
+		select_dict : dict  rxn → np.ndarray  selection flags (length n_params)
 		"""
 		perturb     = {}
 		select_dict = {}
-		count       = 0
-		for rxn in self.rxn_list:
-			n = len(self.unsrt[rxn].activeParameters)
-			perturb[rxn]     = np.asarray(self.perturbation[count: count + n])
-			select_dict[rxn] = np.asarray(self.selection[count:   count + n],
-			                              dtype=float)
-			count += n
+		N_rxns = len(self.rxn_list)
+
+		if len(self.perturbation) == N_rxns:
+			# ── Compressed-diagonal format ─────────────────────────────────────
+			for j, rxn in enumerate(self.rxn_list):
+				n = len(self.unsrt[rxn].activeParameters)   # 1 or 3
+
+				# 3 selection flags for this reaction from pSelectionMatrix
+				sel_3 = np.asarray(self.selection[3*j : 3*j + 3], dtype=float)
+				sel_n = sel_3[:n]   # trimmed to n for _compute_perturbed_params
+
+				m = int(np.sum(sel_3 != 0.0))   # number of active params (0 or 1 for SA)
+				if m == 0:
+					# Inactive: zero beta + zero selection → _compute returns nominal
+					perturb[rxn]     = np.zeros(n)
+					select_dict[rxn] = np.zeros(n)
+				else:
+					# Active: place the single diagonal zeta at the selected position
+					beta_val  = float(self.perturbation[j])
+					beta_full = np.zeros(n)
+					for k in range(min(n, 3)):
+						if sel_3[k] != 0.0:
+							beta_full[k] = beta_val
+					perturb[rxn]     = beta_full
+					select_dict[rxn] = sel_n
+
+		else:
+			# ── Full-space format (original behaviour) ─────────────────────────
+			count = 0
+			for rxn in self.rxn_list:
+				n = len(self.unsrt[rxn].activeParameters)
+				perturb[rxn]     = np.asarray(self.perturbation[count: count + n])
+				select_dict[rxn] = np.asarray(self.selection[count:   count + n],
+				                              dtype=float)
+				count += n
+
 		return perturb, select_dict
 
 	def del_mech(self):

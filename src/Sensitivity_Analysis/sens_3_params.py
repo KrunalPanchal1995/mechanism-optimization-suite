@@ -205,90 +205,18 @@ g = open("selected_rxn.txt","+w").write(string_reaction)
 
 
 ######################################################################
-## Perturbing the reactions based on class of Arrhenius Curves      ##
-##													                ##
-######################################################################
-
-
-
-
-
-
-######################################################################
 ##  CREATING A DICTIONARY CONTAINING ALL THE DATA FROM UNSRT CLASS  ##
 ##													   ##
 ######################################################################
-manipulationDict = {}
-selection = []
-Cholesky_list = []
-zeta_list = []
-activeParameters = []
-P_nominal_list = []
-P_upper = []
-P_lower = []
-P_multiply_A = []
-P_multiply_n = []
-P_multiply_Ea = []
 rxn_list = []
-rIndex = []
-sigma_n = []
-sigma_Ea = []
-zeta_list_A = []
-zeta_list_B = []
-zeta_list_C = []
+activeParameters = []
 
-facto_a = 1.0
-facto_n = 1.0
-facto_ea = 1.0
-
-for rxn in unsrt_data:
-	activeParameters.extend(unsrt_data[rxn].activeParameters)
-ap = len(activeParameters)
-z_a = z_n = z_e = np.asarray([1,1,1])
-p_a = np.asarray([facto_a,0,0])
-p_n = np.asarray([0,facto_n,0])
-p_e = np.asarray([0,0,facto_ea])
-	
 for rxn in unsrt_data:
 	rxn_list.append(rxn)
-	selection.extend(unsrt_data[rxn].selection)
-	Cholesky_list.append(unsrt_data[rxn].cholskyDeCorrelateMat)
-	covariance_mat = np.dot(unsrt_data[rxn].L,unsrt_data[rxn].L.T)
-	sigma_vector = np.diag(covariance_mat)
-	cov = unsrt_data[rxn].L
-	zeta = np.asarray(unsrt_data[rxn].zeta.x)
-	Po = np.asarray(unsrt_data[rxn].nominal)
-	zeta_A = z_a*zeta
-	zeta_B = z_n*zeta
-	zeta_C = z_e*zeta
-	zeta_list_A.append(zeta_A)
-	zeta_list_B.append(zeta_B)
-	zeta_list_C.append(zeta_C)
-	P_upper.append(np.asarray(Po + np.array([1,1,1])*np.asarray(cov.dot(zeta)).flatten()))
-	P_lower.append(np.asarray(Po - np.array([1,1,1])*np.asarray(cov.dot(zeta)).flatten()))
-	P_multiply_A.append(np.asarray(Po + p_a*np.asarray(cov.dot(zeta_A)).flatten()))
-	P_multiply_n.append(np.asarray(Po + p_n*np.asarray(cov.dot(zeta_B)).flatten()))
-	P_multiply_Ea.append(np.asarray(Po + p_e*np.asarray(cov.dot(zeta_C)).flatten()))
-	sigma_n.append(sigma_vector[1])
-	sigma_Ea.append(sigma_vector[2])
-	zeta_list.append(unsrt_data[rxn].perturb_factor)
-	
-	#activeParameters.extend(unsrt_data[rxn].activeParameters)
-	P_nominal_list.append(unsrt_data[rxn].nominal)
-	rIndex.append(unsrt_data[rxn].rIndex)
-#print(zeta_list)
-#print(P_nominal_list[0],P_multiply_n[0])
-
+	activeParameters.extend(unsrt_data[rxn].activeParameters)
+ap = len(activeParameters)
+print("Active Parameters:", activeParameters)
 #raise AssertionError("Stop")
-
-manipulationDict["selection"] = deepcopy(selection)#.deepcopy()
-manipulationDict["Cholesky"] = deepcopy(Cholesky_list)#.deepcopy()
-manipulationDict["zeta"] = deepcopy(zeta_list)#.deepcopy()
-manipulationDict["activeParameters"] = deepcopy(activeParameters)#.deepcopy()
-manipulationDict["nominal"] = deepcopy(P_nominal_list)#.deepcopy()
-print("\nFollowing list is the choosen reactions\n")
-print(manipulationDict["activeParameters"])
-
 
 ############################################
 ### Plotting all the samples taken for    ##
@@ -333,6 +261,7 @@ select_param_a = np.asarray([1,0,0]*len(rxn_list))
 select_param_n = np.asarray([0,1,0]*len(rxn_list))
 select_param_ea = np.asarray([0,0,1]*len(rxn_list))
 perturb_fact = 0.1
+
 """
 For sensitivity analysis we create two design matrix
 	- for one, we multiply all reactions by a factor of 2
@@ -389,7 +318,7 @@ else:
 	for row in selection_matrix_file:
 		selection_matrix_n.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
 
-raise AssertionError("DesignMatrix and YAML files for 3-Parameter Bruteforce analysis are generated and stored in Perturbed_Mech_SA_3P_BruteForce folder!!\nPlease check the folder and run the program again to start the simulations!!\n")
+
 
 if "DesignMatrix_Ea.csv" not in os.listdir():
 	selection_matrix_Ea,design_matrix_Ea = DM.DesignMatrix(unsrt_data,design_type,len(reaction_dict)).getSA_3P_samples(select_param_ea,param_type="Ea",perturb_fact=perturb_fact)
@@ -408,6 +337,8 @@ else:
 		design_matrix_Ea.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
 	for row in selection_matrix_file:
 		selection_matrix_Ea.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
+		
+VA.DesignMatrixPlotter(unsrt_data).plot_dm_samples()
 
 ##############################################################################
 ## Extract delta_A, delta_n, delta_Ea from the SA Design Matrices           ##
@@ -416,16 +347,16 @@ else:
 ##                                                                          ##
 ## zr   — diagonal element of p_design_matrix (1×1 scalar):                ##
 ##         For reaction i, the (i,i) element of design_matrix_{A|n|Ea}      ##
-##         is the class-A ζ-component for that single parameter.            ##
-##         (The DM is diagonal: each row perturbs exactly one reaction.)    ##
+##         is the class-A ζ-component for that parameter.                   ##
+##         (The DM is diagonal because each row perturbs exactly one rxn.)  ##
 ##                                                                          ##
-## L_r  — reduced Cholesky from unsrt_data[rxn].get_reduced_cholesky():    ##
-##         Σ = L_full L_full^T  →  Σ_r = Σ[ix_(idx,idx)]  →  L_r=chol(Σ_r)##
-##         For m=1 (single param), L_r is (1×1) = sqrt(Σ[p,p]).            ##
-##         NEVER slice L_full columns directly.                             ##
+## L_r  — reduced Cholesky column for the selected parameter:               ##
+##         L_r_A  = cholskyDeCorrelateMat[:, 0]   (A-factor column)        ##
+##         L_r_n  = cholskyDeCorrelateMat[:, 1]   (n column)               ##
+##         L_r_Ea = cholskyDeCorrelateMat[:, 2]   (Ea column)              ##
+##         This projects the scalar zr back into full parameter space.      ##
 ##                                                                          ##
-## delta = L_r @ zr  (scalar for m=1: reduced-space perturbation)          ##
-##         Embedded back into full parameter space at the selected index.   ##
+## delta = L_r * zr  (shape (3,): [Δln(A), Δn, ΔEa/R])                    ##
 ##############################################################################
 
 design_matrix_A  = np.asarray(design_matrix_A,  dtype=float)
@@ -437,7 +368,7 @@ delta_dict = {}  # rxn → {zr_A, zr_n, zr_Ea, L_r_A, L_r_n, L_r_Ea,
 
 for i, rxn in enumerate(rxn_list):
     P_o = np.asarray(unsrt_data[rxn].nominal, dtype=float).flatten()   # (3,)
-
+    L = unsrt_data[rxn].cov
     # ── L_r via principal submatrix of Σ=LL^T, then re-Cholesky ─────────────
     # param index: 0=ln(A), 1=n, 2=Ea/R
     # Returns (Sigma_r, L_r); L_r is (1×1) for single-param selection.
@@ -470,6 +401,7 @@ for i, rxn in enumerate(rxn_list):
         "zr_n"    : float(zr_n.item()),
         "zr_Ea"   : float(zr_Ea.item()),
         # ── reduced Cholesky matrices (1×1 each) ──────────────────────────────
+        "L"	   : L,
         "L_r_A"   : L_r_A,
         "L_r_n"   : L_r_n,
         "L_r_Ea"  : L_r_Ea,
@@ -485,18 +417,18 @@ for i, rxn in enumerate(rxn_list):
     }
 
 print(f"\n[delta_dict] Deltas extracted for {len(delta_dict)} reactions.")
-_r = rxn_list[0]
+_r = rxn_list[1]
 print(f"  Sample reaction : {_r}")
 print(f"  P_o             : {delta_dict[_r]['P_o']}")
+print(f"  L               : {delta_dict[_r]['L']}")
 print(f"  L_r_A  (1×1)    : {delta_dict[_r]['L_r_A']}   zr_A  = {delta_dict[_r]['zr_A']:.6f}  →  delta_A  = {delta_dict[_r]['delta_A']:.6f}")
 print(f"  L_r_n  (1×1)    : {delta_dict[_r]['L_r_n']}   zr_n  = {delta_dict[_r]['zr_n']:.6f}  →  delta_n  = {delta_dict[_r]['delta_n']:.6f}")
 print(f"  L_r_Ea (1×1)    : {delta_dict[_r]['L_r_Ea']}  zr_Ea = {delta_dict[_r]['zr_Ea']:.6f}  →  delta_Ea = {delta_dict[_r]['delta_Ea']:.6f}")
-
+#raise AssertionError("Stop")
 #########################################
 ###   Generating YAML files for      ####
 ###    sensitivity analysis          ####
 #########################################
-raise AssertionError("DesignMatrix and YAML files for 3-Parameter Bruteforce analysis are generated and stored in Perturbed_Mech_SA_3P_BruteForce folder!!\nPlease check the folder and run the program again to start the simulations!!\n")
 
 yaml_loc_nominal = []
 yaml_loc_nominal.append(mech_file_location)
@@ -587,7 +519,20 @@ else:
 		location_mech_Ea.append(os.getcwd()+"/Perturbed_Mech_SA_3P_BruteForce/Ea")
 		yaml_loc_Ea.append(os.getcwd()+"/Perturbed_Mech_SA_3P_BruteForce/Ea/mechanism_"+str(i)+".yaml")
 
-raise AssertionError("DesignMatrix and YAML files for 3-Parameter Bruteforce analysis are generated and stored in Perturbed_Mech_SA_3P_BruteForce folder!!\nPlease check the folder and run the program again to start the simulations!!\n")
+
+#########################################
+###    Creating case dict		   ###
+#########################################
+yaml_loc_nominal_case = {}
+yaml_loc_A_case = {}
+yaml_loc_n_case = {}
+yaml_loc_Ea_case = {}
+
+for case in case_dir:
+	yaml_loc_nominal_case[case] = yaml_loc_nominal
+	yaml_loc_A_case[case] = yaml_loc_A
+	yaml_loc_n_case[case] = yaml_loc_n
+	yaml_loc_Ea_case[case] = yaml_loc_Ea				
 #########################################
 ###    Creating Simulation Field     ####
 #########################################
@@ -630,7 +575,7 @@ print("\n\t\t#####################################################\n\t\t#### Mul
 
 
 if os.path.isfile("progress") == False:
-	FlameMaster_Execution_location_A = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_A).make_dir_in_parallel(yaml_loc_A)
+	FlameMaster_Execution_location_A = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_A).make_dir_in_parallel(yaml_loc_A_case)
 	
 else:
 	print("\t\tProgress file detected")
@@ -651,7 +596,7 @@ print("\n\t\t#####################################################\n\t\t#### Mul
 
 
 if os.path.isfile("progress") == False:
-	FlameMaster_Execution_location_n = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_n).make_dir_in_parallel(yaml_loc_n)
+	FlameMaster_Execution_location_n = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_n).make_dir_in_parallel(yaml_loc_n_case)
 	
 else:
 	print("\t\tProgress file detected")
@@ -672,7 +617,7 @@ print("\n\t\t#####################################################\n\t\t#### Mul
 
 
 if os.path.isfile("progress") == False:
-	FlameMaster_Execution_location_Ea = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_Ea).make_dir_in_parallel(yaml_loc_Ea)
+	FlameMaster_Execution_location_Ea = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_Ea).make_dir_in_parallel(yaml_loc_Ea_case)
 	
 else:
 	print("\t\tProgress file detected")
@@ -693,7 +638,7 @@ SADir = os.getcwd()
 print("\n\t\t#############################\n\t\t#### Nominal simulations ###\n\t\t#############################")
 
 if os.path.isfile("progress") == False:
-	FlameMaster_Execution_location_x0 = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_x0_3P).make_dir_in_parallel(yaml_loc_nominal)
+	FlameMaster_Execution_location_x0 = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_x0_3P).make_dir_in_parallel(yaml_loc_nominal_case)
 	
 else:
 	print("\t\tProgress file detected")
@@ -938,6 +883,7 @@ def diagnose_rxn_case(rxn_index, case_index, case,
     report.append("=" * 70)
     print("\n".join(report))
     return all_ok
+    
 for case_index,case in enumerate(temp_sim_opt_A):		
 	rxn_Sa = {}
 	rxn_Sa_1 = {}
@@ -959,41 +905,11 @@ for case_index,case in enumerate(temp_sim_opt_A):
 	SA_coeff_without_k_perturbed = []
 	for rxn_index, rxn in enumerate(unsrt_data):
 		
-		"""
-		k_perturbed = getKappa(P_multiply_A[rxn_index])
-		k_o = getKappa(P_nominal_list[rxn_index])
-		normalized_A = np.asarray((k_o/(k_perturbed-k_o))).flatten()
-		fact_A = np.asarray((multiply_A[rxn_index] - nominal)/nominal).flatten()
-		#SA_coeff_A.append((k_o/(k_perturbed-k_o))*((multiply_A[rxn_index] - nominal)/nominal))
-		SA_coeff_A.append(np.asarray(max(list(normalized_A))*fact_A)[0])
-		SA_coeff_without_k_perturbed.append(np.asarray((multiply_A[rxn_index] - nominal)/nominal).flatten()[0])
+		#--------A------------------
+		delta_a = float(delta_dict[rxn]["delta_A"])
+		A_o = float(delta_dict[rxn]["P_o"][0])
 		
-		#Sensitivity analysis for n parameter
-		#T = target_list[case_index].temperature
-		k_perturbed = getKappa(P_multiply_n[rxn_index])
-		k_o = getKappa(P_nominal_list[rxn_index])
-		#print(len(k_o),len(k_perturbed),len(multiply_n))
-		#print(multiply_n)
-		fact_n = np.asarray(((multiply_n[rxn_index] - nominal)/nominal)).flatten()
-		normalized_n = np.asarray((k_o/(k_perturbed-k_o))).flatten()
-		print(normalized_n)
-		max_morm_n = max(list(normalized_n))
-		#SA_coeff_n.append((k_o/(k_perturbed-k_o))*((multiply_n[rxn_index] - nominal)/nominal))
-		SA_coeff_n.append(max_morm_n*fact_n[0])
-		#Sensitivity analysis for Ea parameter
-		#T = target_list[case_index].temperature
-		k_perturbed = getKappa(P_multiply_Ea[rxn_index])
-		k_o = getKappa(P_nominal_list[rxn_index])
-		fact_ea = np.asarray(((multiply_Ea[rxn_index] - nominal)/nominal)).flatten()
-		normalized_ea = np.asarray((k_o/(k_perturbed-k_o))).flatten()
-		max_morm_ea = max(list(normalized_ea))
-		#SA_coeff_Ea.append((k_o/(k_perturbed-k_o))*(multiply_Ea[rxn_index] - nominal)/nominal)
-		SA_coeff_Ea.append(max_morm_ea*fact_ea[0])
-		"""
-		
-		A_perturbed = np.exp(P_multiply_A[rxn_index][0])
-		A_o = np.exp(P_nominal_list[rxn_index][0])
-		normalized_A = (A_o/(A_perturbed-A_o))
+		normalized_A = (A_o/delta_a)
 		#print("multiply_A[rxn_index] = ", multiply_A[rxn_index], type(multiply_A[rxn_index]) )
 		#print("Nominal", nominal, type(nominal))
 		#raise AssertionError
@@ -1002,23 +918,26 @@ for case_index,case in enumerate(temp_sim_opt_A):
 		#SA_coeff_A.append((k_o/(k_perturbed-k_o))*((multiply_A[rxn_index] - nominal)/nominal))
 		SA_coeff_A.append(normalized_A*fact_A[0])
 		SA_coeff_without_k_perturbed.append(np.asarray((multiply_A[rxn_index] - nominal)/nominal).flatten()[0])
-		print(multiply_A[rxn_index])
+		#--------A------------------
 		#Sensitivity analysis for n parameter
-		#T = target_list[case_index].temperature
-		n_perturbed = P_multiply_n[rxn_index][1]
-		n_o = P_nominal_list[rxn_index][1]
-		#print(len(k_o),len(k_perturbed),len(multiply_n))
-		#print(multiply_n)
+		
+		
+		delta_n = float(delta_dict[rxn]["delta_n"])
+		n_o = float(delta_dict[rxn]["P_o"][1])
+		
 		fact_n = np.asarray(((multiply_n[rxn_index] - nominal)/nominal)).flatten()
-		normalized_n = (1/(n_perturbed-n_o))
+		normalized_n = (1/delta_n)
 		#SA_coeff_n.append((k_o/(k_perturbed-k_o))*((multiply_n[rxn_index] - nominal)/nominal))
 		SA_coeff_n.append(normalized_n*fact_n[0])
+		
+		#--------Ea------------------
 		#Sensitivity analysis for Ea parameter
-		#T = target_list[case_index].temperature
-		Ea_perturbed = P_multiply_Ea[rxn_index][2]
-		Ea_o = P_nominal_list[rxn_index][2]
+		
+		delta_Ea = float(delta_dict[rxn]["delta_Ea"])
+		Ea_o = float(delta_dict[rxn]["P_o"][2])
+		
 		fact_ea = np.asarray(((multiply_Ea[rxn_index] - nominal)/nominal)).flatten()
-		normalized_ea = Ea_o/(Ea_perturbed-Ea_o)
+		normalized_ea = Ea_o/delta_Ea
 		#SA_coeff_Ea.append((k_o/(k_perturbed-k_o))*(multiply_Ea[rxn_index] - nominal)/nominal)
 		SA_coeff_Ea.append(normalized_ea*fact_ea[0])
 	
