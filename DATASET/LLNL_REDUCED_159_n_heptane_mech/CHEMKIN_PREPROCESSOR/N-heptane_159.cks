@@ -1,0 +1,21 @@
+#
+#Thu May 28 19:15:00 IST 2026
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_CHEM_OUTPUT=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/N-heptane_159_gas.out
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_SURF_SPECIES=
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_SURF_OUTPUT=
+FIT_TRANSPORT_PROPERTIES=0
+IN_SURF_INPUT=
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_CHEM_ASC=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/N-heptane_159_gas.asc
+Chemistry\ Set\ Name=N-heptane_159
+IN_THERM_DB=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/thermo.dat
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_CHEM_SPECIES=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/N-heptane_159_gas.asu
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_TRAN_ASC=
+IN_LIQUID_DB=
+SYSTEM_FLAG=FALSE
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__Run_Result=PREPROCESS_OK_42
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_XML_PARAMETERS=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/N-heptane_159.xml
+IN_TRANS_DB=
+IN_CHEM_INPUT=/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech/n_heptane_159.inp
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_TRAN_OUTPUT=
+Chemistry\ Set\ Description=
+/home/krithika/MUQ-SAC/Database/LLNL_REDUCED_159_n_heptane_mech__OUT_SURF_ASC=

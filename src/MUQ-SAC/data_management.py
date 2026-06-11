@@ -11,6 +11,8 @@ from tqdm import tqdm
 import multiprocessing
 import sys
 import traceback
+from pathlib import Path
+
 class RunCmd(threading.Thread):
 	def __init__(self, cmd, timeout):
 		threading.Thread.__init__(self)
@@ -32,168 +34,175 @@ class RunCmd(threading.Thread):
 
 
 def run_sim(index, case, input_, caseID, path, total):
-    eta = "N/A"
-    ETA = "N/A"
-    
-    string = path
-    start = os.getcwd()
-    loc = "/".join(path.split("/")[:-1])
-    file_name = path.split("/")[-1]
-    try:
-        # -------------------------------
-        # Step 1: Change directory
-        # -------------------------------
-        try:
-            print(f"[INFO] Initial cwd: {start}")
-            print(f"[INFO] Target path: {loc}")
-            
-            #path:/data/SA_SRIVATSAV/LTC/Opt/case-44/2610/output/tau.out
-            os.chdir(loc)
-            os.chdir("..")
-            workdir = os.getcwd()
+	eta = "N/A"
+	ETA = "N/A"
+	
+	string = path
+	start = os.getcwd()
+	loc = "/".join(path.split("/")[:-1])
+	file_name = path.split("/")[-1]
+	try:
+		# -------------------------------
+		# Step 1: Change directory
+		# -------------------------------
+		try:
+			#print(f"[INFO] Initial cwd: {start}")
+			#print(f"[INFO] Target path: {loc}")
+			
+			#path:/data/SA_SRIVATSAV/LTC/Opt/case-44/2610/output/tau.out
+			os.chdir(loc)
+			os.chdir("..")
+			workdir = os.getcwd()
 
-            print(f"[INFO] Working directory changed to: {workdir}")
+			#print(f"[INFO] Working directory changed to: {workdir}")
 
-        except Exception as e:
-            print(f"[ERROR] Failed while changing directory to path={loc}")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+		except Exception as e:
+			print(f"[ERROR] Failed while changing directory to path={loc}")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        # -------------------------------
-        # Step 2: Build paths
-        # -------------------------------
-        try:
-            dir_name = path.split("/")[-3]
-            case_name = path.split("/")[-4]
+		# -------------------------------
+		# Step 2: Build paths
+		# -------------------------------
+		try:
+			dir_name = path.split("/")[-3]
+			case_name = path.split("/")[-4]
+			base_path = Path("/".join(path.split("/")[:-5]))
+			perturbed_path = base_path / "Perturbed_Mech"
+			fallback_path = base_path / "YAML_FILES_FOR_PARTIAL_PRS" /f"{caseID}"
+			
+			if perturbed_path.exists():
+				Perturbed_location = str(perturbed_path)
+			else:
+				Perturbed_location = str(fallback_path)
+			
+			run_cantera = os.path.join(workdir, "cantera_1.py")
 
-            Perturbed_location = "/".join(path.split("/")[:-5]) + "/Perturbed_Mech"
-            run_cantera = os.path.join(workdir, "cantera_1.py")
+			#print(f"[INFO] dir_name: {dir_name}")
+			#print(f"[INFO] case_name: {case_name}")
+			#print(f"[INFO] Perturbed_location: {Perturbed_location}")
+			#print(f"[INFO] run_cantera path: {run_cantera}")
 
-            print(f"[INFO] dir_name: {dir_name}")
-            print(f"[INFO] case_name: {case_name}")
-            print(f"[INFO] Perturbed_location: {Perturbed_location}")
-            print(f"[INFO] run_cantera path: {run_cantera}")
+		except Exception as e:
+			print("[ERROR] Failed while constructing paths")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        except Exception as e:
-            print("[ERROR] Failed while constructing paths")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+		# -------------------------------
+		# Step 3: Create cantera input string
+		# -------------------------------
+		try:
+			mech_path = f"{Perturbed_location}/mechanism_{dir_name}.yaml"
+			#print(f"[INFO] Mechanism file path: {mech_path}")
 
-        # -------------------------------
-        # Step 3: Create cantera input string
-        # -------------------------------
-        try:
-            mech_path = f"{Perturbed_location}/mechanism_{dir_name}.yaml"
-            print(f"[INFO] Mechanism file path: {mech_path}")
+			instring, a, b, c = MakeFile.create_input_file(
+				caseID,
+				input_,
+				case,
+				mech_file=mech_path
+			)
 
-            instring, a, b, c = MakeFile.create_input_file(
-                caseID,
-                input_,
-                case,
-                mech_file=mech_path
-            )
+			if not instring:
+				raise ValueError("MakeFile.create_input_file returned empty instring")
 
-            if not instring:
-                raise ValueError("MakeFile.create_input_file returned empty instring")
+			#print("[INFO] cantera input string created successfully")
 
-            print("[INFO] cantera input string created successfully")
+		except Exception as e:
+			print("[ERROR] Failed while creating cantera input file content")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        except Exception as e:
-            print("[ERROR] Failed while creating cantera input file content")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+		# -------------------------------
+		# Step 4: Write cantera_1.py
+		# -------------------------------
+		try:
+			with open(run_cantera, "w") as f:
+				f.write(instring)
 
-        # -------------------------------
-        # Step 4: Write cantera_1.py
-        # -------------------------------
-        try:
-            with open(run_cantera, "w") as f:
-                f.write(instring)
+			#print(f"[INFO] cantera_1.py written successfully at: {run_cantera}")
 
-            print(f"[INFO] cantera_1.py written successfully at: {run_cantera}")
+			if not os.path.exists(run_cantera):
+				raise FileNotFoundError(f"cantera_1.py was not created at {run_cantera}")
 
-            if not os.path.exists(run_cantera):
-                raise FileNotFoundError(f"cantera_1.py was not created at {run_cantera}")
+		except Exception as e:
+			print("[ERROR] Failed while writing cantera_1.py")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        except Exception as e:
-            print("[ERROR] Failed while writing cantera_1.py")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+		# -------------------------------
+		# Step 5: Run cantera_1.py
+		# -------------------------------
+		try:
+			solve_out = os.path.join(workdir, "solve_1.out")
+			#print(f"[INFO] Running cantera_1.py in {workdir}")
+			#print(f"[INFO] Output log: {solve_out}")
 
-        # -------------------------------
-        # Step 5: Run cantera_1.py
-        # -------------------------------
-        try:
-            solve_out = os.path.join(workdir, "solve_1.out")
-            print(f"[INFO] Running cantera_1.py in {workdir}")
-            print(f"[INFO] Output log: {solve_out}")
+			with open(solve_out, "w") as f:
+				result = subprocess.call(
+					["python3.9", run_cantera],
+					stdout=f,
+					stderr=subprocess.STDOUT
+				)
 
-            with open(solve_out, "w") as f:
-                result = subprocess.call(
-                    ["python3.9", run_cantera],
-                    stdout=f,
-                    stderr=subprocess.STDOUT
-                )
+			#print(f"[INFO] Subprocess return code: {result}")
 
-            print(f"[INFO] Subprocess return code: {result}")
+			if result != 0:
+				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}")
 
-            if result != 0:
-                print(f"[WARNING] cantera_1.py exited with non-zero code: {result}")
+		except Exception as e:
+			print("[ERROR] Failed while executing cantera_1.py")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        except Exception as e:
-            print("[ERROR] Failed while executing cantera_1.py")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+		# -------------------------------
+		# Step 6: Read tau.out
+		# -------------------------------
+		try:
+			tau_file = os.path.join(loc,file_name)
+			#print(f"[INFO] Looking for tau file at: {tau_file}")
 
-        # -------------------------------
-        # Step 6: Read tau.out
-        # -------------------------------
-        try:
-            tau_file = os.path.join(loc,file_name)
-            print(f"[INFO] Looking for tau file at: {tau_file}")
+			if not os.path.exists(tau_file):
+				raise FileNotFoundError(f"{file_name} not found at {tau_file}")
 
-            if not os.path.exists(tau_file):
-                raise FileNotFoundError(f"{file_name} not found at {tau_file}")
+			with open(tau_file, "r") as f:
+				out_file = f.readlines()
 
-            with open(tau_file, "r") as f:
-                out_file = f.readlines()
+			string = tau_file
 
-            string = tau_file
+			if len(out_file) < 2:
+				raise ValueError(f"{file_name} has insufficient lines: {len(out_file)}")
 
-            if len(out_file) < 2:
-                raise ValueError(f"{file_name} has insufficient lines: {len(out_file)}")
+			line = out_file[1].split()
+			#print(f"[INFO] Parsed tau.out line: {line}")
 
-            line = out_file[1].split()
-            print(f"[INFO] Parsed tau.out line: {line}")
+			if len(line) == 2:
+				eta = np.log(float(line[1]) * 10)
+				ETA = float(line[1])
+			else:
+				print("[WARNING] tau.out second line does not have 2 columns, using fallback values")
+				eta = np.log(100 * 10000)
+				ETA = 100 * 10000
 
-            if len(line) == 2:
-                eta = np.log(float(line[1]) * 10)
-                ETA = float(line[1])
-            else:
-                print("[WARNING] tau.out second line does not have 2 columns, using fallback values")
-                eta = np.log(100 * 10000)
-                ETA = 100 * 10000
+		except Exception as e:
+			print("[ERROR] Failed while reading/parsing tau.out")
+			print(f"[ERROR] Exception: {e}")
+			traceback.print_exc()
+			return (index, eta, ETA, string, total)
 
-        except Exception as e:
-            print("[ERROR] Failed while reading/parsing tau.out")
-            print(f"[ERROR] Exception: {e}")
-            traceback.print_exc()
-            return (index, eta, ETA, string, total)
+	finally:
+		try:
+			os.chdir(start)
+			#print(f"[INFO] Returned to original cwd: {start}")
+		except Exception as e:
+			print(f"[ERROR] Failed to return to original cwd: {start}")
+			print(f"[ERROR] Exception: {e}")
 
-    finally:
-        try:
-            os.chdir(start)
-            print(f"[INFO] Returned to original cwd: {start}")
-        except Exception as e:
-            print(f"[ERROR] Failed to return to original cwd: {start}")
-            print(f"[ERROR] Exception: {e}")
-
-    return (index, eta, ETA, string, total)
+	return (index, eta, ETA, string, total)
 
 class Worker():
 	def __init__(self, workers):
@@ -201,7 +210,7 @@ class Worker():
 		self.results = []
 		self.progress = []
 	def update_progress(self, total):
-        	update_progress(self.progress, total)	
+			update_progress(self.progress, total)	
 	def callback_run(self, result):
 		self.results.append(result)
 		self.progress.append(result[0])
@@ -279,69 +288,121 @@ def extract_index_and_uncertainty(uns):
 
 #Once the simulations are completed, this function goes through all the locations where FlameMaster simulation is performed and read the output value based on the type of target.
 #and print as a text file containg four columns. First three contain location information and last column contain  target value.
-def generate_SA_target_value_tables(locations, t_list, case, fuel):
-	#print(locations)
-	#print(os.getcwd())
-	#raise AssertionError("Generating PRS from the data available")
+def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 	list_fuel = []
+
 	if "dict" in str(type(fuel)):
 		for i in fuel:
 			list_fuel.append(fuel[i])
 		fuel = list_fuel[0]
-	
-	#print(fuel)
+
 	data_loc = []
 	for location in locations:
-		#print(location)
 		list_loc = location.split("/")
 		for i in list_loc:
-			if i == "case-"+str(case).strip():
+			if i == "case-" + str(case).strip():
 				data_loc.append(location.strip("\n"))
 
-	
-	data =''
+	data = ''
 	failed_sim = ""
 	ETA = []
 	eta = []
+
+	# --------------------------------------------------
+	# First pass: identify failed simulations
+	# --------------------------------------------------
+	re_run_sim_dict = {}
+	count = 0
+
+	for i in data_loc:
+		eta_, ETA_, file_path = extract_output(
+			t_list[case],
+			fuel,
+			i[:-4] + "/output/",
+			data_loc.index(i),
+			input_=input_,
+			caseID=case
+		)
+
+		if "N/A" in str(eta_):
+			re_run_sim_dict[count] = file_path
+			count += 1
+
+	re_run_loc = []
+	if re_run_sim_dict:
+		for i in re_run_sim_dict:
+			re_run_loc.append(re_run_sim_dict[i])
+
+	# --------------------------------------------------
+	# Re-run failed simulations
+	# --------------------------------------------------
+	if len(re_run_loc) != 0:
+		print("#############______________________################\n")
+		print(
+			f"\t\tFor Case-{case}:\n"
+			f"\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} "
+			f"did not return expected results\n"
+			f"\t\tRe-running those simulations........\n\n\n"
+		)
+
+		W = Worker(100)
+
+		sorted_eta, sorted_ETA, sorted_Path = W.do_job_async(
+			re_run_loc,
+			t_list[case],
+			input_,
+			case
+		)
+
+		del W
+
+		print(
+			f"\t\tSimulations ended successfully\n\n"
+			f"#############______________________################\n"
+		)
+
+	# --------------------------------------------------
+	# Second pass: collect final results
+	# --------------------------------------------------
 	folderName = []
+
 	for i in data_loc:
 		pathList = i.split("/")
-		file_loc = open("./eta_file_location.txt","+a")
+		file_loc = open("./eta_file_location.txt", "+a")
+
 		start = pathList.index("case-{}".format(case))
-		#print(start)
-		#print(i[:-4]+"output/")
-		#print(t_list[case])
-		#print(data_loc.index(i))
-		#print(i)
-		
-		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-4]+"/output/",data_loc.index(i))
-		#print(eta,file_path)
-		#print(file_path,eta)
-		#eta = np.exp(eta)/10
-		if "N/A" in str(eta):
-			#print(eta)
-			#print(file_path)
-			file_loc.write(file_path+"\n")
-			folderName.append(pathList[start+1])
-			fN = pathList[start+1]
-			#print(folderName)
-			#print(eta)
-			failed_sim += "{}\t{}\n".format(fN , ETA_)
+
+		eta_, ETA_, file_path = extract_output(
+			t_list[case],
+			fuel,
+			i[:-4] + "/output/",
+			data_loc.index(i),
+			input_=input_,
+			caseID=case
+		)
+
+		if "N/A" in str(eta_):
+			file_loc.write(file_path + "\n")
+
+			folderName.append(pathList[start + 1])
+			fN = pathList[start + 1]
+
+			failed_sim += "{}\t{}\n".format(fN, ETA_)
 			file_loc.close()
-			
-		else:	
-			#print(eta)
-			#print(file_path)
-			file_loc.write(file_path+"\n")
-			folderName.append(pathList[start+1])
-			fN = pathList[start+1]
-			#print(folderName)
-			#print(eta)
-			data += "{}\t{}\n".format(fN , ETA_)
+
+		else:
+			file_loc.write(file_path + "\n")
+
+			folderName.append(pathList[start + 1])
+			fN = pathList[start + 1]
+
+			data += "{}\t{}\n".format(fN, ETA_)
 			file_loc.close()
+
 			ETA.append(ETA_)
 			eta.append(eta_)
-	return data,failed_sim,folderName,ETA,eta
+
+	return data, failed_sim, folderName, ETA, eta
 	
 	
 def generate_target_value_tables(locations, t_list, case, fuel,input_={}):

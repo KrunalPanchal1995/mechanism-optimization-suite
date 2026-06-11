@@ -1,0 +1,9 @@
+/home/krithika/MUQ-SAC/V3.0/soln2ck_2.py:617: UserWarning: NasaPoly2::validate: 
+For species c7h15o-1, discontinuity in h/RT detected at Tmid = 1391
+	Value computed using low-temperature polynomial:  21.83428060093267
+	Value computed using high-temperature polynomial: 21.76699500201913
+
+  solution = ct.Solution(solution, phase_name)
+Output written to: 
+n_heptane_159.inp
+thermo.dat

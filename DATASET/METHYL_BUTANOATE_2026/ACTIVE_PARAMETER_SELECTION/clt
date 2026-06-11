@@ -1,0 +1,26 @@
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir METHYLBUTANOATE/ \
+    --mechanism MB_MB2D_LALIT_2024.yaml \
+    --threshold 0.05 \
+    --carbon 5 
+
+
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir METHYLBUTANOATE/ \
+    --mechanism MB_MB2D_LALIT_2024.yaml \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/METHYL_BUTANOATE_2026/ACTIVE_PARAMETER_SELECTION/results/master_active_reactions_CLASSIFIED.csv \
+    --generate-xml
+
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir METHYLBUTANOATE/ \
+    --mechanism MB_MB2D_LALIT_2024.yaml \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/METHYL_BUTANOATE_2026/ACTIVE_PARAMETER_SELECTION/results/master_active_reactions_CLASSIFIED.csv \
+    --generate-plots \
+    --compare-temperatures 698 908 1287
+    
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir METHYLBUTANOATE/ \
+    --mechanism MB_MB2D_LALIT_2024.yaml \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/METHYL_BUTANOATE_2026/ACTIVE_PARAMETER_SELECTION/results/master_active_reactions_CLASSIFIED.csv \
+    --fuel MB_MB2D_LALIT_2024 \
+    --generate-latex --longtable

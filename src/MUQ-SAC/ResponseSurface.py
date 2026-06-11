@@ -54,7 +54,7 @@ from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
 
 class ResponseSurface(object):
 	def __init__(self, xdata, ydata, case, case_index,
-	             responseOrder=2, selected_params=None, prs_type="Full"):
+	             responseOrder=2, selected_params=None, prs_type="Full", criteria = 2):
 		if prs_type == "Full":
 			self.selected_params = np.repeat(1, len(xdata[0]))
 		else:
@@ -73,7 +73,7 @@ class ResponseSurface(object):
 		self.n_full      = len(self.selected_params)
 		self.n_comp      = len(xdata[0])
 		self._active_idx = [i for i, s in enumerate(self.selected_params) if s == 1]
-
+		self.criteria    = criteria
 	# ═══════════════════════════════════════════════════════════════════════
 	# Space-bridging helpers
 	# ═══════════════════════════════════════════════════════════════════════
@@ -229,12 +229,12 @@ class ResponseSurface(object):
 		# BUG FIX: was max(signed), now max(|signed|)
 		self.ytestMaxError  = max(abs(e) for e in self.error_testing_relative)
 		self.yTestMeanError = statistics.mean(self.error_testing_relative)
-
-		if self.ytestMaxError > 6:
+		
+		if self.ytestMaxError > self.criteria:
 			self.selection = 0
 		else:
 			self.selection = 1
-
+		return self.MaxError, self.ytestMaxError, self.criteria
 	# ═══════════════════════════════════════════════════════════════════════
 	# FIXED: create_response_surface  (cache check)
 	# ═══════════════════════════════════════════════════════════════════════
@@ -301,10 +301,6 @@ class ResponseSurface(object):
 		self.MeanError = statistics.mean(self.relative_error)
 		del self.X
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# FIXED: MatPolyFitTransform  (order 3/4/5 index bug)
-	# ═══════════════════════════════════════════════════════════════════════
-
 	def MatPolyFitTransform(self):
 		"""
 		Build the polynomial feature B-matrix from COMPRESSED self.X.
@@ -317,14 +313,7 @@ class ResponseSurface(object):
 		    duplicate monomials and the wrong number of B-matrix columns.
 		    Example with row = [0.5, 0.3, 0.5]:
 		        Buggy:   21 order-3 terms  (duplicates because index(0.5) = 0 always)
-		        Correct: 10 order-3 terms  = C(3+3-1, 3) = C(5,3)
-
-		    Fix: all order-3/4/5 blocks use range-based index enumeration
-		    (ii, jj, kk, ... iterating with ii<=jj<=kk<=...) which is
-		    independent of element values.
-
-		Order-1 and order-2 are unchanged (order-2 already used enumerate
-		correctly with the index variable).
+		        Correct: 10 order-3 terms  = C(3+3-1, 3) = C(5,3).
 		"""
 		BTrsMatrix = []
 		for outer_row in self.X:

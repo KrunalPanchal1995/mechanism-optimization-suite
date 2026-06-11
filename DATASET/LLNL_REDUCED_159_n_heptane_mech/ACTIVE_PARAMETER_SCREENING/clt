@@ -1,0 +1,25 @@
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir SA_DATA/ \
+    --mechanism n_heptane_159.yaml \
+    --threshold 0.05 \
+    --carbon 4 \
+
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir SA_DATA/ \
+    --mechanism n_heptane_159.yaml \
+    --classification-file results_master_list/master_active_reactions_classified.csv \
+    --generate-xml
+
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir SA_DATA/ \
+    --mechanism n_heptane_159.yaml \
+    --classification-file results_master_list/master_active_reactions_classified.csv \
+    --generate-plots \
+    --compare-temperatures 680 900 1300
+    
+python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
+    --sens-dir SA_DATA/ \
+    --mechanism n_heptane_159.yaml \
+    --classification-file results_master_list/master_active_reactions_classified.csv \
+    --fuel nHeptane \
+    --generate-latex --longtable

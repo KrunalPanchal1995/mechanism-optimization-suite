@@ -204,7 +204,7 @@ class DesignMatrix(object):
 			generator = np.random.random_sample((n_b, 2))
 			data = self.unsrt[rxn].data
 			data["generators_b_partial"] = generator
-			data["param_indices"]        = idx
+			data["param_indices"]		= idx
 			callWorkForce = Worker(self.allowed_count)
 			ClassB_curves, _ = callWorkForce.do_unsrt_b_partial(data, n_b)
 			del callWorkForce
@@ -231,7 +231,7 @@ class DesignMatrix(object):
 			generator = np.random.random_sample((n_c, 2))
 			data = self.unsrt[rxn].data
 			data["generators_c_partial"] = generator
-			data["param_indices"]        = idx
+			data["param_indices"]		= idx
 			callWorkForce = Worker(self.allowed_count)
 			ClassC_curves, _ = callWorkForce.do_unsrt_c_partial(data, n_c)
 			del callWorkForce
@@ -253,38 +253,74 @@ class DesignMatrix(object):
 			curves[rxn] = self.unsrt[rxn].get_fsac_partial(idx, n_fsac, rng)
 		return curves
 
-	# ── END NEW partial generators ─────────────────────────────────────────
-	def getSA_3P_samples(self, selected_params, param_type="A", perturb_fact=0.1):
+
+	def getSA_3P_samples(self, selected_params, param_type="A",
+						 perturb_fact=0.1, sign=1):
+		"""
+		Build a diagonal SA design matrix for one Arrhenius parameter group.
+
+		Parameters
+		----------
+		selected_params : array-like, shape (3 * N_rxns,)
+			Binary mask; 1 flags the parameter positions to perturb.
+			e.g.  [1,0,0, 1,0,0, ...]  selects ln(A) for every reaction.
+		param_type : str
+			Label used in CSV filenames ('A', 'n', or 'Ea').
+		perturb_fact : float
+			Fractional perturbation magnitude passed to the Class-A generator.
+		sign : int  {+1, -1}
+			+1  →  positive perturbation  (MULTIPLY case, default behaviour).
+			-1  →  negative perturbation  (DIVIDE case, central-difference SA).
+
+			Because kinetic parameters live in log-space (P = [ln(A), n, Ea/R]),
+			negating the perturbation is exactly equivalent to dividing the
+			rate coefficient k by the same factor it was multiplied by.
+
+			The Class-A curves are cached with positive values; the sign is
+			applied only at design-matrix assembly time.  Both the multiply and
+			divide calls therefore share the same cache file.
+
+		Returns
+		-------
+		p_selection_matrix : ndarray, shape (N_rxns, total_params)
+		p_design_matrix	: ndarray, shape (N_rxns, len(selected_global_cols))
+		"""
 		tic = time.time()
 		n_a = 1
 		rxn_param_indices = self._get_rxn_param_indices(selected_params)
 		print(rxn_param_indices)
 		rng = np.random.default_rng()
-		# ── Class-A (partial) ─────────────────────────────────────────
-		cache_file = f'a_type_samples_partial_{param_type}.pkl'          # ← consistent name
+
+		# ── Class-A (partial) curves ──────────────────────────────────────
+		# Cache is shared between multiply and divide: raw positive samples
+		# are stored once; negation for sign=-1 is applied below.
+		cache_file = f'a_type_samples_partial_{param_type}.pkl'
 		if cache_file not in os.listdir():
-			print(f"\nGenerating partial class-A curves (n={n_a} per rxn) ...")
-			a_curves = self.getClassA_Curves_partial_SA(n_a, rxn_param_indices, rng, perturb_fact=perturb_fact)
-			#raise AssertionError("Stop!")
+			print(f"\nGenerating partial class-A curves "
+				  f"(n_a={n_a}, param={param_type}) ...")
+			a_curves = self.getClassA_Curves_partial_SA(
+				n_a, rxn_param_indices, rng, perturb_fact=perturb_fact
+			)
 			with open(cache_file, 'wb') as fh:
 				pickle.dump(a_curves, fh)
+			print(f"  Saved to '{cache_file}'.")
 		else:
 			with open(cache_file, 'rb') as fh:
 				a_curves = pickle.load(fh)
-			print("\nPartial class-A curves loaded from cache")
+			print(f"\nPartial class-A curves loaded from '{cache_file}'.")
 
-		# ── Populate V_ — always force shape (n_a, slen) ──────────────
+		# ── Populate V_ ──────────────────────────────────────────────────
 		V_ = {}
-		for rxn in tqdm(self.unsrt, desc="Populating V_ (partial)"):
-			arr = np.atleast_2d(np.asarray(a_curves.get(rxn, [])))
-			V_[rxn] = arr                           # shape: (n_a, slen)
+		for rxn in tqdm(self.unsrt,
+						desc=f"Populating V_ [{param_type}, sign={sign:+d}]"):
+			arr	= np.atleast_2d(np.asarray(a_curves.get(rxn, [])))
+			V_[rxn] = arr						# shape: (n_a, slen)
 
 		rxn_list = list(self.unsrt)
 		N_rxns   = len(rxn_list)
 
-		# ── Sample lengths and column offsets ─────────────────────────
+		# ── Sample lengths and column offsets ─────────────────────────────
 		sample_len = {rxn: V_[rxn].shape[1] for rxn in rxn_list}
-
 		col_offset = {}
 		offset = 0
 		for rxn in rxn_list:
@@ -292,50 +328,61 @@ class DesignMatrix(object):
 			offset += sample_len[rxn]
 		total_params = offset
 
-		# ── Build diagonal design matrix ───────────────────────────────
-		design_matrix    = np.zeros((N_rxns, total_params))
+		# ── Build diagonal design matrix ──────────────────────────────────
+		# Row i is non-zero only in the columns belonging to reaction i.
+		# The sample is scaled by `sign`:
+		#   sign = +1  →  positive δ  (multiply, η⁺)
+		#   sign = -1  →  negative δ  (divide,   η⁻)
+		design_matrix	= np.zeros((N_rxns, total_params))
 		selection_matrix = np.zeros((N_rxns, total_params))
-
 		for i, rxn in enumerate(rxn_list):
 			start  = col_offset[rxn]
 			slen   = sample_len[rxn]
-			sample = V_[rxn][0]
-			design_matrix[i,    start:start + slen] = sample
+			sample = V_[rxn][0] * sign		   # ← sign applied here
+			design_matrix   [i, start:start + slen] = sample
 			selection_matrix[i, start:start + slen] = 1.0
 
-		# ── Build p_design_matrix and p_selection_matrix ──────────────
-		selected_global_cols  = [idx for idx, flag in enumerate(selected_params) if flag == 1]
-		selected_set          = set(selected_global_cols)
+		# ── Build compressed p_design_matrix / p_selection_matrix ─────────
+		selected_global_cols  = [idx for idx, flag
+								  in enumerate(selected_params) if flag == 1]
+		selected_set		  = set(selected_global_cols)
 		compressed_idx_lookup = {g: ci for ci, g in enumerate(selected_global_cols)}
 
-		p_design_matrix    = np.zeros((N_rxns, len(selected_global_cols)))
+		p_design_matrix	= np.zeros((N_rxns, len(selected_global_cols)))
 		p_selection_matrix = np.zeros((N_rxns, total_params))
-
 		for i, rxn in enumerate(rxn_list):
 			start  = col_offset[rxn]
 			slen   = sample_len[rxn]
-			sample = V_[rxn][0]
-
+			sample = V_[rxn][0] * sign		   # ← sign applied here too
 			for local_j in range(slen):
-				global_j = start + local_j          # ← KEY FIX: global col = offset + local position
+				global_j = start + local_j	   # KEY: global col = offset + local
 				if global_j in selected_set:
 					compressed_j = compressed_idx_lookup[global_j]
-					p_design_matrix[i,    compressed_j] = sample[local_j]
-					p_selection_matrix[i, global_j]     = 1.0
+					p_design_matrix   [i, compressed_j] = sample[local_j]
+					p_selection_matrix[i, global_j]	 = 1.0
 
 		tok = time.time()
-		print(f"\nTime to build diagonal A1 DM : {tok - tic:.1f} s")
-		print(f"  design_matrix shape         : {design_matrix.shape}")
-		print(f"  p_design_matrix shape       : {p_design_matrix.shape}")
+		direction = "MULTIPLY (+1)" if sign == 1 else "DIVIDE  (-1)"
+		print(f"\n[{direction}] DM build complete in {tok - tic:.1f} s")
+		print(f"  param_type			  : {param_type}")
+		print(f"  design_matrix shape	 : {design_matrix.shape}")
+		print(f"  p_design_matrix shape   : {p_design_matrix.shape}")
+		print(f"  Non-zero rows in DM	 : "
+			  f"{np.count_nonzero(np.any(design_matrix != 0, axis=1))}")
 
-		# ── Write CSV files ────────────────────────────────────────────
-		def matrix_to_csv(mat):
-			return "\n".join(",".join(f"{v}" for v in row) for row in mat) + "\n"
+		# ── Write CSV files ───────────────────────────────────────────────
+		# Divide-case files get a '_neg' suffix so they coexist with
+		# the corresponding multiply files in the same directory.
+		suffix = "" if sign == 1 else "_neg"
 
-		open(f'DesignMatrix_{param_type}.csv',      'w').write(matrix_to_csv(design_matrix))
-		open(f'pDesignMatrix_{param_type}.csv',     'w').write(matrix_to_csv(p_design_matrix))
-		open(f'pSelectionMatrix_{param_type}.csv',  'w').write(matrix_to_csv(p_selection_matrix))
-		open(f'SelectionMatrix_{param_type}.csv',   'w').write(matrix_to_csv(selection_matrix))
+		def _to_csv(mat):
+			return "\n".join(",".join(str(v) for v in row) for row in mat) + "\n"
+
+		open(f'DesignMatrix_{param_type}{suffix}.csv',	 'w').write(_to_csv(design_matrix))
+		open(f'pDesignMatrix_{param_type}{suffix}.csv',	'w').write(_to_csv(p_design_matrix))
+		open(f'pSelectionMatrix_{param_type}{suffix}.csv', 'w').write(_to_csv(p_selection_matrix))
+		open(f'SelectionMatrix_{param_type}{suffix}.csv',  'w').write(_to_csv(selection_matrix))
+		print(f"  CSV files written (suffix='{suffix}').")
 
 		return p_selection_matrix, p_design_matrix
 				
@@ -418,14 +465,14 @@ class DesignMatrix(object):
 			design_matrix = []
 
 			# Sample count ratios (same as original full-PRS)
-			n_a        = int(0.1  * self.sim * 0.2)
-			n_b        = int(0.45 * self.sim * 0.2)
-			n_c        = int(self.sim * 0.2) - n_a - n_b
+			n_a		= int(0.1  * self.sim * 0.2)
+			n_b		= int(0.45 * self.sim * 0.2)
+			n_c		= int(self.sim * 0.2) - n_a - n_b
 			unshuffled = int(self.sim * 0.2)
-			n_fsac     = unshuffled
+			n_fsac	 = unshuffled
 
 			# ── Directory setup ────────────────────────────────────────────
-			if "DM_FOR_PARTIAL_PRS" not in os.listdir():
+			if "DM_FOR_PARTIAL_PRS"	 not in os.listdir():
 				os.mkdir("DM_FOR_PARTIAL_PRS")
 				os.chdir("DM_FOR_PARTIAL_PRS")
 				if f"{case_index}" not in os.listdir():
@@ -483,7 +530,7 @@ class DesignMatrix(object):
 			V_ = {}
 			for rxn in tqdm(self.unsrt, desc="Populating V_ (partial)"):
 				idx   = rxn_param_indices[rxn]
-				m     = len(idx)
+				m	 = len(idx)
 				a_p   = list(a_curves.get(rxn, []))
 				b_p   = list(b_curves.get(rxn, []))
 				c_p   = list(c_curves.get(rxn, []))
@@ -491,7 +538,7 @@ class DesignMatrix(object):
 				if m < 2:
 					# Pad B and C slots with extra class-A
 					extra = self.unsrt[rxn].getClassA_partial(
-					    idx, n_b + n_c, np.random.default_rng()
+						idx, n_b + n_c, np.random.default_rng()
 					)
 					b_p = extra[:n_b]
 					c_p = extra[n_b:]
@@ -499,14 +546,14 @@ class DesignMatrix(object):
 				combined = a_p + b_p + c_p
 				if len(combined) < unshuffled:
 					pad = self.unsrt[rxn].getClassA_partial(
-					    idx, unshuffled - len(combined), np.random.default_rng()
+						idx, unshuffled - len(combined), np.random.default_rng()
 					)
 					combined += pad
 				V_[rxn] = np.asarray(combined[:unshuffled])
 
 			# ── Random shuffling ──────────────────────────────────────────
 			if "RANDOM_SHUFFLING_partial.pkl" not in os.listdir(cache_dir):
-				V_s    = {}
+				V_s	= {}
 				V_copy = copy.deepcopy(V_)
 				for rxn in tqdm(self.unsrt, desc="Random shuffling (partial)"):
 					column = []
@@ -528,15 +575,15 @@ class DesignMatrix(object):
 			if "fSAC_samples_partial.pkl" not in os.listdir(cache_dir):
 				print(f"\nGenerating partial f-SAC samples (n={n_fsac} per rxn) ...")
 				raw_fsac = self.get_fSAC_partial(
-				    n_fsac, rxn_param_indices, np.random.default_rng()
+					n_fsac, rxn_param_indices, np.random.default_rng()
 				)
 				V = {}
 				for rxn in self.unsrt:
-					idx    = rxn_param_indices[rxn]
+					idx	= rxn_param_indices[rxn]
 					fsac_l = list(raw_fsac.get(rxn, []))
 					if len(fsac_l) < n_fsac:
 						pad = self.unsrt[rxn].getClassA_partial(
-						    idx, n_fsac - len(fsac_l), np.random.default_rng()
+							idx, n_fsac - len(fsac_l), np.random.default_rng()
 						)
 						fsac_l += pad
 					V[rxn] = fsac_l[:n_fsac]
@@ -576,8 +623,8 @@ class DesignMatrix(object):
 			print(f"\nTime to build partial A1+B1+C1 DM: {tok-tic:.1f} s")
 
 			# ── Build selection matrices and write CSV files ───────────────
-			s                 = ""
-			p_s               = ""
+			s				 = ""
+			p_s			   = ""
 			selected_string   = ""
 			p_selected_string = ""
 			p_design_matrix   = []
@@ -590,8 +637,8 @@ class DesignMatrix(object):
 				temp   = []
 				for index, element in enumerate(row):
 					if selected_params[index] == 1:
-						s                 += f"{element},"
-						p_s               += f"{element},"
+						s				 += f"{element},"
+						p_s			   += f"{element},"
 						selected_string   += "1.0,"
 						p_selected_string += "1.0,"
 						row_.append(element)
@@ -606,20 +653,20 @@ class DesignMatrix(object):
 				p_design_matrix.append(row_)
 				p_selection_matrix.append(temo)
 				selection_matrix.append(temp)
-				s                 += "\n"
-				p_s               += "\n"
+				s				 += "\n"
+				p_s			   += "\n"
 				selected_string   += "\n"
 				p_selected_string += "\n"
 
-			open(f'{cache_dir}/DesignMatrix.csv',    'w').write(s)
+			open(f'{cache_dir}/DesignMatrix.csv',	'w').write(s)
 			open(f'{cache_dir}/pDesignMatrix.csv',   'w').write(p_s)
 			open(f'{cache_dir}/pSelectionMatrix.csv','w').write(p_selected_string)
 			open(f'{cache_dir}/SelectionMatrix.csv', 'w').write(selected_string)
 
 			return (np.asarray(design_matrix),
-			        np.asarray(selection_matrix),
-			        np.asarray(p_design_matrix),
-			        np.asarray(p_selection_matrix))
+					np.asarray(selection_matrix),
+					np.asarray(p_design_matrix),
+					np.asarray(p_selection_matrix))
 	
 	def getSamples(self):
 		print("\nStarting to generate design matrix!!\n")
@@ -669,7 +716,7 @@ class DesignMatrix(object):
 				with open('c_type_samples.pkl', 'wb') as file_:
 					pickle.dump(c_curves_dict, file_)
 				print("\nC-type curves generated")
-			else:
+			else:	
 				# Load the object from the file
 				with open('c_type_samples.pkl', 'rb') as file_:
 					c_curves_dict = pickle.load(file_)
@@ -939,8 +986,8 @@ class Worker():
 		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
 	def callback_error(self,result):
-    		print('error', result)
-    		
+			print('error', result)
+			
 	def do_unsrt(self,data,sampling_points):
 		#generators = data["generators"]
 		for args in range(sampling_points):
@@ -981,7 +1028,7 @@ class Worker():
 		instance methods (_psac_class_B_m2 / _psac_class_B_m3) — no SLSQP.
 
 		Expects data to contain:
-		  data["param_indices"]        – active parameter index tuple
+		  data["param_indices"]		– active parameter index tuple
 		  data["generators_b_partial"] – random array (sampling_points, 2)
 
 		Returns (parallized_zeta, generator) matching the existing interface.
@@ -1004,7 +1051,7 @@ class Worker():
 		Routes every task to Uncertainty.run_sampling_c_partial.
 
 		Expects data to contain:
-		  data["param_indices"]        – active parameter index tuple
+		  data["param_indices"]		– active parameter index tuple
 		  data["generators_c_partial"] – random array (sampling_points, 2)
 
 		Returns (parallized_zeta, generator) matching the existing interface.

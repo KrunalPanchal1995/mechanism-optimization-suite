@@ -33,6 +33,7 @@ class combustion_target():
 		self.molecularWt["H2O"] = 0
 		self.molecularWt["CH4"] = 16
 		self.molecularWt["NC7H16"] = 100.21
+		self.molecularWt["nc7h16"] = 100.21
 		self.molecularWt["C4H6"] = 54
 		self.molecularWt["OME3"] = 136
 		self.molecularWt["MB-C5H10O2"] = 86
@@ -57,6 +58,7 @@ class combustion_target():
 		self.stoichiometry["CO2"] = 0.0
 		self.stoichiometry["CH4"] = 2.0
 		self.stoichiometry["NC7H16"] = 11
+		self.stoichiometry["nc7h16"] = 11
 		self.stoichiometry["C4H6"] = 5.5
 		self.stoichiometry["OME3"] = 6
 		self.stoichiometry["MB-C5H10O2"] = 6.5
@@ -512,7 +514,7 @@ class combustion_target():
 		
 		if self.units["observed"] == "ms" and self.target == "Tig":
 			self.observed = self.observed*1000
-		print(self.dataSet_id,self.phi)
+		#print(self.dataSet_id,self.phi)
 		#raise AssertionError("Stop")
 		#if "Fls" in self.target:
 			#print("Target {} has phi of {}\n".format(self.uniqueID,self.phi))

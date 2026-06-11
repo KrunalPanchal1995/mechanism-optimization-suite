@@ -1,0 +1,161 @@
+# ===========================================================================
+# mso_compare — MSO Pipeline Configuration Template
+# ===========================================================================
+# Copy this file to your working directory, rename it (e.g. mso_config.yaml),
+# and fill in every placeholder that starts with /PATH/TO/...
+#
+# Run labels understood by the pipeline
+# -------------------------------------------------------
+#   nominal_htc   nominal_ltc
+#   stage1_htc    stage1_ltc
+#   stage2_htc    stage2_ltc
+#
+# Only the labels you define will be used.  You can run a nominal-only
+# workflow by defining only nominal_htc and/or nominal_ltc.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Project identity
+# ---------------------------------------------------------------------------
+project:
+  name:        Butadiene_MSO              # Used in log headings and plot titles
+  working_dir: /PATH/TO/PROJECT/DIR       # Absolute path to your project root
+  fuel:        C4H6                       # Fuel label (informational only)
+
+# ---------------------------------------------------------------------------
+# MUQ-SAC source directory
+# Path to the src/MUQ-SAC folder that contains simulation_manager2_0.py,
+# combustion_target_class.py, data_management.py, etc.
+# ---------------------------------------------------------------------------
+muqsac_src_dir: /PATH/TO/src/MUQ-SAC
+
+# ---------------------------------------------------------------------------
+# Base .opt template file
+# This YAML file provides all default fields.  Per-run overrides below
+# replace only the specified keys (mechanism, targets, etc.).
+# ---------------------------------------------------------------------------
+base_opt_file: /PATH/TO/base_template.opt
+
+# ---------------------------------------------------------------------------
+# Simulation runs
+# ---------------------------------------------------------------------------
+# Each entry defines one simulation run.
+# Required keys:
+#   mechanism        — path to the kinetic mechanism file (.yaml or chemkin)
+#   targets          — path to the .target file for this run
+#   targets_count    — number of target lines to read (integer)
+#   thermo_file      — path to THERM.dat / thermo YAML
+#   trans_file       — path to transport data file
+#   uncertainty_data — path to uncertainty XML (dummy path OK for nominal runs)
+#   output_dir       — where to write NOMINAL/, Plot/, and the run log
+#
+# Optional key:
+#   extra_overrides  — any additional .opt sections/keys to override
+#                      format: { SectionName: { key: value, ... } }
+# ---------------------------------------------------------------------------
+simulations:
+
+  # ── Nominal mechanism — High-Temperature Combustion (HTC) ──────────────
+  nominal_htc:
+    mechanism:        /PATH/TO/nominal_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_HTC.target
+    targets_count:    52
+    uncertainty_data: /PATH/TO/dummy_or_real.xml  # not used for nominal
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/nominal_htc
+    # extra_overrides:
+    #   Solver:
+    #     rtol: 1.0e-8
+
+  # ── Nominal mechanism — Low-Temperature Combustion (LTC) ───────────────
+  nominal_ltc:
+    mechanism:        /PATH/TO/nominal_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_LTC.target
+    targets_count:    30
+    uncertainty_data: /PATH/TO/dummy_or_real.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/nominal_ltc
+
+  # ── Stage-1 optimised mechanism — HTC ──────────────────────────────────
+  # Stage-1 mechanism path is specified by the user after Stage-1 optimisation
+  # finishes.  Fill this in before running Phase 1 for Stage-1 runs.
+  stage1_htc:
+    mechanism:        /PATH/TO/stage1_optimised_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_HTC.target
+    targets_count:    52
+    uncertainty_data: /PATH/TO/dummy_or_real.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/stage1_htc
+
+  # ── Stage-1 optimised mechanism — LTC ──────────────────────────────────
+  stage1_ltc:
+    mechanism:        /PATH/TO/stage1_optimised_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_LTC.target
+    targets_count:    30
+    uncertainty_data: /PATH/TO/dummy_or_real.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/stage1_ltc
+
+  # ── Stage-2 optimised mechanism — HTC ──────────────────────────────────
+  stage2_htc:
+    mechanism:        /PATH/TO/stage2_optimised_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_HTC.target
+    targets_count:    52
+    uncertainty_data: /PATH/TO/dummy_or_real.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/stage2_htc
+
+  # ── Stage-2 optimised mechanism — LTC ──────────────────────────────────
+  stage2_ltc:
+    mechanism:        /PATH/TO/stage2_optimised_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_LTC.target
+    targets_count:    30
+    uncertainty_data: /PATH/TO/dummy_or_real.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/stage2_ltc
+
+# ---------------------------------------------------------------------------
+# Merge output
+# Phase 2 reads from each run's Plot/Dataset/Tig/ directory and writes
+# merged CSVs organised by φ sub-folder.
+# ---------------------------------------------------------------------------
+merge:
+  htc_output_dir: ./MERGE_OUTPUT/HTC
+  ltc_output_dir: ./MERGE_OUTPUT/LTC
+
+# ---------------------------------------------------------------------------
+# Error metrics
+# Phase 3 computes χ² = Σ((sim−obs)/(σ·obs))² for each merged condition.
+# ---------------------------------------------------------------------------
+error_metrics:
+  htc_output_dir:       ./ERROR_METRICS/HTC
+  ltc_output_dir:       ./ERROR_METRICS/LTC
+  uncertainty_fraction: 0.10   # σ = 10 % of observed value
+
+# ---------------------------------------------------------------------------
+# Plots
+# Phase 4 generates per-φ PDFs and a combined multi-panel PDF.
+# ---------------------------------------------------------------------------
+plots:
+  htc_output_dir: ./PLOTS/HTC
+  ltc_output_dir: ./PLOTS/LTC
+
+  # plot_per_phi: one PDF per φ sub-folder (all pressures overlaid)
+  plot_per_phi:   true
+
+  # plot_combined: one multi-panel PDF with all φ values
+  plot_combined:  true
+
+  # mode: how to decide which simulation columns to draw
+  #   auto          — infer from CSV columns (recommended)
+  #   nominal_only  — experimental data + nominal only
+  #   nominal_vs_s1 — experimental data + nominal + Stage-1
+  #   nominal_vs_s2 — experimental data + nominal + Stage-2
+  #   all_stages    — experimental data + nominal + Stage-1 + Stage-2
+  mode: auto

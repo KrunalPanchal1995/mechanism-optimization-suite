@@ -1,0 +1,66 @@
+# ===========================================================================
+# mso_compare — Nominal-Only Configuration Template
+# ===========================================================================
+# Use this template when you want to run a one-off nominal simulation and
+# compare directly against experimental data (no optimisation stages).
+#
+# The pipeline will:
+#   1. Run the nominal simulation (HTC and/or LTC as defined below)
+#   2. Reorganise outputs into phi_*/Phi_X_P_Y.csv structure
+#   3. Compute chi-squared error metrics
+#   4. Generate nominal_only comparison plots
+#
+# To add Stage-1 / Stage-2 later, copy the additional run entries from
+# configs/template_mso_pipeline.yaml.
+# ===========================================================================
+
+project:
+  name:        NominalRun
+  working_dir: /PATH/TO/PROJECT/DIR
+  fuel:        C4H6                    # Change to your fuel label
+
+muqsac_src_dir: /PATH/TO/src/MUQ-SAC
+base_opt_file:  /PATH/TO/base_template.opt
+
+# ---------------------------------------------------------------------------
+# Only the nominal runs are defined here.
+# Remove whichever regime you don't need.
+# ---------------------------------------------------------------------------
+simulations:
+
+  nominal_htc:
+    mechanism:        /PATH/TO/nominal_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_HTC.target
+    targets_count:    52
+    uncertainty_data: /PATH/TO/dummy.xml   # not used — any path works
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/nominal_htc
+
+  nominal_ltc:
+    mechanism:        /PATH/TO/nominal_mechanism.yaml
+    targets:          /PATH/TO/BUTADIENE_LTC.target
+    targets_count:    30
+    uncertainty_data: /PATH/TO/dummy.xml
+    thermo_file:      /PATH/TO/THERM.dat
+    trans_file:       /PATH/TO/TRANS.dat
+    output_dir:       ./SIM_RUNS/nominal_ltc
+
+# ---------------------------------------------------------------------------
+# Output locations (relative to working_dir is fine)
+# ---------------------------------------------------------------------------
+merge:
+  htc_output_dir: ./MERGE_OUTPUT/HTC
+  ltc_output_dir: ./MERGE_OUTPUT/LTC
+
+error_metrics:
+  htc_output_dir:       ./ERROR_METRICS/HTC
+  ltc_output_dir:       ./ERROR_METRICS/LTC
+  uncertainty_fraction: 0.10
+
+plots:
+  htc_output_dir: ./PLOTS/HTC
+  ltc_output_dir: ./PLOTS/LTC
+  plot_per_phi:   true
+  plot_combined:  true
+  mode:           nominal_only   # or 'auto'

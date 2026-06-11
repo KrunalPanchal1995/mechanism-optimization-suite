@@ -12,6 +12,21 @@ import multiprocessing
 import sys
 import traceback
 from pathlib import Path
+import datetime
+
+
+
+
+SUBFOLDER_TO_SUBDIR = {
+    "multiply_A":  "A_factor",
+    "multiply_n":  "n",
+    "multiply_Ea": "Ea",
+    "divide_A":    "A_factor_neg",
+    "divide_n":    "n_neg",
+    "divide_Ea":   "Ea_neg",
+    "nominal":     "nominal",
+}
+
 
 class RunCmd(threading.Thread):
 	def __init__(self, cmd, timeout):
@@ -32,215 +47,251 @@ class RunCmd(threading.Thread):
 			self.join()
 
 
-
 def run_sim(index, case, input_, caseID, path, total):
-	eta = "N/A"
-	ETA = "N/A"
-	
-	string = path
-	start = os.getcwd()
-	loc = "/".join(path.split("/")[:-1])
-	file_name = path.split("/")[-1]
-	try:
-		# -------------------------------
-		# Step 1: Change directory
-		# -------------------------------
-		try:
-			print(f"[INFO] Initial cwd: {start}")
-			print(f"[INFO] Target path: {loc}")
-			
-			#path:/data/SA_SRIVATSAV/LTC/Opt/case-44/2610/output/tau.out
-			os.chdir(loc)
-			os.chdir("..")
-			workdir = os.getcwd()
+    """
+    Run a single Cantera simulation for SA_3P_BruteForce perturbations.
 
-			print(f"[INFO] Working directory changed to: {workdir}")
+    Fixes over the original:
+      - No os.chdir(): all paths are absolute; subprocess uses cwd=workdir.
+        (chdir inside multiprocessing pool workers leaks state between tasks.)
+      - Per-simulation log file `run_sim.log` written in workdir, so errors
+        survive the run instead of vanishing into worker-process stdout.
+      - Error message returned in the result tuple so the parent process can
+        aggregate all failures into a master log.
+      - Fixed NameError: AssertionError referenced `Perturbed_location`
+        before assignment; now uses `perturbed_path`.
+      - Fixed possible NameError on `sub_dir` for unknown subfolder names.
+    """
+    eta = "N/A"
+    ETA = "N/A"
+    string = path
+    err_msg = ""
 
-		except Exception as e:
-			print(f"[ERROR] Failed while changing directory to path={loc}")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+    # path example: /data/.../multiply_A/case-44/2610/output/tau.out
+    loc = os.path.dirname(path)                 # .../2610/output
+    file_name = os.path.basename(path)          # tau.out
+    workdir = os.path.dirname(loc)              # .../2610
 
-		# -------------------------------
-		# Step 2: Build paths
-		# -------------------------------
-		try:
-			dir_name = path.split("/")[-3]
-			case_name = path.split("/")[-4]
-			base_path = Path("/".join(path.split("/")[:-5]))
-			perturbed_path = base_path / "Perturbed_Mech"
-			fallback_path = base_path / "YAML_FILES_FOR_PARTIAL_PRS" /f"{caseID}"
-			
-			if perturbed_path.exists():
-				Perturbed_location = str(perturbed_path)
-			else:
-				Perturbed_location = str(fallback_path)
-			
-			run_cantera = os.path.join(workdir, "cantera_1.py")
+    # ---- per-simulation logger -------------------------------------------
+    log_path = os.path.join(workdir, "run_sim.log")
 
-			print(f"[INFO] dir_name: {dir_name}")
-			print(f"[INFO] case_name: {case_name}")
-			print(f"[INFO] Perturbed_location: {Perturbed_location}")
-			print(f"[INFO] run_cantera path: {run_cantera}")
+    def log(msg, level="INFO"):
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{stamp}] [{level}] {msg}\n"
+        try:
+            with open(log_path, "a") as lf:
+                lf.write(line)
+        except OSError:
+            # last resort: at least try stdout
+            sys.stdout.write(line)
 
-		except Exception as e:
-			print("[ERROR] Failed while constructing paths")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+    def log_exception(stage, exc):
+        nonlocal err_msg
+        tb = traceback.format_exc()
+        err_msg = f"{stage}: {exc}"
+        log(f"FAILED at {stage}: {exc}", level="ERROR")
+        log(tb, level="TRACEBACK")
 
-		# -------------------------------
-		# Step 3: Create cantera input string
-		# -------------------------------
-		try:
-			mech_path = f"mechanism.yaml"
-			print(f"[INFO] Mechanism file path: {mech_path}")
+    try:
+        log(f"--- run_sim start | index={index} caseID={caseID} ---")
+        log(f"target path : {path}")
+        log(f"workdir     : {workdir}")
 
-			instring, a, b, c = MakeFile.create_input_file(
-				caseID,
-				input_,
-				case,
-				mech_file=mech_path
-			)
+        # -------------------------------
+        # Step 1: Build paths
+        # -------------------------------
+        try:
+            parts = path.split("/")
+            dir_name = parts[-3]            # e.g. 2610
+            case_name = parts[-4]           # e.g. case-44
+            subfolder_name = parts[-5]      # e.g. multiply_A
 
-			if not instring:
-				raise ValueError("MakeFile.create_input_file returned empty instring")
+            if subfolder_name not in SUBFOLDER_TO_SUBDIR:
+                raise ValueError(
+                    f"Unknown perturbation subfolder '{subfolder_name}' in path; "
+                    f"expected one of {list(SUBFOLDER_TO_SUBDIR)}"
+                )
+            sub_dir = SUBFOLDER_TO_SUBDIR[subfolder_name]
 
-			print("[INFO] cantera input string created successfully")
+            base_path = Path("/".join(parts[:-6]))
+            perturbed_path = (
+                base_path / "Perturbed_Mech_SA_3P_BruteForce" / sub_dir 
+            )
 
-		except Exception as e:
-			print("[ERROR] Failed while creating cantera input file content")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+            if sub_dir != "nominal" and not perturbed_path.exists():
+                raise FileNotFoundError(
+                    f"Perturbed mechanism directory not found: {perturbed_path}"
+                )
 
-		# -------------------------------
-		# Step 4: Write cantera_1.py
-		# -------------------------------
-		try:
-			if os.path.exists(run_cantera):
-				os.remove(run_cantera)
-			
-			with open(run_cantera, "w") as f:
-				f.write(instring)
+            Perturbed_location = str(perturbed_path)
+            run_cantera = os.path.join(workdir, "cantera_1.py")
 
-			print(f"[INFO] cantera_1.py written successfully at: {run_cantera}")
+            log(f"dir_name           : {dir_name}")
+            log(f"case_name          : {case_name}")
+            log(f"sub_dir            : {sub_dir}")
+            log(f"Perturbed_location : {Perturbed_location}")
+            log(f"run_cantera        : {run_cantera}")
 
-			if not os.path.exists(run_cantera):
-				raise FileNotFoundError(f"cantera_1.py was not created at {run_cantera}")
+        except Exception as e:
+            log_exception("Step 1 (path construction)", e)
+            return (index, eta, ETA, string, total, err_msg)
 
-		except Exception as e:
-			print("[ERROR] Failed while writing cantera_1.py")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+        # -------------------------------
+        # Step 2: Create Cantera input string
+        # -------------------------------
+        try:
+            if input_["Stats"]["Design_of_PRS"] != "A-facto":
+                if sub_dir == "nominal":
+                    mech_path = input_["Locations"]["mechanism"]
+                else:
+                    mech_path = f"{Perturbed_location}/mechanism_{dir_name}.yaml"
+            else:
+                # absolute, since we no longer chdir into workdir
+                mech_path = os.path.join(workdir, "mechanism.yaml")
 
-		# -------------------------------
-		# Step 5: Run cantera_1.py
-		# -------------------------------
-		try:
-			solve_out = os.path.join(workdir, "solve_1.out")
-			print(f"[INFO] Running cantera_1.py in {workdir}")
-			print(f"[INFO] Output log: {solve_out}")
+            if not os.path.exists(mech_path):
+                raise FileNotFoundError(f"Mechanism file not found: {mech_path}")
 
-			with open(solve_out, "w") as f:
-				result = subprocess.call(
-					["python3.9", run_cantera],
-					stdout=f,
-					stderr=subprocess.STDOUT
-				)
+            log(f"mechanism file: {mech_path}")
 
-			print(f"[INFO] Subprocess return code: {result}")
+            instring, a, b, c = MakeFile.create_input_file(
+                caseID, input_, case, mech_file=mech_path
+            )
+            if not instring:
+                raise ValueError("MakeFile.create_input_file returned empty instring")
 
-			if result != 0:
-				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}")
+            log("Cantera input string created successfully")
 
-		except Exception as e:
-			print("[ERROR] Failed while executing cantera_1.py")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+        except Exception as e:
+            log_exception("Step 2 (input file creation)", e)
+            return (index, eta, ETA, string, total, err_msg)
 
-		# -------------------------------
-		# Step 6: Read tau.out
-		# -------------------------------
-		try:
-			tau_file = os.path.join(loc,file_name)
-			print(f"[INFO] Looking for tau file at: {tau_file}")
+        # -------------------------------
+        # Step 3: Write cantera_1.py
+        # -------------------------------
+        try:
+            with open(run_cantera, "w") as f:
+                f.write(instring)
+            log(f"cantera_1.py written at {run_cantera}")
+        except Exception as e:
+            log_exception("Step 3 (writing cantera_1.py)", e)
+            return (index, eta, ETA, string, total, err_msg)
 
-			if not os.path.exists(tau_file):
-				raise FileNotFoundError(f"{file_name} not found at {tau_file}")
+        # -------------------------------
+        # Step 4: Run cantera_1.py
+        # -------------------------------
+        try:
+            solve_out = os.path.join(workdir, "solve_1.out")
+            log(f"running cantera_1.py | log: {solve_out}")
 
-			with open(tau_file, "r") as f:
-				out_file = f.readlines()
+            with open(solve_out, "w") as f:
+                result = subprocess.call(
+                    [sys.executable, run_cantera],   # was hard-coded "python3.9"
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    cwd=workdir,                     # replaces os.chdir
+                )
 
-			string = tau_file
+            log(f"subprocess return code: {result}")
+            if result != 0:
+                log(f"cantera_1.py exited non-zero ({result}); "
+                    f"see {solve_out}", level="WARNING")
 
-			if len(out_file) < 2:
-				raise ValueError(f"{file_name} has insufficient lines: {len(out_file)}")
+        except Exception as e:
+            log_exception("Step 4 (running cantera_1.py)", e)
+            return (index, eta, ETA, string, total, err_msg)
 
-			line = out_file[1].split()
-			print(f"[INFO] Parsed tau.out line: {line}")
+        # -------------------------------
+        # Step 5: Read tau.out
+        # -------------------------------
+        try:
+            tau_file = os.path.join(loc, file_name)
+            log(f"reading output file: {tau_file}")
 
-			if len(line) == 2:
-				eta = np.log(float(line[1]) * 10)
-				ETA = float(line[1])
-			else:
-				print("[WARNING] tau.out second line does not have 2 columns, using fallback values")
-				eta = np.log(100 * 10000)
-				ETA = 100 * 10000
+            if not os.path.exists(tau_file):
+                raise FileNotFoundError(f"{file_name} not found at {tau_file}")
 
-		except Exception as e:
-			print("[ERROR] Failed while reading/parsing tau.out")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
-			return (index, eta, ETA, string, total)
+            with open(tau_file, "r") as f:
+                out_file = f.readlines()
 
-	finally:
-		try:
-			os.chdir(start)
-			print(f"[INFO] Returned to original cwd: {start}")
-		except Exception as e:
-			print(f"[ERROR] Failed to return to original cwd: {start}")
-			print(f"[ERROR] Exception: {e}")
+            string = tau_file
 
-	return (index, eta, ETA, string, total)
+            if len(out_file) < 2:
+                raise ValueError(
+                    f"{file_name} has insufficient lines: {len(out_file)}"
+                )
+
+            line = out_file[1].split()
+            log(f"parsed output line: {line}")
+
+            if len(line) == 2:
+                eta = np.log(float(line[1]) * 10)
+                ETA = float(line[1])
+            else:
+                log("output second line does not have 2 columns; "
+                    "using fallback values", level="WARNING")
+                eta = np.log(100 * 10000)
+                ETA = 100 * 10000
+
+            log(f"SUCCESS | eta={eta} ETA={ETA}")
+
+        except Exception as e:
+            log_exception("Step 5 (reading output)", e)
+            return (index, eta, ETA, string, total, err_msg)
+
+    except Exception as e:
+        # absolute safety net: nothing should escape a pool worker silently
+        log_exception("run_sim (unexpected)", e)
+
+    return (index, eta, ETA, string, total, err_msg)
 
 class Worker():
-	def __init__(self, workers):
-		self.pool = multiprocessing.Pool(processes=workers)
-		self.results = []
-		self.progress = []
-	def update_progress(self, total):
-			update_progress(self.progress, total)	
-	def callback_run(self, result):
-		self.results.append(result)
-		self.progress.append(result[0])
-		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
-		sys.stdout.flush()
-		#f = open('../progress','+a')
-		#f.write(result[0]+"/run"+"\n")
-		#f.close()
-		
-	def callback_error(self,result):
-		print('error', result)
-  
-	def do_job_async(self,location,case,optInput,caseID):
-		for index,args in enumerate(location):
-			self.pool.apply_async(run_sim, 
-				  args=(index,case,optInput,caseID,args,len(location)), 
-				  callback=self.callback_run,error_callback=self.callback_error)
-		self.pool.close()
-		self.pool.join()
-		self.pool.terminate()	
-		self.results.sort(key=lambda x: x[0])  # Sort by the second-to-last element (row identifier)
-		
-		# Extract sorted values
-		sorted_eta = [result[1] for result in self.results]
-		sorted_ETA = [result[2] for result in self.results]
-		sorted_string = [result[3] for result in self.results]
-		return sorted_eta,sorted_ETA,sorted_string
+    def __init__(self, workers, error_log="failed_simulations.log"):
+        self.pool = multiprocessing.Pool(processes=workers)
+        self.results = []
+        self.progress = []
+        self.error_log = error_log
+
+    def callback_run(self, result):
+        self.results.append(result)
+        self.progress.append(result[0])
+
+        # result = (index, eta, ETA, string, total, err_msg)
+        err_msg = result[5] if len(result) > 5 else ""
+        if err_msg:
+            with open(self.error_log, "a") as f:
+                f.write(f"index={result[0]}\tpath={result[3]}\terror={err_msg}\n")
+
+        sys.stdout.write(
+            "\t\t\r{:06.2f}% is complete".format(
+                len(self.progress) / float(result[4]) * 100
+            )
+        )
+        sys.stdout.flush()
+
+    def callback_error(self, error):
+        # fires only if run_sim itself raises (should now be never,
+        # thanks to the safety net), but log it anyway
+        with open(self.error_log, "a") as f:
+            f.write(f"POOL-LEVEL ERROR: {error}\n")
+        print("error", error)
+
+    def do_job_async(self, location, case, optInput, caseID):
+        for index, args in enumerate(location):
+            self.pool.apply_async(
+                run_sim,
+                args=(index, case, optInput, caseID, args, len(location)),
+                callback=self.callback_run,
+                error_callback=self.callback_error,
+            )
+        self.pool.close()
+        self.pool.join()
+
+        self.results.sort(key=lambda x: x[0])
+        sorted_eta = [r[1] for r in self.results]
+        sorted_ETA = [r[2] for r in self.results]
+        sorted_string = [r[3] for r in self.results]
+        return sorted_eta, sorted_ETA, sorted_string
 
 #Extract_reactinons pre exponential factor from mechanism file using sorted numbers. dummy function not called in main code. replaced with a regular expression.
 def extract_reaction_coeff(mech):

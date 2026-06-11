@@ -16,6 +16,7 @@ from scipy.optimize import shgo
 from scipy.optimize import BFGS
 from MechanismParser import Parser
 import subprocess
+import warnings
 #############################################################
 ###	   Uncertainty for arrhenius parameters		 ######
 ###	   of elementary reactions					  ######
@@ -43,8 +44,14 @@ def run_sampling_b_partial(sample, data, generator, length):
 	Generates ONE full-space ζ for data["param_indices"].
 	No SLSQP — uses the analytical instance methods of UncertaintyExtractor.
 	"""
+	warnings.filterwarnings(
+	   "ignore",
+	   category=RuntimeWarning,
+	   message="Values in x were outside bounds during a minimize step"
+	)
 	rng		   = np.random.default_rng()
 	param_indices = data["param_indices"]
+	#print(param_indices)
 	A = UncertaintyExtractor(data)
 	a1 = generator[0]
 	a2 = generator[1]
@@ -52,16 +59,21 @@ def run_sampling_b_partial(sample, data, generator, length):
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag=False)
 	m = len(param_indices)
-	if m = 3:
+	#print(m)
+	if m == 3:
+		#print("solving B3")
 		zeta_list  = A.getB2Zeta(flag=True)
+		zeta = list(zeta_list) if zeta_list else [0.0, 0.0, 0.0]
 	
-	elif m = 2:
+	elif m == 2:
+		#print("solving D2")
 		zeta_list	 = A.getClassB_partial(data, param_indices, 1, rng)
+		zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
 	
 	else:
 		zeta_list = A.getClassA_partial(param_indices, 1, rng)
-	
-	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+		zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+
 	del A
 	return (sample, generator, zeta, length)
 
@@ -77,8 +89,12 @@ def run_sampling_c_partial(sample, data, generator, length):
 	A.getUnCorrelated(flag=False)
 	param_indices = data["param_indices"]
 	rng		   = np.random.default_rng()
-	zeta_list	 = A.getClassC_partial(param_indices, 1, rng)
-	if not zeta_list:
+	
+	m = len(param_indices)
+	if m > 1:
+		zeta_list	 = A.getClassC_partial(param_indices, 1, rng)
+	
+	else:
 		zeta_list = A.getClassA_partial(param_indices, 1, rng)
 	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
 	del A
@@ -99,8 +115,12 @@ class workers(object):
 			len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
 
+
 	def callback_error(self, result):
+		import traceback
 		print('error', result)
+		if isinstance(result, BaseException):
+			traceback.print_exception(type(result), result, result.__traceback__)
 
 	def do_job_async(self,data,sampling_points):
 		for args in range(sampling_points):
@@ -855,6 +875,7 @@ class UncertaintyExtractor(object):
 			self.const_zeta = [con1,con2,con3,con4] + bound_constraints
 			bnds = ((float("-1000"),float("1000")),(float("-1000"),float("1000")),(float("-1000"),float("1000")),(200,3500))
 			
+			#print("STarting the opt")
 			zeta = shgo(self.obj_func_zeta_b2, bnds,
                        constraints=self.const_zeta, n=128, iters=2,
                        sampling_method='sobol',
@@ -866,13 +887,14 @@ class UncertaintyExtractor(object):
                                "maxfun":  100,
                            }
                        })
+			#print(zeta)
 
 		else:
 			con5 = {'type': 'ineq', 'fun': self.cons_T}
 			self.const_zeta = [con5]
 			bnds = ((float("-inf"),float("inf")),(float("-inf"),float("inf")),(float("-inf"),float("inf")),(200,3500))
 			zeta = minimize(self.obj_func_zeta_b2,self.guess_z2,method="SLSQP",constraints=self.const_zeta,bounds=bnds)
-		return [zeta.x[0:-1][0],zeta.x[0:-1][1],zeta.x[0:-1][2]]
+		return [zeta.x[0],zeta.x[1],zeta.x[2]]
 		
 	def obj_get_kappa(self,guess):
 		cov = self.L
@@ -1048,7 +1070,9 @@ class UncertaintyExtractor(object):
 	# ── basis / prior-uncertainty helpers ──────────────────────────────
 	def _psac_theta_full(self, T_val):
 		"""Full Arrhenius basis [1, ln T, -1/T] at scalar T."""
-		return np.array([1.0, np.log(float(T_val)), -1.0 / float(T_val)])
+		#print(np.shape(T_val))
+		#print(T_val)
+		return np.array([T_val/T_val, np.log(T_val), -1.0 / T_val])
 
 	def _psac_theta_S(self, T_val, indices):
 		"""Reduced basis vector for selected indices at scalar T."""
@@ -1073,7 +1097,7 @@ class UncertaintyExtractor(object):
 	
 	def _psac_dtheta_S_dT(self, T_val, indices):
 		"""Analytical dθ_S/dT.  d/dT: 1→0, ln T→1/T, -1/T→1/T²."""
-		return np.array([0.0, 1.0 / float(T_val), 1.0 / float(T_val)**2])[list(indices)]
+		return np.array([0.0, 1.0 / T_val, 1.0 / T_val**2])[list(indices)]
 
 	def _psac_fp_S_deriv(self, T_val, L_r, indices):
 		"""Analytical df_prior,S/dT = (L_r^T θ_S)·(L_r^T dθ_S/dT) / f_prior,S."""
@@ -1189,7 +1213,7 @@ class UncertaintyExtractor(object):
 		zeta_list : list of n_samples zeta_r arrays, each shape (m,)
 		"""
 		
-		fp	 = self._f_prior(T, L_full)
+		fp	 = self._f_prior(T_arr, L_full)
 		thS	= np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
 		A_mat  = thS @ L_r
 		A_pinv = np.linalg.pinv(A_mat)								   # (m,N)
@@ -1207,12 +1231,17 @@ class UncertaintyExtractor(object):
 					accepted = True
 					break
 			if not accepted:
-				raise RuntimeError(
-					f"Class-A sample {i}: could not find a valid sample within "
+				
+				#raise RuntimeError(
+				#	f"Class-A sample {_}: could not find a valid sample within "
+				#	f"{max_attempts} attempts. "
+				#	f"Check L_r / indices consistency or increase max_attempts."
+				#)
+				print(
+					f"Class-A sample {_}: could not find a valid sample within "
 					f"{max_attempts} attempts. "
 					f"Check L_r / indices consistency or increase max_attempts."
 				)
-			
 			out.append(zr)
 		return out
 
@@ -1225,7 +1254,6 @@ class UncertaintyExtractor(object):
 		"""
 		
 		idx = list(indices)
-		_, _, L_r = self._psac_get_reduced_L(L_full, idx)   # (m, m)
 
 		T_min = float(T_arr[0])
 		T_max = float(T_arr[-1])
@@ -1250,45 +1278,45 @@ class UncertaintyExtractor(object):
 		], axis=0)			 # (2, m) = (2, 2)
 
 		if abs(np.linalg.det(M)) < 1e-12:
-		   raise ValueError(
+			raise ValueError(
 			  f"M is singular for indices={indices}."
-		   )
+			)
 
 		M_inv = np.linalg.inv(M)			  # (2, 2), once
 
 		results = []
 		for k in range(n_samples):
-		   accepted = False
-		   for attempt in range(200):
-			  r1 = float(rng.uniform(-1.0, 1.0))
-			  r2 = float(rng.uniform(-1.0, 1.0))
+			accepted = False
+			for attempt in range(200):
+				r1 = float(rng.uniform(-1.0, 1.0))
+				r2 = float(rng.uniform(-1.0, 1.0))
 
-			  d	  = np.array([r1 * fp_min,
+				d	  = np.array([r1 * fp_min,
 								r2 * fp_max])
-			  zeta_r = M_inv @ d				 # (2,)
+				zeta_r = M_inv @ d				 # (2,)
 
-			  dk = self.delta_kappa(
+				dk = self.delta_kappa(
 				 T_arr, L_r, zeta_r, indices
-			  )
+				)
 
-			  if np.all(
+				if np.all(
 				 np.abs(dk) <= f_prior_vals + 1e-10
-			  ):
+				):
 				 accepted = True
 				 break
 
-		   if not accepted:
-			  print(
-				 f"  [!] Sample {k}: validation failed "
-				 f"after 200 attempts for "
-				 f"indices={indices}."
-			  )
+			if not accepted:
+				print(
+				f"  [!] Sample {k}: validation failed "
+				f"after 200 attempts for "
+				f"indices={indices}."
+				)
 
-		   results.append(
-			  self._psac_enforce_dn(
-				 np.asarray(zeta_r), L_r, indices
-			  )
-		   )
+			results.append(
+				self._psac_enforce_dn(
+				np.asarray(zeta_r), L_r, indices
+				)
+				)
 		return results
 
 	def _psac_class_B_m3_(self, T_arr, L_full, L_r, indices, rng, n_samples):
@@ -1470,7 +1498,7 @@ class UncertaintyExtractor(object):
 			zeta_list.append(zr_final)
 		return zeta_list
 	
-	def _psac_class_C(self, T_arr, L_r, indices, rng, n_samples):
+	def _psac_class_C(self, T_arr, L_full, L_r, indices, rng, n_samples):
 		"""
 		Class-C: direct least-squares fit to a linear crossing ramp target.
 
@@ -1508,7 +1536,7 @@ class UncertaintyExtractor(object):
 		fp_Tmin	   = f_prior_vals[0]
 		fp_Tmax	   = f_prior_vals[-1]
 		thS = np.array([self._psac_theta_S(t, indices) for t in T_arr])
-		A_mat  = thS.T @ L_r                      # (N, m)  =  Φ_S L_r
+		A_mat  = thS @ L_r                      # (N, m)  =  Φ_S L_r
 		A_pinv = np.linalg.pinv(A_mat)
 		zeta_list = []
 		sample_idx = 0
@@ -1538,8 +1566,8 @@ class UncertaintyExtractor(object):
 
 
 			# ── accept / reject ───────────────────────────────────────────
-			dk = delta_kappa(T_arr, L_r, zeta_r, indices)
-			if not _has_sign_change(dk):
+			dk = self.delta_kappa(T_arr, L_r, zeta_r, indices)
+			if not self._psac_has_sign_change(dk):
 				continue
 			
 			zeta_r = self._psac_enforce_dn(
@@ -1550,7 +1578,7 @@ class UncertaintyExtractor(object):
 			
 		return zeta_list[:n_samples]
 
-	def _psac_fsac(self, T_arr, L_r, indices, rng, n_samples):
+	def _psac_fsac(self, T_arr, L_full, L_r, indices, rng, n_samples):
 		"""
 		Fast SAC for partial parameters.
 		m=1 → class-A (f-SAC is undefined for a single parameter).
@@ -1562,9 +1590,14 @@ class UncertaintyExtractor(object):
 		T_min = float(T_arr[0]);  T_max = float(T_arr[-1])
 		T_mid = 0.5 * (T_min + T_max)
 		m	 = len(indices)
-		fp_min = self._psac_fp_S(T_min, L_r, indices)
-		fp_mid = self._psac_fp_S(T_mid, L_r, indices)
-		fp_max = self._psac_fp_S(T_max, L_r, indices)
+		thfull	   = self._psac_theta_full(T_arr)		   # (3, N)
+		LT_th		= L_full.T @ thfull				 # (3, N)
+		f_prior_vals = np.linalg.norm(LT_th, axis=0)	 # (N,)
+		fp_min	   = f_prior_vals[0]
+		fp_max	   = f_prior_vals[-1]
+		th_mid = self._psac_theta_full(np.array([T_mid]))[:, 0]
+		fp_mid = np.linalg.norm(L_full.T @ th_mid)
+		
 		out = []
 		for _ in range(n_samples * 8):
 			if len(out) >= n_samples:
@@ -1574,7 +1607,7 @@ class UncertaintyExtractor(object):
 			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r2)
 			kl, km, kr = r1 * fp_min, r_mid * fp_mid, r2 * fp_max
 			if m == 1:
-				sub = self._psac_class_A(T_arr, L_r, indices, rng, 1)
+				sub = self._psac_class_A(T_arr, L_full, L_r, indices, rng, 1)
 				if sub:
 					out.append(sub[0])
 				continue
@@ -1627,8 +1660,8 @@ class UncertaintyExtractor(object):
 		"""
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_fsac(self.temperatures, L_r, param_indices, rng, n_samples)
+		L_full,(_, L_r)  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_fsac(self.temperatures, L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
 	def getClassA_partial(self, param_indices, n_samples, rng=None):
@@ -1670,8 +1703,8 @@ class UncertaintyExtractor(object):
 			return []
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_class_C(self.temperatures, L_r, param_indices, rng, n_samples)
+		L_full,(_, L_r)  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_class_C(self.temperatures,L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
 	def reconstruct_full_zeta(self, zeta_r, param_indices, full_size=3):
@@ -3368,8 +3401,12 @@ class uncertaintyData:
 				#print(self.PlogRxnIndex)
 				#print(self.Plog_index)
 				for item in child:
-					if item.tag == "InterConnectedRxns":				
-						list_of_PLOG_rxn = item.text.split(",")
+					if item.tag == "InterConnectedRxns":
+						list_of_PLOG_rxn = [
+						rxn.strip()
+						for rxn in item.text.split(",")
+						if rxn.strip()
+						]
 						
 					if item.tag == "RxnCount":
 						count = int(item.text)
@@ -3379,7 +3416,10 @@ class uncertaintyData:
 						#print(i)
 						plog_object_list.append(self.plogUnsrt[self.PlogRxnIndex[i]])
 					else:
-						raise AssertionError(f"Invalid connected reactions are identified. Please check {item.text}")
+						raise AssertionError(
+							f"Invalid connected reaction '{i}'. "
+							f"Connected reactions specified in XML: {list_of_PLOG_rxn}"
+							)
 				for i in range(count):
 					index = i+1
 					

@@ -10,11 +10,13 @@ import time
 import sys
 import copy
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import pickle
 import tempfile
 sys.path.append('/shuffle.so')
 import shuffle
+import warnings
+import contextlib
 #print(dir(shuffle))
 class DesignMatrix(object):
 	def __init__(self,UnsrtData,design,sample_length,ind=None):
@@ -173,6 +175,7 @@ class DesignMatrix(object):
 			curves[rxn] = self.unsrt[rxn].getClassA_partial(idx, n_a, rng)
 		return curves
 
+	
 	def getClassB_Curves_partial(self, n_b, rxn_param_indices, rng):
 		"""
 		Class-B samples per reaction, generated in parallel via Worker.
@@ -187,22 +190,55 @@ class DesignMatrix(object):
 		curves : dict  rxn -> list of full-space (length-3) zeta vectors
 		"""
 		curves = {}
-		for rxn in self.unsrt:
+		total_rxns = len(self.unsrt)
+
+		pbar = tqdm(
+			total=total_rxns,
+			desc="Generating Class-B curves",
+			dynamic_ncols=True,
+			leave=True
+			)
+
+		for i, rxn in enumerate(self.unsrt, start=1):
+
+			pbar.set_postfix(
+				reaction=f"{i}/{total_rxns}",
+				samples=n_b
+				)
+
 			idx = rxn_param_indices[rxn]
-			#if len(idx) < 2:
-				# class-B infeasible for m=1; caller pads with extra class-A
-			#	curves[rxn] = []
-			#	continue
+
+			if len(idx) < 2:
+				curves[rxn] = []
+				pbar.update(1)
+				continue
+
 			generator = np.random.random_sample((n_b, 2))
+
 			data = self.unsrt[rxn].data
 			data["generators_b_partial"] = generator
-			data["param_indices"]        = idx
+			data["param_indices"] = idx
+
 			callWorkForce = Worker(self.allowed_count)
-			ClassB_curves, _ = callWorkForce.do_unsrt_b_partial(data, n_b)
+
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+
+				ClassB_curves, _ = callWorkForce.do_unsrt_b_partial(
+					data,
+					n_b
+					)
+
 			del callWorkForce
+
 			curves[rxn] = ClassB_curves
+			pbar.update(1)
+
+		pbar.close()
+
 		return curves
 
+	
 	def getClassC_Curves_partial(self, n_c, rxn_param_indices, rng):
 		"""
 		Class-C samples per reaction, generated in parallel via Worker.
@@ -215,20 +251,49 @@ class DesignMatrix(object):
 		curves : dict  rxn -> list of full-space (length-3) zeta vectors
 		"""
 		curves = {}
-		for rxn in self.unsrt:
+		total_rxns = len(self.unsrt)
+
+		pbar = tqdm(
+			total=total_rxns,
+			desc="Generating Class-C curves",
+			dynamic_ncols=True,
+			leave=True
+			)
+
+		for i, rxn in enumerate(self.unsrt, start=1):
+
+			pbar.set_postfix(
+				reaction=f"{i}/{total_rxns}",
+				samples=n_c
+				)
+
 			idx = rxn_param_indices[rxn]
-			#if len(idx) < 2:
-			#	curves[rxn] = []
-			#	continue
+
 			generator = np.random.random_sample((n_c, 2))
+
 			data = self.unsrt[rxn].data
 			data["generators_c_partial"] = generator
-			data["param_indices"]        = idx
+			data["param_indices"] = idx
+
 			callWorkForce = Worker(self.allowed_count)
-			ClassC_curves, _ = callWorkForce.do_unsrt_c_partial(data, n_c)
+
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+
+				ClassC_curves, _ = callWorkForce.do_unsrt_c_partial(
+					data,
+					n_c
+					)
+
 			del callWorkForce
+
 			curves[rxn] = ClassC_curves
+			pbar.update(1)
+
+		pbar.close()
+
 		return curves
+
 
 	def get_fSAC_partial(self, n_fsac, rxn_param_indices, rng):
 		"""
@@ -395,7 +460,8 @@ class DesignMatrix(object):
 				a_p   = list(a_curves.get(rxn, []))
 				b_p   = list(b_curves.get(rxn, []))
 				c_p   = list(c_curves.get(rxn, []))
-
+				
+				
 				if m < 2:
 					# Pad B and C slots with extra class-A
 					extra = self.unsrt[rxn].getClassA_partial(
@@ -403,7 +469,8 @@ class DesignMatrix(object):
 					)
 					b_p = extra[:n_b]
 					c_p = extra[n_b:]
-
+				
+				
 				combined = a_p + b_p + c_p
 				if len(combined) < unshuffled:
 					pad = self.unsrt[rxn].getClassA_partial(
@@ -832,6 +899,7 @@ def run_sampling_c(sample,data,generator,length):
 	return (sample,generator,zeta,length)
 	
 class Worker():
+	
 	def __init__(self, workers):
 		self.pool = multiprocessing.Pool(processes=workers)
 		self.progress = []
@@ -839,13 +907,16 @@ class Worker():
 		self.generator = []
 		self.parallel_zeta_dict = {}
 
-	def callback(self,result):
-		#print("Entered callback\n")
+		self.sample_pbar = None
+
+	def callback(self, result):
+
 		self.progress.append(result[0])
 		self.generator.append(result[1])
 		self.parallized_zeta.append(result[2])
-		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
-		sys.stdout.flush()
+
+		if self.sample_pbar is not None:
+			self.sample_pbar.update(1)
 	def callback_error(self,result):
     		print('error', result)
     		
@@ -894,18 +965,32 @@ class Worker():
 
 		Returns (parallized_zeta, generator) matching the existing interface.
 		"""
+		self.sample_pbar = tqdm(
+		total=sampling_points,
+			desc="    Samples",
+			leave=False,
+			dynamic_ncols=True
+			)
 		for args in range(sampling_points):
 			self.pool.apply_async(
 				Uncertainty.run_sampling_b_partial,
-				args=(1, data, data["generators_b_partial"][args], sampling_points),
+				args=(
+					1,
+					data,
+					data["generators_b_partial"][args],
+					sampling_points,
+					),
 				callback=self.callback,
-				error_callback=self.callback_error)
+				error_callback=self.callback_error
+			)
 		self.pool.close()
 		self.pool.join()
+		self.sample_pbar.close()
 		self.pool.terminate()
 		return self.parallized_zeta, self.generator
+	
 
-	def do_unsrt_c_partial(self, data, sampling_points):
+	def do_unsrt_c_partial(self, data, sampling_points):			
 		"""
 		Parallel class-C dispatch for partial-parameter sampling.
 
@@ -917,14 +1002,28 @@ class Worker():
 
 		Returns (parallized_zeta, generator) matching the existing interface.
 		"""
+
+		self.sample_pbar = tqdm(
+			total=sampling_points,
+			desc="    Samples",
+			leave=False,
+			dynamic_ncols=True
+			)
 		for args in range(sampling_points):
 			self.pool.apply_async(
 				Uncertainty.run_sampling_c_partial,
-				args=(1, data, data["generators_c_partial"][args], sampling_points),
+					args=(
+					1,
+					data,
+					data["generators_c_partial"][args],
+					sampling_points,
+					),
 				callback=self.callback,
-				error_callback=self.callback_error)
+				error_callback=self.callback_error
+			)
 		self.pool.close()
 		self.pool.join()
+		self.sample_pbar.close()
 		self.pool.terminate()
 		return self.parallized_zeta, self.generator
 

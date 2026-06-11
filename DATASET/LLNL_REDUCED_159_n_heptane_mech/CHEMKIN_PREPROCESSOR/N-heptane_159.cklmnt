@@ -1,0 +1,161 @@
+Ar 1Ar
+n2 2N
+ch3 1C 3H
+h 1H
+ch4 1C 4H
+h2 2H
+oh 1H 1O
+h2o 2H 1O
+o 1O
+c2h6 2C 6H
+c2h5 2C 5H
+hco 1C 1H 1O
+co 1C 1O
+co2 1C 2O
+o2 2O
+h2o2 2H 2O
+ho2 1H 2O
+c2h4 2C 4H
+ch3oh 1C 4H 1O
+ch2oh 1C 3H 1O
+ch3o 1C 3H 1O
+ch2o 1C 2H 1O
+c2h2 2C 2H
+c2h3 2C 3H
+c2h 2C 1H
+hcco 2C 1H 1O
+ch2 1C 2H
+ch 1C 1H
+ch2co 2C 2H 1O
+ch2(s) 1C 2H
+pc2h4oh 2C 5H 1O
+ch3co 2C 3H 1O
+ch3cho 2C 4H 1O
+c3h5-s 3C 5H
+c3h4-p 3C 4H
+c3h5-a 3C 5H
+c3h6 3C 6H
+c3h4-a 3C 4H
+ch3chco 3C 4H 1O
+c3h5-t 3C 5H
+c4h6 4C 6H
+nc3h7 3C 7H
+ic3h7 3C 7H
+c3h8 3C 8H
+c5h9 5C 9H
+c4h7 4C 7H
+c4h8-1 4C 8H
+sc4h9 4C 9H
+pc4h9 4C 9H
+ch3coch3 3C 6H 1O
+ch3coch2 3C 5H 1O
+c2h5co 3C 5H 1O
+c2h5cho 3C 6H 1O
+c5h10-1 5C 10H
+ch2cho 2C 3H 1O
+c5h11-1 5C 11H
+c5h11-2 5C 11H
+c2h5o 2C 5H 1O
+c2h5o2 2C 5H 2O
+ch3o2 1C 3H 2O
+ch3o2h 1C 4H 2O
+c3h2 3C 2H
+o2c2h4oh 2C 5H 3O
+c2h4o2h 2C 5H 2O
+c2h3co 3C 3H 1O
+c2h3cho 3C 4H 1O
+c3h5o 3C 5H 1O
+c3h6o1-2 3C 6H 1O
+c3h6ooh1-2 3C 7H 2O
+c3h6ooh2-1 3C 7H 2O
+nc3h7o 3C 7H 1O
+ic3h7o 3C 7H 1O
+nc3h7o2 3C 7H 2O
+ic3h7o2 3C 7H 2O
+c4h7o 4C 7H 1O
+c4h8ooh1-3o2 4C 9H 4O
+c4h8ooh1-3 4C 9H 2O
+nc4ket13 4C 8H 3O
+c4h8ooh1-2 4C 9H 2O
+c4h8o1-3 4C 8H 1O
+pc4h9o2 4C 9H 2O
+c3h3 3C 3H
+hocho 1C 2H 2O
+c2h3o1,2 2C 3H 1O
+nc3h7cho 4C 8H 1O
+nc3h7co 4C 7H 1O
+c3h6cho-2 4C 7H 1O
+ch2ch2coch3 4C 7H 1O
+c2h5coch2 4C 7H 1O
+c2h5coc2h4p 5C 9H 1O
+nc3h7coch2 5C 9H 1O
+nc4h9cho 5C 10H 1O
+nc4h9co 5C 9H 1O
+hoch2o 1C 3H 2O
+c6h13-1 6C 13H
+c6h12-1 6C 12H
+c6h11 6C 11H
+nc7h16 7C 16H
+c7h15-1 7C 15H
+c7h15-2 7C 15H
+c7h15-3 7C 15H
+c7h15-4 7C 15H
+c7h15o2-1 7C 15H 2O
+c7h15o2h-1 7C 16H 2O
+c7h15o2-2 7C 15H 2O
+c7h15o2h-2 7C 16H 2O
+c7h15o2-3 7C 15H 2O
+c7h15o2h-3 7C 16H 2O
+c7h14-1 7C 14H
+c7h14-2 7C 14H
+c7h14-3 7C 14H
+c7h13 7C 13H
+c7h15o2-4 7C 15H 2O
+c7h15o-1 7C 15H 1O
+c7h15o-2 7C 15H 1O
+c7h15o-3 7C 15H 1O
+c7h14ooh1-2 7C 15H 2O
+c7h14ooh1-3 7C 15H 2O
+c7h14ooh1-4 7C 15H 2O
+c7h14ooh2-3 7C 15H 2O
+c7h14ooh2-4 7C 15H 2O
+c7h14ooh2-5 7C 15H 2O
+c7h14ooh3-1 7C 15H 2O
+c7h14ooh3-2 7C 15H 2O
+c7h14ooh3-4 7C 15H 2O
+c7h14ooh3-5 7C 15H 2O
+c7h14ooh3-6 7C 15H 2O
+c7h14ooh4-2 7C 15H 2O
+c7h14ooh4-3 7C 15H 2O
+c7h14o1-3 7C 14H 1O
+c7h14o1-4 7C 14H 1O
+c7h14o2-4 7C 14H 1O
+c7h14o2-5 7C 14H 1O
+c7h14o3-5 7C 14H 1O
+c7h14ooh1-3o2 7C 15H 4O
+c7h14ooh2-3o2 7C 15H 4O
+c7h14ooh2-4o2 7C 15H 4O
+c7h14ooh2-5o2 7C 15H 4O
+c7h14ooh3-1o2 7C 15H 4O
+c7h14ooh3-2o2 7C 15H 4O
+c7h14ooh3-4o2 7C 15H 4O
+c7h14ooh3-5o2 7C 15H 4O
+c7h14ooh3-6o2 7C 15H 4O
+c7h14ooh4-2o2 7C 15H 4O
+c7h14ooh4-3o2 7C 15H 4O
+nc7ket13 7C 14H 3O
+nc7ket23 7C 14H 3O
+nc7ket24 7C 14H 3O
+nc7ket25 7C 14H 3O
+nc7ket31 7C 14H 3O
+nc7ket32 7C 14H 3O
+nc7ket34 7C 14H 3O
+nc7ket35 7C 14H 3O
+nc7ket36 7C 14H 3O
+nc7ket42 7C 14H 3O
+nc7ket43 7C 14H 3O
+nc4h9coch2 6C 11H 1O
+c4h7ooh1-4 4C 8H 2O
+c5h9ooh1-4 5C 10H 2O
+c4h7o1-4 4C 7H 1O
+c5h9o1-4 5C 9H 1O

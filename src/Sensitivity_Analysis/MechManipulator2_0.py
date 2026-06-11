@@ -114,14 +114,58 @@ class Manipulator:
 					select_dict[rxn] = sel_n
 
 		else:
-			# ── Full-space format (original behaviour) ─────────────────────────
-			count = 0
+			# ── Full-space format ──────────────────────────────────────────────
+			#
+			# Two vectors with DIFFERENT strides must use SEPARATE cursors:
+			#
+			#   self.perturbation  (pDesignMatrix row)
+			#       Stride = n_active per reaction (variable: 0, 1, 2, or 3).
+			#       dm_count advances by the number of 1s in sel_3.
+			#
+			#   self.selection  (pSelectionMatrix row)
+			#       Stride = 3 per reaction, always fixed.
+			#       sel_count advances by 3 regardless of n_active.
+			#
+			# Using a single counter for both causes the selection cursor to
+			# drift after any reaction where n_active ≠ len(activeParameters),
+			# reading pSelectionMatrix flags from wrong positions and
+			# producing wrong active_indices → wrong parameters perturbed.
+			#
+			# beta_full is built in FULL SPACE (always 3 elements):
+			#   inactive positions → 0.0
+			#   active positions   → the corresponding DM value
+			# This guarantees that beta_arr[list(active_indices)] in
+			# _compute_perturbed_params (Mode 4) works correctly for any
+			# subset of {0, 1, 2}, including n-only (active_indices=(1,))
+			# and A+Ea (active_indices=(0, 2)) which would raise IndexError
+			# if beta_arr were compressed to n_active elements.
+			dm_count  = 0   # cursor into self.perturbation  (advances by n_active)
+			sel_count = 0   # cursor into self.selection     (always advances by 3)
+
 			for rxn in self.rxn_list:
-				n = len(self.unsrt[rxn].activeParameters)
-				perturb[rxn]     = np.asarray(self.perturbation[count: count + n])
-				select_dict[rxn] = np.asarray(self.selection[count:   count + n],
-				                              dtype=float)
-				count += n
+				# Read exactly 3 selection flags for this reaction
+				sel_3    = np.asarray(
+				    self.selection[sel_count : sel_count + 3], dtype=float)
+				n_active = int(np.sum(sel_3 != 0.0))
+
+				# Extract the n_active DM values and place them at their
+				# global parameter positions (0=lnA, 1=n, 2=Ea/R) in a
+				# full-space 3-element beta vector.
+				dm_vals   = np.asarray(
+				    self.perturbation[dm_count : dm_count + n_active],
+				    dtype=float)
+				beta_full = np.zeros(3)
+				k = 0
+				for param_i in range(3):
+					if sel_3[param_i] != 0.0:
+						beta_full[param_i] = dm_vals[k]
+						k += 1
+
+				perturb[rxn]     = beta_full
+				select_dict[rxn] = sel_3
+
+				sel_count += 3          # pSelectionMatrix: fixed stride
+				dm_count  += n_active   # pDesignMatrix:    variable stride
 
 		return perturb, select_dict
 
@@ -219,9 +263,17 @@ class Manipulator:
 			# get_reduced_cholesky(indices) → (Σ_r, L_r)
 			# where Σ_r = Σ[active_indices, active_indices], L_r = chol(Σ_r).
 			#
-			# Then:
-			#   ζ_r = beta[active_indices]        (active components only)
-			#   Δp_r = L_r · ζ_r                 (m-vector, m = |active_indices|)
+			# beta_arr is FULL-SPACE (3 elements, zeros at inactive positions,
+			# DM values at global positions 0/1/2 for A/n/Ea).
+			# Guaranteed by the fixed getRxnPerturbationDict above.
+			#
+			# beta_arr[list(active_indices)] correctly extracts the active
+			# zeta values regardless of which subset {0,1,2} is active
+			# (n-only: active_indices=(1,) → beta_arr[[1]] ✓;
+			#  A+Ea:   active_indices=(0,2) → beta_arr[[0,2]] ✓).
+			#
+			#   ζ_r = beta_arr[active_indices]   (m active zeta values)
+			#   Δp_r = L_r · ζ_r                (m-vector)
 			#   p[active_indices] += Δp_r
 			_, L_r  = self.unsrt[rxn].get_reduced_cholesky(active_indices)
 			zeta_r  = beta_arr[list(active_indices)]

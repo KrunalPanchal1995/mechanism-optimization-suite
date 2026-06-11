@@ -109,6 +109,7 @@ parallel_threads = dataCounts[countThreads]
 targets_count = int(dataCounts["targets_count"])
 rps_order = stats_[order]
 PRS_type = stats_["PRS_type"]
+MRE_criteria = stats_["MRE_criteria"]
 print("\nParallel threads are {}".format(parallel_threads))
 targetLines = open(locations[targets],'r').readlines()
 addendum = yaml.safe_load(open(locations[add],'r').read())
@@ -131,7 +132,7 @@ for target in targetLines[:targets_count]:
 	target_list.append(t)
 
 case_dir = range(0,len(target_list))
-print(f"Case directory: (case_dir)")
+print(f"Case directories: {case_dir}")
 print("\n\nOptimization targets identified.\n")
 
 # SAVING THE TARGETS IN A CSV FILE
@@ -141,7 +142,7 @@ print("\t Targets exported to targets.csv\n\n")
 
 #Plotting the T-P-phi space
 print("\t Plotting the T-P-phi space...")
-TPhiPlotter(df).plot_t_p_phi(color="Phi", save_path="T-P-phi_space.png", show=True)
+TPhiPlotter(df).plot_t_p_phi(color="Phi", save_path="T-P-phi_space.png", show=False)
 print("T-P-phi space plot saved as T-P-phi_space.png\n\n")
 print("\n\nOptimization targets identified.\nStarted the MUQ process.......\n")
 
@@ -219,9 +220,172 @@ manipulationDict["zeta"] = deepcopy(zeta_list)#.deepcopy()
 manipulationDict["activeParameters"] = deepcopy(activeParameters)#.deepcopy()
 manipulationDict["nominal"] = deepcopy(nominal_list)#.deepcopy()
 print(f"\n\n################################################\nThe total reactions selected for this study: {len(manipulationDict['activeParameters'])}\n\tThe list is as follows:\n\t")
-print("\t"+f"{manipulationDict['activeParameters']}")
+print("\t"+f"{manipulationDict['activeParameters']}\n")
 print("\n################################################\n\n")
 
+R = 1.987  # cal/mol-K
+base_dir = "Uncertainty_Matrices"
+os.makedirs(base_dir, exist_ok=True)
+
+for rxn in unsrt_data:
+
+    # Create a safe folder name
+    rxn_dir = os.path.join(base_dir, str(rxn).replace("/", "_"))
+    os.makedirs(rxn_dir, exist_ok=True)
+
+    # Cholesky matrix
+    L = np.asarray(unsrt_data[rxn].cholskyDeCorrelateMat)
+
+    # Covariance matrix
+    Sigma = L @ L.T
+    
+    # Nominal values in uncertainty space
+    nominal = np.asarray(unsrt_data[rxn].nominal)
+
+    # Convert back to Arrhenius form
+    A_nom = np.exp(nominal[0])
+    n_nom = nominal[1]
+    Ea_nom = nominal[2] * R
+    
+    # Save files
+    np.savetxt(
+        os.path.join(rxn_dir, "L.csv"),
+        np.atleast_2d(L),
+        delimiter=",",
+        fmt="%.10e"
+    )
+
+    np.savetxt(
+        os.path.join(rxn_dir, "Sigma.csv"),
+        np.atleast_2d(Sigma),
+        delimiter=",",
+        fmt="%.10e"
+    )
+    
+    # Save nominal physical values
+    nominal_df = pd.DataFrame({
+        "Parameter": ["A", "n", "Ea"],
+        "Value": [A_nom, n_nom, Ea_nom]
+    })
+
+    nominal_df.to_csv(
+        os.path.join(rxn_dir, "nominal.csv"),
+        index=False
+    )
+print(f"\nSaved matrices for {len(unsrt_data)} reactions in '{base_dir}'")
+print("\n################################################\n\n")
+
+import csv
+
+# =============================================================================
+# CSV FILE
+# =============================================================================
+
+COST_FILE = "optimization_cost.csv"
+PRS_ERROR_FILE = "../Prediction_errors.csv"
+
+# =============================================================================
+# CREATE FILE WITH HEADER (ONLY ONCE)
+# =============================================================================
+
+HEADERS = [
+    "Case_ID",
+    "Total_Rxns",
+    "Active_Rxns",
+    "p-PRS_Cost",
+    "Full_PRS_Cost"
+]
+
+PRS_HEADER = [
+	"Case_ID",
+	"Max_Training_Error",
+	"Max_Testing_Error",
+	"Selection_Criterion"
+]
+
+def initialize_csv(csv_name, headers):
+    """
+    Create CSV file with headers if it does not exist.
+
+    Parameters
+    ----------
+    csv_path : str
+        Output CSV path
+
+    headers : list
+        List of column names
+    """
+    csv_path = os.path.join(os.getcwd(),csv_name)
+    
+    if not os.path.exists(csv_path):
+
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+
+        with open(csv_path, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+
+        print(f"Created CSV: {csv_path}")
+
+# =============================================================================
+# APPEND ROW DATA
+# =============================================================================
+
+def append_csv_row(csv_path, row_data):
+    """
+    Append a single row to CSV.
+
+    Parameters
+    ----------
+    csv_path : str
+        CSV file path
+
+    row_data : list or tuple
+        Data row to append
+    """
+
+    with open(csv_path, mode="a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row_data)
+
+# =============================================================================
+# APPEND DICTIONARY DATA
+# =============================================================================
+
+def append_csv_dict(csv_path, data_dict, headers=None):
+    """
+    Append dictionary data to CSV.
+
+    Parameters
+    ----------
+    csv_path : str
+        CSV file path
+
+    data_dict : dict
+        Dictionary containing row data
+
+    headers : list, optional
+        Header order for writing dictionary values
+    """
+
+    if headers is None:
+        headers = list(data_dict.keys())
+
+    row = [data_dict[h] for h in headers]
+
+    append_csv_row(csv_path, row)
+
+def getTotalUnknowns(N):
+	n_ = 1 + 2*N + (N*(N-1))/2
+	return int(n_)
+	
+def getSim(n,design):
+	n_ = getTotalUnknowns(n)
+	if design == "A-facto":
+		sim = 4*n_
+	else:
+		sim = 7*n_	
+	return sim
 
 """
 For Partial PRS (p-PRS), we need to do a second level of sensitivity analysis:	
@@ -286,14 +450,20 @@ if PRS_type == "Partial":
 	yaml_loc_dict = {}
 	no_of_sim = {}
 	print("\n################################################\n###  Starting to generate Design Matrix      ###\n###  for all targets                        ###\n################################################\n\n")
+	initialize_csv(COST_FILE,HEADERS)
 	for case in case_dir:
 		PPRS_system = P_PRS.PartialPRS(sensitivity_analysis[str(case)],unsrt_data,optInputs,target_list,str(case),activeParameters,design_type,status=status_)
-		yaml_loc,design_matrix,selected_params = PPRS_system.partial_DesignMatrix()
+		yaml_loc, p_design_matrix, selected_params, Active_Rxns = PPRS_system.partial_DesignMatrix()
 		partialPRS_Object.append(PPRS_system)
 		no_of_sim[case] = int(PPRS_system.no_of_sim)
 		yaml_loc_dict[case] = yaml_loc
-		design_matrix_dict[case] = design_matrix
+		design_matrix_dict[case] = p_design_matrix
 		selected_params_dict[case] = selected_params
+		append_csv_row(COST_FILE,[f"Case-{case}",
+							len(activeParameters), 
+							Active_Rxns,
+						     getSim(Active_Rxns,design_type),
+						     getSim(len(activeParameters),design_type)])
 ##################################################################
 ##  Use the unsrt data to sample the Arrhenius curves           ##
 ##  MUQ-SAC: Method of Uncertainty Quantification and           ##
@@ -516,30 +686,40 @@ for key in case_dict:
 ##      Generating the response surface      ##
 ##                                           ##
 ###############################################
-
+initialize_csv(PRS_ERROR_FILE,PRS_HEADER)
 ResponseSurfaces = {}
 selected_PRS = {}
 for case_index,case in enumerate(temp_sim_opt):
 	yData = np.asarray(temp_sim_opt[case]).flatten()
 	xData = np.asarray(design_matrix_dict[case_index])#[0:no_of_sim[case_index]]
+	selectedParams = np.asarray(selected_params_dict[case_index])
 	#print(np.shape(xData))
 	#print(np.shape(yData))
 	#raise AssertionError("Stop!!")
 	
 	xTrain,xTest,yTrain,yTest = train_test_split(xData,yData,
-									random_state=104, 
-                                	test_size=0.1, 
-                                   	shuffle=True)
+										random_state=104, 
+										test_size=0.1, 
+										shuffle=True)
 	#print(np.shape(xTest))
 	#print(np.shape(yTrain))
-	Response = PRS.ResponseSurface(xTrain,yTrain,case,case_index,prs_type=PRS_type,selected_params=selected_params_dict[case_index])
+	Response = PRS.ResponseSurface(xTrain,
+							yTrain,
+							case,case_index,
+							prs_type=PRS_type,
+							selected_params=selectedParams,
+							criteria = MRE_criteria)
 	Response.create_response_surface()
-	Response.test(xTest,yTest)
+	Max_Train_Error, Max_Test_Error, Criterion = Response.test(xTest,yTest)
 	Response.plot(case_index)
 	#Response.DoStats_Analysis() #Generates stastical analysis report
 	#print(Response.case)
 	ResponseSurfaces[case_index] = Response
 	#print(Response.selection)
+	append_csv_row(PRS_ERROR_FILE,[f"Case-{case}",
+							Max_Train_Error, 
+							Max_Test_Error,
+						     Criterion])
 	del xTrain,xTest,yTrain,yTest
 #raise AssertionError("The Target class, Uncertainty class, Design Matrix and Simulations and Response surface")
 os.chdir("..")

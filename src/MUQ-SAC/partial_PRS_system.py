@@ -58,7 +58,7 @@ class PartialPRS(object):
 		self.target_list  = target_list
 		self.optInputs	= optInputs
 		self.cut_off	  = float(optInputs["Stats"]["cut_off_percentage"])
-		self.sens_param   = str(optInputs["Stats"]["sensitive_parameters"])
+		#self.sens_param   = str(optInputs["Stats"]["sensitive_parameters"])
 		# NOTE: Arrhenius_Selection_Type removed — always using "some" framework.
 		self.design	   = design
 		self.case_index   = case_index
@@ -134,7 +134,8 @@ class PartialPRS(object):
 		# Three-parameter design (A, n, Ea) – new implementation			  #
 		# ------------------------------------------------------------------ #
 		else:
-			if status == "Pending":
+			csv_path = f"DM_FOR_PARTIAL_PRS/{case_index}/selected_parameters.csv"
+			if status == "Pending" and not os.path.exists(csv_path):
 				self._build_three_param_selection(sensitivity_dict, active_parameters)
 			else:
 				self._reload_three_param_selection(active_parameters)
@@ -374,25 +375,18 @@ class PartialPRS(object):
 		if "DesignMatrix.csv" not in os.listdir(f"DM_FOR_PARTIAL_PRS/{self.case_index}/"):
 			design_matrix,selection_matrix,p_design_matrix,p_selection_matrix = DM.DesignMatrix(self.unsrt,self.design,self.getSim(na,self.design),n_rxn).getSample_partial(self.case_index,self.selected)
 			g = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv","w").write(self.selected_rxn_string)
+		
+		# partial_PRS_system.py  →  partial_DesignMatrix(), else branch
 		else:
-			for rxn in self.unsrt:
-				self.active_params.extend(list(self.unsrt[rxn].activeParameters))
-			#print(len(self.active_params))
-			design_matrix_file = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/DesignMatrix.csv").readlines()
-			selection_matrix_file = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/SelectionMatrix.csv").readlines()
-			p_design_matrix_file = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/pDesignMatrix.csv").readlines()
+			
+			design_matrix_file      = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/DesignMatrix.csv").readlines()
+			selection_matrix_file   = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/SelectionMatrix.csv").readlines()
+			p_design_matrix_file    = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/pDesignMatrix.csv").readlines()
 			p_selection_matrix_file = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/pSelectionMatrix.csv").readlines()
-			selected_parameters = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv").readlines()
-			selected_parameters = [i.strip() for i in selected_parameters]
+			selected_parameters     = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv").readlines()
+			selected_parameters     = [i.strip() for i in selected_parameters]
 			self.selected_rxn_count = len(selected_parameters)
-			#print(p_selection_matrix_file)
-			for rxn in self.active_params:
-				if rxn in selected_parameters:
-					self.selected.append(1)
-				else:
-					self.selected.append(0)
-			#print(len(self.selected))
-			#raise AssertionError("Stop!")
+			
 			design_matrix = []
 			for row in design_matrix_file:
 				design_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
@@ -459,4 +453,4 @@ class PartialPRS(object):
 				index_list.append(i)
 				location_mech.append(os.getcwd()+f"/YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}")
 				yaml_loc.append(os.getcwd()+f"/YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}/mechanism_"+str(i)+".yaml")
-		return yaml_loc,p_design_matrix,self.selected
+		return yaml_loc,p_design_matrix,self.selected, self.selected_rxn_count

@@ -1,0 +1,107 @@
+sr_no,dataset_ID,Temperature_K,Pressure_Pa,Phi,Fuel_list,Fuel_total,Bathgas_list,Bathgas_total,target_type,observed,obs_unit,X_AR,X_MB-C5H10O2,X_O2,is_dummy,dummy_source
+1,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1580.128306,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,21.92,us,0.73,0.01,0.26,FALSE,
+2,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1506.841058,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,47.12,us,0.73,0.01,0.26,FALSE,
+3,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1442.21062,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,72.3,us,0.73,0.01,0.26,FALSE,
+4,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1374.967345,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,163.71,us,0.73,0.01,0.26,FALSE,
+5,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1324.345442,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,405.93,us,0.73,0.01,0.26,FALSE,
+6,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_1,1287.813422,100000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,872.66,us,0.73,0.01,0.26,FALSE,
+7,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_4,1568.332236,400000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,14.95,us,0.73,0.01,0.26,FALSE,
+8,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_4,1472.840815,400000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,25.28,us,0.73,0.01,0.26,FALSE,
+9,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_4,1401.915016,400000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,74.2,us,0.73,0.01,0.26,FALSE,
+10,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_4,1368.531976,400000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,102.63,us,0.73,0.01,0.26,FALSE,
+11,ign_BUTANOATE_phi_1_IGN_PHI_0_25_P_4,1292.774682,400000,0.25,MB-C5H10O2,0.01,AR,0.73,Tig,308.13,us,0.73,0.01,0.26,FALSE,
+12,ign_BUTANOATE_phi_1_IGN_PHI_1_P_1,1601.896646,100000,1,MB-C5H10O2,0.01,AR,0.925,Tig,64.3,us,0.925,0.01,0.065,FALSE,
+13,ign_BUTANOATE_phi_1_IGN_PHI_1_P_1,1541.544628,100000,1,MB-C5H10O2,0.01,AR,0.925,Tig,99.68,us,0.925,0.01,0.065,FALSE,
+14,ign_BUTANOATE_phi_1_IGN_PHI_1_P_1,1488.294563,100000,1,MB-C5H10O2,0.01,AR,0.925,Tig,139.73,us,0.925,0.01,0.065,FALSE,
+15,ign_BUTANOATE_phi_1_IGN_PHI_1_P_1,1402.40653,100000,1,MB-C5H10O2,0.01,AR,0.925,Tig,331.48,us,0.925,0.01,0.065,FALSE,
+16,ign_BUTANOATE_phi_1_IGN_PHI_1_P_1,1371.873842,100000,1,MB-C5H10O2,0.01,AR,0.925,Tig,553.73,us,0.925,0.01,0.065,FALSE,
+17,ign_BUTANOATE_phi_1_IGN_PHI_1_P_4,1573.638409,400000,1,MB-C5H10O2,0.01,AR,0.925,Tig,37.87,us,0.925,0.01,0.065,FALSE,
+18,ign_BUTANOATE_phi_1_IGN_PHI_1_P_4,1497.185292,400000,1,MB-C5H10O2,0.01,AR,0.925,Tig,63.67,us,0.925,0.01,0.065,FALSE,
+19,ign_BUTANOATE_phi_1_IGN_PHI_1_P_4,1402.386862,400000,1,MB-C5H10O2,0.01,AR,0.925,Tig,189.61,us,0.925,0.01,0.065,FALSE,
+20,ign_BUTANOATE_phi_1_IGN_PHI_1_P_4,1377.827992,400000,1,MB-C5H10O2,0.01,AR,0.925,Tig,236.46,us,0.925,0.01,0.065,FALSE,
+21,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_1,1651.582216,100000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,60.13,us,0.92,0.015,0.065,FALSE,
+22,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_1,1586.420243,100000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,73.08,us,0.92,0.015,0.065,FALSE,
+23,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_1,1482.865489,100000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,184.81,us,0.92,0.015,0.065,FALSE,
+24,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_1,1384.773036,100000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,560.08,us,0.92,0.015,0.065,FALSE,
+25,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1639.156162,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,20.85,us,0.92,0.015,0.065,FALSE,
+26,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1530.292133,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,50.51,us,0.92,0.015,0.065,FALSE,
+27,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1483.3274,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,81.13,us,0.92,0.015,0.065,FALSE,
+28,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1403.03617,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,183.12,us,0.92,0.015,0.065,FALSE,
+29,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1380.719631,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,262.75,us,0.92,0.015,0.065,FALSE,
+30,ign_BUTANOATE_phi_1_IGN_PHI_1_5_P_4,1325.486454,400000,1.5,MB-C5H10O2,0.015,AR,0.92,Tig,519.74,us,0.92,0.015,0.065,FALSE,
+31,ing_Ethyl_Butanoate,684.32,3031000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,120978,us,0.7652,0.0313,0.2035,FALSE,
+32,ing_Ethyl_Butanoate,698.71,3024000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,85520,us,0.7652,0.0313,0.2035,FALSE,
+33,ing_Ethyl_Butanoate,719.03,2978000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,54544,us,0.7652,0.0313,0.2035,FALSE,
+34,ing_Ethyl_Butanoate,740.79,2962000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,46404,us,0.7652,0.0313,0.2035,FALSE,
+35,ing_Ethyl_Butanoate,762.34,2940000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,47990,us,0.7652,0.0313,0.2035,FALSE,
+36,ing_Ethyl_Butanoate,794.22,2965000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,58972,us,0.7652,0.0313,0.2035,FALSE,
+37,ing_Ethyl_Butanoate,806.6,3003000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,54024,us,0.7652,0.0313,0.2035,FALSE,
+38,ing_Ethyl_Butanoate,820.07,2945000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,52008,us,0.7652,0.0313,0.2035,FALSE,
+39,ing_Butanoate,832.82,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,57700,us,0.7652,0.0313,0.2035,FALSE,
+40,ing_Butanoate,845.45,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,37400,us,0.7652,0.0313,0.2035,FALSE,
+41,ing_Butanoate,858.77,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,21600,us,0.7652,0.0313,0.2035,FALSE,
+42,ing_Butanoate,869.05,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,12600,us,0.7652,0.0313,0.2035,FALSE,
+43,ing_Butanoate,881.23,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,10000,us,0.7652,0.0313,0.2035,FALSE,
+44,ing_Butanoate,895.8,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,5700,us,0.7652,0.0313,0.2035,FALSE,
+45,ing_Butanoate,908.54,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,4400,us,0.7652,0.0313,0.2035,FALSE,
+31,dummy_ing_Ethyl_Butanoate_dense,680,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,148631.9584,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,685,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,122774.7035,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,690,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,102898.4496,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,695,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,88173.29083,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,700,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,77147.17247,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,705,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,68831.01665,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,710,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,62539.73346,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,715,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,57791.23847,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,720,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,54241.11071,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,725,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,51639.52118,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,730,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,49802.2957,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,735,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,48591.07472,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,740,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,47899.40253,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,745,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,47642.72574,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,750,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,47751.00101,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,755,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,48163.07408,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,760,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,48822.29821,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,765,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,49673.07028,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,770,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,50658.11411,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,775,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,51716.45201,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,780,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,52782.08984,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,785,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,53783.49965,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,790,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,54644.01665,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,795,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,55283.26899,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,800,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,55619.72319,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,805,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,55574.35109,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,810,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,55075.30497,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,815,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,54063.33309,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,820,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,52497.49522,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+31,dummy_ing_Ethyl_Butanoate_dense,825,2971500,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,50670.42998,us,0.7652,0.0313,0.2035,TRUE,Smoothed spline in ln(tau) vs T with linear boundary extrapolation
+39,dummy_ing_Butanoate_NTC_dense,760,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,61246.45541,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,765,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,58610.94834,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,770,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,56535.03017,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,775,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,55415.17673,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,780,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,56557.02824,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,785,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,57630.05818,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,790,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,58552.11876,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,795,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59237.08998,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,800,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59597.60715,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,805,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59548.99007,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,810,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59014.25252,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,815,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59762.30362,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,820,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,61181.90977,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,825,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,62412.17592,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,830,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,63172.60574,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,835,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,59329.34919,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,840,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,50252.66461,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,845,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,38033.51129,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,850,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,31403.16926,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,855,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,25559.2193,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,860,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,20304.19244,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,865,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,15118.21372,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,870,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,12287.88582,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,875,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,11196.56244,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,880,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,10288.85382,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,885,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,8811.934274,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,890,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,7080.408112,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,895,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,5831.116566,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,900,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,5132.928974,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,905,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,4634.191748,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
+39,dummy_ing_Butanoate_NTC_dense,910,3000000,0.9997543,MB-C5H10O2,0.0313,AR,0.7652,Tig,4332.957064,us,0.7652,0.0313,0.2035,TRUE,"Low-T branch from shifted Ethyl template (+38.0 K, +0.060 dex), blended into exact Butanoate PCHIP branch from 828.0 to 845.0 K; Butanoate-over-Ethyl ordering enforced only up to 832.82 K"
