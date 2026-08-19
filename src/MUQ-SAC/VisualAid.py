@@ -1614,6 +1614,9 @@ class MSOCompareWMREPlotter:
         axes = np.atleast_1d(axes)
         width = 0.8 / max(len(methods), 1)
         colors = {"Method 1": "#1f77b4", "Method 2": "#ff7f0e"}
+        all_vals = [r["mean_wmre"] for r in records if r["mean_wmre"] is not None]
+        y_max = max(all_vals) if all_vals else 1.0
+        placeholder_h = 0.06 * y_max   # small but visible, so "unresolved" never reads as "zero"
         for ax, crit in zip(axes, criteria):
             x = np.arange(len(fuels))
             for j, method in enumerate(methods):
@@ -1622,13 +1625,16 @@ class MSOCompareWMREPlotter:
                     match = [r for r in records
                              if r["fuel"] == fuel and r["criterion"] == crit and r["method"] == method]
                     v = match[0]["mean_wmre"] if match else None
-                    vals.append(0.0 if v is None else v)
+                    vals.append(placeholder_h if v is None else v)
                     hatched.append(v is None)
                 bars = ax.bar(x + j * width, vals, width=width, label=method,
                                color=colors.get(method, None))
-                for bar, h in zip(bars, hatched):
+                for xi, bar, h in zip(x, bars, hatched):
                     if h:
-                        bar.set_hatch("//"); bar.set_edgecolor("red"); bar.set_alpha(0.3)
+                        bar.set_hatch("//"); bar.set_facecolor("none"); bar.set_edgecolor("red")
+                        ax.annotate("unresolved", xy=(xi + j * width, placeholder_h), xytext=(0, 4),
+                                    textcoords="offset points", ha="center", va="bottom",
+                                    fontsize=6.5, color="red", rotation=90)
             ax.set_xticks(x + width * (len(methods) - 1) / 2)
             ax.set_xticklabels(fuels, rotation=20, ha="right", fontsize=8)
             ax.set_title(f"Criterion {crit}", fontsize=10.5)
