@@ -1728,3 +1728,84 @@ class MSOCompareParityPlotter:
         fig.savefig(out.replace(".pdf", ".png"), bbox_inches="tight", dpi=150)
         plt.close(fig)
         return out
+
+
+class ActiveParameterSVDPlotter:
+    """
+    Renders the singular-value spectrum IdentifiablePRS.identifiable_directions
+    computes per reaction (`build_layout_blocks`'s ReactionBlock.svd_spectrum
+    / .svd_ratio_to_max), reading the JSON report written by
+    active_parameter_selection/driver_active_parameter_selection.py --
+    this class only plots, it does not recompute the SVD.
+
+    JSON schema consumed (case0_active_parameter_report.json):
+      {"case": int, "n_blocks": int,
+       "reactions": [{"rxn": str, "param_labels": [...], "n_total_directions": int,
+                       "n_retained": int, "n_discarded": int,
+                       "svd_spectrum": [...], "svd_ratio_to_max": [...],
+                       "svd_tol": float}, ...]}
+    """
+
+    def __init__(self, report):
+        self.report = report
+
+    @classmethod
+    def from_json(cls, path):
+        import json
+        with open(path) as fh:
+            return cls(json.load(fh))
+
+    def plot_spectrum(self, outpath="active_parameter_svd_spectrum.pdf", figsize=(11, 5),
+                       max_rxn_label=28):
+        """
+        One point per candidate direction, grouped by reaction on the x-axis,
+        y = singular value ratio to that reaction's own max (log scale) --
+        the actual retain/discard criterion, since svd_tol in the report is
+        a RATIO tolerance, not an absolute one. Retained directions are
+        filled blue circles; discarded ones are red X's. The tolerance line
+        is common to every reaction (ratio-based), so one dashed horizontal
+        line at svd_tol applies to the whole panel.
+        """
+        os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
+        reactions = self.report["reactions"]
+        tol = reactions[0]["svd_tol"] if reactions else 1e-6
+
+        fig, ax = plt.subplots(figsize=figsize)
+        xt_labels = []
+        for i, r in enumerate(reactions):
+            ratios = np.asarray(r["svd_ratio_to_max"], dtype=float)
+            n_ret = r["n_retained"]
+            retained_mask = np.arange(len(ratios)) < n_ret if n_ret else np.zeros(len(ratios), dtype=bool)
+            # identifiable_directions keeps directions above tol in descending
+            # singular-value order, so the first n_retained entries are kept.
+            xs = np.full(len(ratios), i, dtype=float)
+            ax.scatter(xs[retained_mask], ratios[retained_mask], marker="o", s=34,
+                       color="#1f77b4", zorder=3,
+                       label="Retained" if i == 0 and retained_mask.any() else None)
+            ax.scatter(xs[~retained_mask], ratios[~retained_mask], marker="x", s=50,
+                       color="#d62728", linewidths=1.8, zorder=3,
+                       label="Discarded" if i == 0 and (~retained_mask).any() else None)
+            label = r["rxn"]
+            if len(label) > max_rxn_label:
+                label = label[:max_rxn_label - 1] + "…"
+            xt_labels.append(f"{label}\n({r['n_retained']}/{r['n_total_directions']})")
+
+        ax.axhline(tol, color="black", ls="--", lw=1.1,
+                   label=fr"tolerance ($s/s_{{\max}} = {tol:.0e}$)")
+        ax.set_yscale("log")
+        ax.set_xticks(range(len(reactions)))
+        ax.set_xticklabels(xt_labels, rotation=60, ha="right", fontsize=7.5)
+        ax.set_ylabel(r"$s_i / s_{\max}$  (singular value ratio, log scale)")
+        n_disc_total = sum(r["n_discarded"] for r in reactions)
+        n_dir_total = sum(r["n_total_directions"] for r in reactions)
+        ax.set_title(f"Case {self.report.get('case', '?')}: SVD spectrum per reaction "
+                     f"-- {n_dir_total - n_disc_total}/{n_dir_total} directions retained, "
+                     f"{self.report.get('n_blocks', len(reactions))} reactions with a block",
+                     fontsize=11)
+        ax.legend(fontsize=8, loc="upper right")
+        ax.grid(True, axis="y", alpha=0.25, which="both")
+        fig.tight_layout()
+        fig.savefig(outpath, bbox_inches="tight", dpi=150)
+        fig.savefig(outpath.replace(".pdf", ".png"), bbox_inches="tight", dpi=150)
+        plt.close(fig)
+        return outpath
