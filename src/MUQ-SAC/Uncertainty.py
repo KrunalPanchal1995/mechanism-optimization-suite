@@ -1830,12 +1830,28 @@ class UncertaintyExtractor(object):
 				 np.asarray(zeta_r), L_r, indices
 			  )
 
+			# ── band-validity gate (added 2026-08-19) ───────────────────────
+			# Unlike class-A/B/D, this function previously only rejected on a
+			# missing sign change -- the ramp target's two ENDPOINTS are
+			# anchored inside the band by construction, but the intermediate
+			# least-squares fit is not constrained pointwise, so it can (and
+			# empirically does, ~3.3% of the time) overshoot the band between
+			# them. Recompute dk AFTER _psac_enforce_dn (which can rescale
+			# zeta_r) so this checks the curve that actually gets stored --
+			# same ordering _psac_class_A uses for its own equivalent check.
+			dk = self.delta_kappa(T_arr, L_r, zeta_r, indices)
+			if not np.all(np.abs(dk) <= f_prior_vals + 1e-10):
+				if recorder is not None:
+					recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": False})
+					recorder.mark_rejection("band_violation")
+				continue
+
 			if recorder is not None:
 				recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": True})
 
 			zeta_list.append(zeta_r)
 			_rng_advance_sample(rng)
-			
+
 		return zeta_list[:n_samples]
 
 	def _psac_fsac(self, T_arr, L_full, L_r, indices, rng, n_samples):
