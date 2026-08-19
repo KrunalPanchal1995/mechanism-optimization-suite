@@ -17,10 +17,23 @@ from scipy.optimize import BFGS
 from MechanismParser import Parser
 import subprocess
 import warnings
+import qmc_sampling
 #############################################################
 ###	   Uncertainty for arrhenius parameters		 ######
 ###	   of elementary reactions					  ######
 #############################################################
+
+def _rng_advance_sample(rng):
+	"""
+	Tell a QuasiRandomGenerator (Sobol/LHS-backed) that we're now drawing
+	for a fresh accepted output sample, so it reserves its next shadow row.
+	No-op for plain np.random.Generator instances (legacy 'numpy' method),
+	which have no such bookkeeping concept.
+	"""
+	advance = getattr(rng, "advance_sample", None)
+	if advance is not None:
+		advance()
+
 def run(sample,data,length):
 	A = UncertaintyExtractor(data)
 	a1 =2*np.random.random_sample(1)-1
@@ -43,39 +56,116 @@ def run_sampling_b_partial(sample, data, generator, length):
 	partial-parameter sampling.  Called by workers.do_unsrt_b_partial.
 	Generates ONE full-space ζ for data["param_indices"].
 	No SLSQP — uses the analytical instance methods of UncertaintyExtractor.
+
+	`generator` is a length-4 array [a1, a2, r1, r2] sliced from this
+	reaction's column-block of the joint low-discrepancy shadow matrix
+	(see DesignMatrix.getClassB_Curves_partial):
+	  a1, a2 -> only fed into the deterministic fallback-seed derivation
+	            below (kept for uniqueness parity with the other branches).
+	            Historically fed to populateValues() for the m==3 branch's
+	            SHGO solve (getB2Zeta) -- REMOVED 2026-08-19, see below.
+	  r1, r2 -> reserved as the FIRST-attempt draw for the m==3 analytical
+	            3x3 solve (_psac_class_B_m3_), the m==2 analytical bisection
+	            (getClassB_partial), or the m==1 class-A fallback — all
+	            three DO use rejection sampling internally. Any retry
+	            beyond that first attempt is routed to an independent,
+	            deterministically-seeded fallback stream (derived from
+	            data["fallback_seed_b_base"] + this task's own shadow
+	            values, so every task gets its own fallback stream without
+	            needing a separate per-task seed array to be threaded
+	            through the multiprocessing dispatch).
+
+	BAND-VALIDITY FIX (2026-08-19): the m==3 branch used to call
+	UncertaintyExtractor.getB2Zeta(flag=True) -- SHGO/SLSQP against a raw
+	[-1000, 1000] box with "no rejection step" (its own docstring). Verified
+	against real n-heptane reaction data: the solver was frequently returning
+	the box corner (b_type sample pool median |zeta| = [15.3, 53.3, 1000.0]),
+	giving ~98% of class-B m=3 samples 26-80x outside the reaction's stated
+	uncertainty band. Replaced with the analytical, rejection-sampled
+	_psac_class_B_m3_ (same family as the m==1/m==2 branches below), which
+	now also enforces the physical band directly (see its own docstring) --
+	every class-B sample this function returns, m=1/2/3 alike, is physically
+	valid by construction.
 	"""
 	warnings.filterwarnings(
 	   "ignore",
 	   category=RuntimeWarning,
 	   message="Values in x were outside bounds during a minimize step"
 	)
-	rng		   = np.random.default_rng()
 	param_indices = data["param_indices"]
-	#print(param_indices)
 	A = UncertaintyExtractor(data)
-	a1 = generator[0]
-	a2 = generator[1]
-	A.populateValues(a1,a2)
+	a1, a2 = float(generator[0]), float(generator[1])
+	A.populateValues(a1, a2)
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag=False)
 	m = len(param_indices)
-	#print(m)
+
 	if m == 3:
-		#print("solving B3")
-		zeta_list  = A.getB2Zeta(flag=True)
-		zeta = list(zeta_list) if zeta_list else [0.0, 0.0, 0.0]
-	
-	elif m == 2:
-		#print("solving D2")
-		zeta_list	 = A.getClassB_partial(data, param_indices, 1, rng)
-		zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
-	
+		r1, r2 = float(generator[2]), float(generator[3])
+		task_seed = qmc_sampling.derive_seed(
+			data.get("fallback_seed_b_base"), "classB3", a1, a2, r1, r2
+		)
+		rng = qmc_sampling.QuasiRandomGenerator(
+			np.array([[r1, r2]]),
+			fallback_seed=task_seed,
+			label="class-B-partial-m3"
+		)
+		# CANONICAL-SIGN FIX (2026-08-19): A.cov (set by getCovariance()'s
+		# unconstrained SLSQP fit -- self.L's diagonal has no positivity
+		# constraint) is only ONE of several valid Cholesky-like factors of
+		# this reaction's Sigma; np.linalg.cholesky(Sigma) (positive
+		# diagonal, unique) is a DIFFERENT one whenever SLSQP's diagonal
+		# signs don't happen to match. Verified for one reaction
+		# (nc7h16+ho2=>c7h15-2+h2o2): A.cov's column signs were
+		# [-1,+1,-1] relative to canonical. This matters because
+		# IdentifiablePRS.build_layout_blocks (the SCREENING/SCORING this
+		# case's whole PRS-fitting pipeline uses, F1's fix) ALWAYS
+		# reconstructs the canonical np.linalg.cholesky(Sigma) from the
+		# reaction's stored Sigma.csv -- generating a "band-valid" sample
+		# against A.cov's own (possibly different-signed) convention does
+		# NOT guarantee it will read as band-valid once screened by the
+		# canonical convention downstream (confirmed empirically: samples
+		# that passed this function's rejection test at 0% violation under
+		# A.cov scored 0% PASSING under canonical-L scoring for the same
+		# reaction). Recomputing the canonical L here, from the SAME Sigma
+		# (A.cov @ A.cov.T is sign-invariant), makes this function's
+		# accept/reject test agree with everything downstream by construction.
+		Sigma_full = A.cov @ A.cov.T
+		try:
+			L_full = np.linalg.cholesky(Sigma_full)
+		except np.linalg.LinAlgError:
+			eps = 1e-12 * max(float(np.trace(Sigma_full)), 1e-10) / 3
+			L_full = np.linalg.cholesky(Sigma_full + eps * np.eye(3))
+		zeta_list = A._psac_class_B_m3_(A.temperatures, L_full, L_full, param_indices, rng, 1)
+		if zeta_list:
+			zeta = list(A._psac_reconstruct_full(np.asarray(zeta_list[0]), param_indices))
+		else:
+			# No band-valid, sign-changing point found within the attempt
+			# budget for this draw -- fall back to class-A (rejection-
+			# sampled, always band-valid), not a physically meaningless
+			# [0.0, 0.0, 0.0] (the pre-fix behaviour).
+			fallback = A.getClassA_partial(param_indices, 1, rng)
+			zeta = list(fallback[0]) if fallback else [0.0, 0.0, 0.0]
+		diag = rng.diagnostics()
 	else:
-		zeta_list = A.getClassA_partial(param_indices, 1, rng)
+		r1, r2 = float(generator[2]), float(generator[3])
+		task_seed = qmc_sampling.derive_seed(
+			data.get("fallback_seed_b_base"), "classB", a1, a2, r1, r2
+		)
+		rng = qmc_sampling.QuasiRandomGenerator(
+			np.array([[r1, r2]]),
+			fallback_seed=task_seed,
+			label="class-B-partial"
+		)
+		if m == 2:
+			zeta_list = A.getClassB_partial(data, param_indices, 1, rng)
+		else:
+			zeta_list = A.getClassA_partial(param_indices, 1, rng)
 		zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+		diag = rng.diagnostics()
 
 	del A
-	return (sample, generator, zeta, length)
+	return (sample, generator, zeta, length, diag)
 
 
 def run_sampling_c_partial(sample, data, generator, length):
@@ -83,22 +173,82 @@ def run_sampling_c_partial(sample, data, generator, length):
 	Multiprocessing-compatible top-level function for parallel class-C
 	partial-parameter sampling.  Called by workers.do_unsrt_c_partial.
 	Generates ONE full-space ζ for data["param_indices"].
+
+	`generator` is a length-2 [r1, r2] array sliced from this reaction's
+	column-block of the joint low-discrepancy shadow matrix (see
+	DesignMatrix.getClassC_Curves_partial). It is reserved as the
+	FIRST-attempt draw for getClassC_partial / the m==1 class-A fallback,
+	both of which use rejection sampling internally; any retry beyond the
+	first attempt is routed to an independent, deterministically-seeded
+	fallback stream (derived from data["fallback_seed_c_base"] + this
+	task's own shadow values).
 	"""
 	A = UncertaintyExtractor(data)
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag=False)
 	param_indices = data["param_indices"]
-	rng		   = np.random.default_rng()
-	
+
+	r1, r2 = float(generator[0]), float(generator[1])
+	task_seed = qmc_sampling.derive_seed(
+		data.get("fallback_seed_c_base"), "classC", r1, r2
+	)
+	rng = qmc_sampling.QuasiRandomGenerator(
+		np.array([[r1, r2]]),
+		fallback_seed=task_seed,
+		label="class-C-partial"
+	)
+
 	m = len(param_indices)
 	if m > 1:
 		zeta_list	 = A.getClassC_partial(param_indices, 1, rng)
-	
 	else:
 		zeta_list = A.getClassA_partial(param_indices, 1, rng)
 	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+	diag = rng.diagnostics()
 	del A
-	return (sample, generator, zeta, length)
+	return (sample, generator, zeta, length, diag)
+
+
+def batch_violation_ratio(Z, L_r, indices, T_arr):
+	"""
+	Vectorized band-validity score for MANY candidate reduced-ζ rows at once
+	(rejection-sampling a whole batch of Sobol/LHS candidates one-row-at-a-time
+	in Python is needlessly slow -- this is the batched counterpart to
+	UncertaintyExtractor.is_band_valid, computing the identical quantity:
+	ratio = max_T |Δκ_S(T)| / f_prior,S(T)).
+
+	Parameters
+	----------
+	Z       : (N, m) ndarray -- N candidate reduced-ζ rows, m = len(indices).
+	L_r     : (m, m) ndarray -- reduced Cholesky factor, from
+	          UncertaintyExtractor._psac_get_reduced_L(L_full, indices).
+	indices : the same reduced-parameter indices L_r was built with.
+	T_arr   : temperatures to check over (use several, not one -- see
+	          is_band_valid's docstring).
+
+	Returns
+	-------
+	ratio : (N,) ndarray. `ratio <= 1.0` means every T in T_arr keeps that
+	        row's reaction inside its stated uncertainty band; this is
+	        exactly what a rejection-sampling loop should require before
+	        accepting a newly-generated point (mirroring the existing
+	        `if np.all(np.abs(curve) <= fp): accepted = True` pattern used
+	        by _psac_class_A/_psac_class_D_m2, just vectorized and reusable
+	        outside those two call sites).
+
+	Deliberately a pure function of (Z, L_r, indices, T_arr) -- no
+	UncertaintyExtractor instance needed -- so IdentifiablePRS.py's
+	`violation_ratio` (used for training-row screening in environments where
+	this module isn't importable, see its docstring) can be tested against
+	this one and proven to compute the same number.
+	"""
+	T_arr = np.asarray(T_arr, dtype=float)
+	theta_full = np.column_stack([np.ones_like(T_arr), np.log(T_arr), -1.0 / T_arr])
+	thS = theta_full[:, list(indices)]         # (nT, m)
+	W = thS @ np.asarray(L_r, dtype=float)     # (nT, m)
+	fp = np.linalg.norm(W, axis=1)             # (nT,)
+	dk = np.asarray(Z, dtype=float) @ W.T      # (N, nT)
+	return np.max(np.abs(dk) / np.maximum(fp[None, :], 1e-300), axis=1)
 
 
 class workers(object):
@@ -889,6 +1039,21 @@ class UncertaintyExtractor(object):
                        })
 			#print(zeta)
 
+			# shgo returns res.x = None (no exception) when it can't find ANY
+			# feasible point under the 4 eq constraints + 40 bound-validity
+			# ineq constraints (happens for a non-trivial fraction of (a1,a2)
+			# draws -- the feasible region is thin). Subscripting that None
+			# used to crash every worker task that hit it. Retry once with a
+			# plain SLSQP minimize from a fixed interior guess against the
+			# SAME constraint set (shgo's own minimizer_kwargs uses SLSQP
+			# internally, so this is the same local solver, just given one
+			# more shot from a different start) before giving up.
+			if zeta.x is None:
+				zeta = minimize(self.obj_func_zeta_b2, self.guess_z2, method="SLSQP",
+								 constraints=self.const_zeta, bounds=bnds)
+				if zeta.x is None:
+					return None
+
 		else:
 			con5 = {'type': 'ineq', 'fun': self.cons_T}
 			self.const_zeta = [con5]
@@ -1150,6 +1315,35 @@ class UncertaintyExtractor(object):
 			zeta_full[global_i] = zeta_r[local_i]
 		return zeta_full
 
+	# ── band-validity check (shared by fit-time row screening and new-point
+	#    rejection sampling; see report/ for why this matters) ─────────────
+	def is_band_valid(self, zeta_r, indices, T_arr, tol=1.0):
+		"""
+		Return (is_valid, ratio) for a candidate reduced ζ_r, using exactly
+		the same acceptance test the class-A/B/C/D samplers themselves use
+		(`_psac_class_A`: `np.all(np.abs(curve) <= fp)`), evaluated over an
+		ARRAY of temperatures T_arr (not a single point, so a curve can't
+		sneak through by only being checked where it happens to be small).
+
+		ratio = max_T |Δκ_S(T)| / f_prior,S(T).  ratio <= tol means every T
+		in T_arr stays inside this reaction's stated uncertainty band.
+
+		This is the single source of truth for "is this perturbation
+		physically valid" -- both ResponseSurface's training-row screening
+		(via IdentifiablePRS.violation_ratio, which duplicates this exact
+		formula because DesignMatrix/Uncertainty aren't importable in every
+		environment this repo runs in -- see IdentifiablePRS.py's module
+		docstring) and AdaptiveResampler's new-point rejection sampling
+		(which DOES have a live extractor instance and should call this
+		method directly, not re-derive the math) must agree with it.
+		"""
+		Sigma_r, L_r = self._psac_get_reduced_L(self.cholskyDeCorrelateMat, indices)
+		T_arr = np.asarray(T_arr, dtype=float)
+		dk = self._psac_dk_S(T_arr, L_r, np.asarray(zeta_r, dtype=float), indices)
+		fp = self._psac_fp_S_vec(T_arr, L_r, indices)
+		ratio = float(np.max(np.abs(dk) / np.maximum(fp, 1e-300)))
+		return ratio <= tol, ratio
+
 	# ── linear system solvers ───────────────────────────────────────────
 	def _psac_solve_2x2(self, T1, T2, rhs1, rhs2, L_r, indices):
 		"""Solve the 2×2 system (L_r^T θ_S at T1, T2) · ζ_r = [rhs1, rhs2]."""
@@ -1181,7 +1375,7 @@ class UncertaintyExtractor(object):
 			return None
 
 	# ── curve-type samplers ─────────────────────────────────────────────
-	def _psac_class_A(self, T_arr,L_full, L_r, indices, rng, n_samples,max_attempts=10):
+	def _psac_class_A(self, T_arr,L_full, L_r, indices, rng, n_samples,max_attempts=10, recorder=None):
 		"""
 		Generate `n_samples` Class-A zeta_r vectors for the given parameter subset,
 		with rejection sampling to enforce the fp uncertainty bounds at all temperatures.
@@ -1219,15 +1413,24 @@ class UncertaintyExtractor(object):
 		A_pinv = np.linalg.pinv(A_mat)								   # (m,N)
 		out	= []
 		for _ in range(n_samples):
+			_rng_advance_sample(rng)
+			if recorder is not None:
+				recorder.mark_restart()
 			accepted = False
 			for attempt in range(max_attempts):
 				alpha_s = rng.uniform(0.00, 1.0)
 				sign	= rng.choice([-1.0, 1.0])
 				zr	  = A_pinv @ (sign * alpha_s * fp)
 				zr	   = self._psac_enforce_dn(zr, L_r, indices)
-				
+
 				curve = A_mat @ zr					  # shape (N,)
-				if np.all(np.abs(curve) <= fp):			 # passes at every T
+				ok = np.all(np.abs(curve) <= fp)			 # passes at every T
+				if recorder is not None:
+					ratio = float(np.max(np.abs(curve) / np.maximum(fp, 1e-300)))
+					recorder.record(zr, ratio, {"T_arr": T_arr, "dk": curve, "accepted": bool(ok), "ratio": ratio})
+					if not ok:
+						recorder.mark_rejection("band_violation")
+				if ok:
 					accepted = True
 					break
 			if not accepted:
@@ -1245,14 +1448,10 @@ class UncertaintyExtractor(object):
 			out.append(zr)
 		return out
 
-	def _psac_class_D_m2(self, T_arr, L_full, L_r, indices, rng, n_samples):
-		"""
-		Class-D for m=2: 2×2 solve at each candidate T_u, bisect on the
-		C4 tangency residual g(T_u) = dΔκ/dT|_{T_u} - r3·f'_prior,S(T_u).
-		Falls back to SLSQP when no sign change is found (flat f_prior).
-		Returns list of n_samples ζ_r arrays.
-		"""
-		
+	def _psac_class_D_m2(self, T_arr, L_full, L_r, indices, rng, n_samples, recorder=None):
+		"""recorder : optional VisualAid.PPRSSearchRecorder-like object, see
+		_psac_class_B_m3_'s docstring for the None-is-a-no-op contract."""
+
 		idx = list(indices)
 
 		T_min = float(T_arr[0])
@@ -1286,6 +1485,9 @@ class UncertaintyExtractor(object):
 
 		results = []
 		for k in range(n_samples):
+			_rng_advance_sample(rng)
+			if recorder is not None:
+				recorder.mark_restart()
 			accepted = False
 			for attempt in range(200):
 				r1 = float(rng.uniform(-1.0, 1.0))
@@ -1299,9 +1501,13 @@ class UncertaintyExtractor(object):
 				 T_arr, L_r, zeta_r, indices
 				)
 
-				if np.all(
-				 np.abs(dk) <= f_prior_vals + 1e-10
-				):
+				ok = np.all(np.abs(dk) <= f_prior_vals + 1e-10)
+				if recorder is not None:
+					ratio = float(np.max(np.abs(dk) / np.maximum(f_prior_vals, 1e-300)))
+					recorder.record(zeta_r, ratio, {"T_arr": T_arr, "dk": dk, "accepted": bool(ok), "ratio": ratio})
+					if not ok:
+						recorder.mark_rejection("band_violation")
+				if ok:
 				 accepted = True
 				 break
 
@@ -1319,12 +1525,38 @@ class UncertaintyExtractor(object):
 				)
 		return results
 
-	def _psac_class_B_m3_(self, T_arr, L_full, L_r, indices, rng, n_samples):
+	def _psac_class_B_m3_(self, T_arr, L_full, L_r, indices, rng, n_samples, band_tol=1.0, recorder=None):
 		"""
 		Class-B for m=3: direct 3×3 linear solve (C1+C3+C4) at each T_u.
-		Scans a shuffled 80-point grid and keeps the first solution whose
-		Δκ_S changes sign.  >10^4× faster than SLSQP.
-		Returns list of n_samples ζ_r arrays.
+		Scans a shuffled 80-point grid and keeps the first solution that both
+		(a) has a Δκ_S sign change and (b) stays inside the reaction's actual
+		physical uncertainty band (ratio = max_T |Δκ(T)| / f_prior_full(T) <=
+		band_tol, the same full-3-parameter acceptance test _psac_class_A /
+		_psac_class_D_m2 use via _f_prior -- for m=3, indices=(0,1,2), so
+		L_r IS L_full and this coincides with is_band_valid's definition; it
+		is inlined here rather than calling self.is_band_valid because that
+		method reads self.cholskyDeCorrelateMat, an attribute this class sets
+        	only on the `reaction` subclass, not on a bare UncertaintyExtractor
+		worker instance).  >10^4× faster than SLSQP.
+
+		BAND-VALIDITY FIX (2026-08-19): the original version accepted on sign
+		change alone. Verified against real n-heptane reaction data: that gave
+		median ratio 1.00 but only 88.5% of samples inside the band (max
+		observed ratio 2.15) -- good enough to look plausible, not good enough
+		to train a PRS on. Adding the band check here (rather than relying on
+		a caller-side filter) means every class-B m=3 sample is physically
+		valid at the SOURCE, matching what class-A/D already guarantee.
+
+		Returns list of n_samples ζ_r arrays (each already validated). If a
+		sample can't be found within the attempt budget, it is silently
+		omitted (caller is responsible for falling back, e.g. to class-A, to
+		reach n_samples if that matters for its use case).
+
+		recorder : optional object with .record(z, obj, meta), .mark_restart(),
+		.mark_rejection(reason) (e.g. VisualAid.PPRSSearchRecorder). When None
+		(every existing call site), no recorder methods are invoked and no rng
+		draws are added or skipped -- behavior and RNG draw order are
+		bit-identical to before this parameter existed.
 		"""
 		T_min   = float(T_arr[0]);   T_max = float(T_arr[-1])
 		Tu_grid = np.linspace(T_min * 1.04, T_max * 0.96, 80)
@@ -1334,6 +1566,8 @@ class UncertaintyExtractor(object):
 			attempt += 1
 			r1 = rng.uniform(-0.99, 0.99)
 			r3 = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
+			if recorder is not None:
+				recorder.mark_restart()
 			for Tu in rng.permutation(Tu_grid):
 				zr = self._psac_solve_3x3(
 					T_min, float(Tu), L_r,
@@ -1342,10 +1576,28 @@ class UncertaintyExtractor(object):
 					r3 * self._psac_fp_S_deriv(float(Tu), L_r, indices),
 					indices)
 				if zr is None:
+					if recorder is not None:
+						recorder.mark_rejection("singular_3x3_solve")
 					continue
-				if self._psac_has_sign_change(self._psac_dk_S(T_arr, L_r, zr, indices)):
-					out.append(self._psac_enforce_dn(zr, L_r, indices))
-					break
+				dk_trial = self._psac_dk_S(T_arr, L_r, zr, indices)
+				if not self._psac_has_sign_change(dk_trial):
+					if recorder is not None:
+						recorder.record(zr, None, {"T_arr": T_arr, "dk": dk_trial, "Tu": float(Tu), "accepted": False})
+						recorder.mark_rejection("no_sign_change")
+					continue
+				zr_final = self._psac_enforce_dn(zr, L_r, indices)
+				dk_final = self._psac_dk_S(T_arr, L_r, zr_final, indices)
+				fp_full  = self._f_prior(T_arr, L_full)
+				ratio = float(np.max(np.abs(dk_final) / np.maximum(fp_full, 1e-300)))
+				if ratio > band_tol:
+					if recorder is not None:
+						recorder.record(zr_final, ratio, {"T_arr": T_arr, "dk": dk_final, "Tu": float(Tu), "accepted": False, "ratio": ratio})
+						recorder.mark_rejection("band_violation")
+					continue
+				if recorder is not None:
+					recorder.record(zr_final, ratio, {"T_arr": T_arr, "dk": dk_final, "Tu": float(Tu), "accepted": True, "ratio": ratio})
+				out.append(zr_final)
+				break
 		return out
 	
 	def _psac_class_B_m3(self, data, T_arr, L_full, L_r, indices, rng, n_samples):
@@ -1498,7 +1750,7 @@ class UncertaintyExtractor(object):
 			zeta_list.append(zr_final)
 		return zeta_list
 	
-	def _psac_class_C(self, T_arr, L_full, L_r, indices, rng, n_samples):
+	def _psac_class_C(self, T_arr, L_full, L_r, indices, rng, n_samples, recorder=None):
 		"""
 		Class-C: direct least-squares fit to a linear crossing ramp target.
 
@@ -1541,6 +1793,7 @@ class UncertaintyExtractor(object):
 		zeta_list = []
 		sample_idx = 0
 		attempt    = 0
+		_rng_advance_sample(rng)
 		while len(zeta_list) < n_samples and attempt < n_samples * 5:
 			attempt += 1
 
@@ -1568,13 +1821,20 @@ class UncertaintyExtractor(object):
 			# ── accept / reject ───────────────────────────────────────────
 			dk = self.delta_kappa(T_arr, L_r, zeta_r, indices)
 			if not self._psac_has_sign_change(dk):
+				if recorder is not None:
+					recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": False})
+					recorder.mark_rejection("no_sign_change")
 				continue
-			
+
 			zeta_r = self._psac_enforce_dn(
 				 np.asarray(zeta_r), L_r, indices
 			  )
 
+			if recorder is not None:
+				recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": True})
+
 			zeta_list.append(zeta_r)
+			_rng_advance_sample(rng)
 			
 		return zeta_list[:n_samples]
 
@@ -1582,7 +1842,7 @@ class UncertaintyExtractor(object):
 		"""
 		Fast SAC for partial parameters.
 		m=1 → class-A (f-SAC is undefined for a single parameter).
-		m=2 → 2×2 system at T_min + T_mid.
+		m=2 → 2×2 system at T_min + T_max.
 		m=3 → 3×3 system at T_min + T_mid + T_max.
 		Midpoint value drawn to ensure opposite-sign anchors → crossover.
 		Returns list of n_samples ζ_r arrays.
@@ -1599,20 +1859,22 @@ class UncertaintyExtractor(object):
 		fp_mid = np.linalg.norm(L_full.T @ th_mid)
 		
 		out = []
+		_rng_advance_sample(rng)
 		for _ in range(n_samples * 8):
 			if len(out) >= n_samples:
 				break
 			r1	= rng.uniform(-1.0, 1.0)
 			r2	= -r1 * rng.uniform(0.3, 1.0)
-			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r2)
+			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r1)
 			kl, km, kr = r1 * fp_min, r_mid * fp_mid, r2 * fp_max
 			if m == 1:
 				sub = self._psac_class_A(T_arr, L_full, L_r, indices, rng, 1)
 				if sub:
 					out.append(sub[0])
+					_rng_advance_sample(rng)
 				continue
 			elif m == 2:
-				zr = self._psac_solve_2x2(T_min, T_mid, kl, km, L_r, indices)
+				zr = self._psac_class_D_m2(T_arr, L_full, L_r, indices, rng, 1)[0]
 			else:
 				row1 = L_r.T @ self._psac_theta_S(T_min, indices)
 				row2 = L_r.T @ self._psac_theta_S(T_mid, indices)
@@ -1624,12 +1886,17 @@ class UncertaintyExtractor(object):
 					zr = np.linalg.solve(A, np.array([kl, km, kr]))
 				except np.linalg.LinAlgError:
 					continue
+			#print("L_r.shape =", L_r.shape)
+			#print("zr.shape =", np.shape(zr))
+			#print("indices =", indices)
+			
 			if zr is None:
 				continue
 			if m >= 2 and not self._psac_has_sign_change(
 					self._psac_dk_S(T_arr, L_r, zr, indices)):
 				continue
 			out.append(self._psac_enforce_dn(zr, L_r, indices))
+			_rng_advance_sample(rng)
 		return out[:n_samples]
 
 	# ── public partial-parameter interface ─────────────────────────────
