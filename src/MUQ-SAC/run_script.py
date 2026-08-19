@@ -1626,6 +1626,28 @@ if "solution_zeta.save" not in os.listdir():
     opt, opt_zeta, posterior_cov = optimizer_obj.run_optimization_with_selected_PRS(
         unsrt_data, ResponseSurfaces, optInputs)
 
+    # run_optimization_with_selected_PRS's fresh-optimization paths never
+    # compute a real posterior covariance -- it returns cov=[] unconditionally
+    # in every branch (OptimizationTool.py's own "icov = J^T J; cov = inv(icov)"
+    # posterior-covariance lines are commented out). Recompute it here with the
+    # same MUM-PCE Gauss-Newton formula the RELOAD branch below already uses
+    # (OptimizationTool2_0.build_posterior_covariance) instead of saving/using
+    # an empty placeholder -- an empty posterior_cov used to crash the very
+    # next section ("Sigma_p = posterior_cov['Sigma_p']") for every case
+    # needing a fresh (not reloaded) optimization, killing the whole run.
+    if not isinstance(posterior_cov, dict):
+        from OptimizationTool2_0 import OptimizationTool as _OT
+        from OptimizationTool2_0 import CodecEngine
+        _tmp = _OT(target_list)
+        _tmp.unsrt            = unsrt_data
+        _tmp.ResponseSurfaces = ResponseSurfaces
+        _tmp.rxn_index        = list(unsrt_data.keys())
+        _tmp.codec            = CodecEngine(unsrt_data)
+        Sigma_zeta, Sigma_p, H_gn, rxn_slices = \
+            _tmp.build_posterior_covariance(opt_zeta)
+        posterior_cov = {"Sigma_zeta": Sigma_zeta, "Sigma_p": Sigma_p,
+                         "H": H_gn, "rxn_slices": rxn_slices}
+
     # ── Save solution ──────────────────────────────────────────────────
     string_save = ""
     for i, j in enumerate(activeParameters):
