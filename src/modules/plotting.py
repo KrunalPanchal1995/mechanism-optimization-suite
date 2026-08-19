@@ -184,12 +184,30 @@ def create_per_case_plots(group_name, group_df, case_db,
 
 def create_temperature_comparison_plot(group_name, group_df, sens_db,
                                        temperatures, output_file,
-                                       threshold=0.05, colors=None):
+                                       threshold=0.05, colors=None,
+                                       bar_height_frac=1,   # fraction of slot filled by bars (0-1)
+                                       fontsize_ticks=18,
+                                       fontsize_labels=20,
+                                       fontsize_title=20,
+                                       fontsize_legend=20,
+                                       legend_loc="center left",
+                                       legend_bbox_to_anchor=(1.02, 0.5),
+                                       legend_ncol=1):
     """Side-by-side grouped bars across an arbitrary set of temperatures.
 
     colors : optional list of matplotlib color specs, one per temperature.
-    If None, matplotlib's default cycle is used. If fewer colors than
-    temperatures are given, the list is cycled.
+        If None, matplotlib's default cycle is used. If fewer colors than
+        temperatures are given, the list is cycled.
+    bar_height_frac : float
+        Fraction (0-1) of each reaction's vertical slot filled by bars.
+        Lower = thinner bars with more gap; higher = fatter bars.
+    fontsize_ticks, fontsize_labels, fontsize_title, fontsize_legend : int
+        Font sizes for tick labels, axis labels, title, and legend text.
+    legend_loc, legend_bbox_to_anchor, legend_ncol :
+        Control legend placement. Default places it just outside the right
+        edge of the axes, in the whitespace region. Set legend_bbox_to_anchor
+        to None and legend_loc to e.g. "upper right" / "lower left" to keep
+        the legend inside the axes instead.
     """
     reactions = _ordered_reactions(group_df, sens_db.keys())
     if not reactions:
@@ -198,30 +216,41 @@ def create_temperature_comparison_plot(group_name, group_df, sens_db,
     if nT == 0:
         return
     ypos = np.arange(len(reactions))
-    width = 0.8 / nT
-    offsets = np.linspace(-0.4 + width / 2, 0.4 - width / 2, nT)
+
+    # --- bar thickness control ---
+    width = bar_height_frac / nT
+    offsets = np.linspace(-bar_height_frac / 2 + width / 2,
+                            bar_height_frac / 2 - width / 2, nT)
 
     fig, ax = plt.subplots(figsize=(10, max(6, len(reactions) * 0.30)))
     for k, T in enumerate(temperatures):
         vals = [sens_db.get(T, {}).get(r, 0.0) for r in reactions]
-        color = None
-        if colors:
-            color = colors[k % len(colors)]
+        color = colors[k % len(colors)] if colors else None
         ax.barh(ypos + offsets[k], vals, height=width,
                 label=f"{T:.0f} K", color=color)
+
     ax.axvline(0, color="black")
     ax.axvline(threshold, linestyle="--", color="black",
                label=f"Threshold={threshold}")
     ax.axvline(-threshold, linestyle="--", color="black")
-    ax.set_yticks(ypos)
-    ax.set_yticklabels([f"R{r}" for r in reactions])
-    ax.set_xlabel("Sensitivity Coefficient")
-    ax.set_ylabel("Reaction ID")
-    ax.legend()
-    ax.set_title(f"{group_name} Temperature Comparison")
-    _top_down(ax)
-    _save(fig, output_file)
 
+    ax.set_yticks(ypos)
+    ax.set_yticklabels([f"R{r}" for r in reactions], fontsize=fontsize_ticks)
+    ax.tick_params(axis='x', labelsize=fontsize_ticks)
+
+    ax.set_xlabel("Sensitivity Coefficient", fontsize=fontsize_labels)
+    ax.set_ylabel("Reaction ID", fontsize=fontsize_labels)
+    #ax.set_title(f"{group_name} Temperature Comparison", fontsize=fontsize_title)
+
+    # --- legend control ---
+    ax.legend(fontsize=fontsize_legend)#, loc=legend_loc,
+              #bbox_to_anchor=legend_bbox_to_anchor, ncol=legend_ncol)
+
+    _top_down(ax)
+
+    # bbox_inches="tight" ensures an externally-placed legend isn't clipped
+    _save(fig, output_file)
+    
 
 def generate_group_plots(classification_df, sens_db, output_dir,
                          threshold=0.05, compare_temperatures=None,

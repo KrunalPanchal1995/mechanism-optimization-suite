@@ -303,7 +303,7 @@ Unburnt Side {{
 	subprocess.call(["chmod","+x",'run_generate'])
 
 
-def create_input_file(case,opt_dict,target,mech_file=None):
+def create_input_file(case,opt_dict,target,mech_file=None, solver= None):
 	#print(target.uniqueID)
 	thermo_file_location = opt_dict["Locations"]["thermo_file"]
 	trans_file_location = opt_dict["Locations"]["trans_file"]
@@ -326,6 +326,10 @@ def create_input_file(case,opt_dict,target,mech_file=None):
 	
 	#print(target.target)
 	#print(target.uniqueID)
+	if solver is None:
+		solver = target.add["solver"]
+	
+	
 	if target.input_file != None:
 		instring = open(target.input_file,'r').read()
 			
@@ -388,7 +392,7 @@ tau_file.close()""".format(mech = mech_file,temperature = target.temperature,pre
 		extract = """
 		"""
 	elif "Flf" in target.target:
-		if "cantera" in target.add["solver"]:
+		if "cantera" in solver:
 			instring = """#!/usr/bin/python
 import numpy as np
 import matplotlib.pyplot as plt
@@ -455,7 +459,7 @@ flf_file.close()""".format(mech = mech_file,temperature = target.temperature,pre
 			extract = """
 		"""
 	elif "RCM" in target.target:
-		if "cantera" in target.add["solver"] and "non_reactive" not in target.add["RCM_type"]: 
+		if "cantera" in solver and "non_reactive" not in target.add["RCM_type"]: 
 			instring="""import cantera as ct
 import numpy as np
 from pyked import ChemKED
@@ -663,7 +667,7 @@ tau_file.write("#T(K)	tau(us)"+"\\n"+"{{}}	{{}}".format(T_initial,tau*(10**6)))
 tau_file.close()""".format(mech = mech_file,temperature = target.temperature_i,pressure=target.pressure_i,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],delay_def = target.add["ign_delay_def"],volume_profile=target.add["volume_profile"][float(target.temperature)],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 			extract = """
 		"""
-		elif "CHEMKIN_PRO" in target.add["solver"]:
+		elif "CHEMKIN_PRO" in solver:
 			instring = """#!/usr/bin/env python
 # encoding: utf-8
 
@@ -1160,7 +1164,7 @@ directory_path = "output/"
 delete_files(directory_path)
 """.format(mech = mech_file,target_Temperature = target.temperature,temperature_K = target.temperature_i,pressure=target.pressure_i,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], volume_profile=target.add["volume_profile"][float(target.temperature)],VP_FILE_TYPE = target.add["volume_profile_type"],estimateTIG = float(target.add["estimateTIG"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
-		elif "cantera" in target.add["solver"] and "non_reactive" in target.add["RCM_type"]: 
+		elif "cantera" in solver and "non_reactive" in target.add["RCM_type"]: 
 				instring="""#!/usr/bin/python
 from __future__ import division
 from __future__ import print_function
@@ -1412,7 +1416,7 @@ plt.savefig("p_profile.png",bbox_inches="tight")""".format(mech = mech_file,volu
 		#print(target.ignition_type)
 		#print(target.target)
 		if target.ig_mode == "RCM" and target.simulation == "VTIM":
-			if "cantera" in target.add["solver"]: 
+			if "cantera" in solver: 
 				instring="""#!/usr/bin/python
 from __future__ import division
 from __future__ import print_function
@@ -1680,7 +1684,7 @@ tau_file.close()
 {saveAll}timeHistory.to_csv("time_history.csv")""".format(mech = mech_file,volumeProfile = target.add["volumeProfile"],temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 		elif target.ignition_type == "reflected":
 			#print(target.add["BoundaryLayer"])
-			if "cantera" in target.add["solver"] and target.add["BoundaryLayer"]== True:
+			if "cantera" in solver and target.add["BoundaryLayer"]== True:
 				instring ="""#!/usr/bin/python
 from __future__ import division
 from __future__ import print_function
@@ -1965,7 +1969,7 @@ if saveAll == True:
 	timeHistory.to_csv("time_history.csv")
 """.format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],dpdt = target.add["dpdt"],dt = float(target.add["dt"]),estimateTIG = float(target.add["estimateTIG"]), delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 				
-			elif "cantera" in target.add["solver"] and target.add["BoundaryLayer"] != True:
+			elif "cantera" in solver and target.add["BoundaryLayer"] != True:
 				instring = """#!/usr/bin/python
 from __future__ import division
 from __future__ import print_function
@@ -2176,7 +2180,7 @@ if saveAll == True:
 	timeHistory.to_csv("time_history.csv")
 """.format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],estimateTIG = target.add["estimateTIG"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 			
-			elif "CHEMKIN_PRO" in target.add["solver"] and target.add["BoundaryLayer"] != True:
+			elif "CHEMKIN_PRO" in solver and target.add["BoundaryLayer"] != True:
 				instring = """#!/usr/bin/env python
 # encoding: utf-8
 
@@ -2429,7 +2433,7 @@ directory_path = "output/"
 delete_files(directory_path)
 """.format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],End_Time = target.add["estimateTIG"], delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
-			elif "CHEMKIN_PRO" in target.add["solver"] and target.add["BoundaryLayer"] == True:
+			elif "CHEMKIN_PRO" in solver and target.add["BoundaryLayer"] == True:
 				instring = """#!/usr/bin/env python
 # encoding: utf-8
 
@@ -2557,20 +2561,57 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				tau = fast_nearest_interp(target,conc_new,time_new)
 	return tau
 
+
+def estimate_tau_cv(mech_yaml, T, P, X, t_max, max_steps=200000):
+	#Cheap, robust constant-volume / adiabatic pre-estimate of the ignition
+	#delay with NO facility effect.  Used only to position and bound the
+	#facility dp/dt window so the imposed compression never acts on the
+	#post-ignition gas.  Runs on a fresh Solution so the global `gas` object
+	#(used later for the isentropic V(t) conversion) stays at its unburned
+	#state.  Returns tau (s) at max dT/dt, or None if no ignition within t_max.
+	
+	g = ct.Solution(mech_yaml)
+	g.TPX = T, P, X
+	r   = ct.IdealGasReactor(g, energy='on')   # constant volume, adiabatic
+	net = ct.ReactorNet([r])
+	net.rtol = 1e-6
+	net.atol = 1e-15
+	times = []
+	temps = []
+	t = 0.0
+	n = 0
+	while t < t_max and n < max_steps:
+		t = net.step()
+		times.append(t)
+		temps.append(r.T)
+		n += 1
+	times = np.asarray(times)
+	temps = np.asarray(temps)
+	if temps.size < 3 or (temps.max() - temps[0]) < 50.0:
+		return None                            # no ignition seen in the window
+	dTdt = np.gradient(temps, times)
+	return float(times[int(np.argmax(dTdt))])
+
+
 def getTimeProfile(t1,t2):
 	time =np.arange(t1,t2,{dt})
 	return time
 
-	
-def getPressureProfile(gas,time,dpdt):
-	p = gas.P
-	p_new = p
-	PressureProfile = []
-	dt = {dt}
-	for t in time:
-		PressureProfile.append(p_new)
-		p_new = p_new + dt*(0.01*dpdt*p_new*1000)
-	return np.asarray(PressureProfile)
+
+
+def getPressureProfile(gas, time, dpdt, t_cut):
+	#Facility pressure history for the PRE-IGNITION induction period only.
+	#A *linear* rise of `dpdt` %(of P0) per ms, held FLAT after `t_cut`.  This
+	#replaces the previous exponential, never-ending compression: the old form
+	#fed P back into itself (P(t)=P0*exp(100 t)) and kept compressing through
+	#and past ignition, pumping PV work into the burned gas until T ran away
+	#(~4870 K) and the DDASPK iteration matrix went singular.  Freezing the
+	#ramp at t_cut keeps the post-ignition gas un-compressed and the solver
+	#well-conditioned; Chemkin then computes the real (chemical) pressure rise.
+	P0    = gas.P
+	k     = (dpdt / 100.0) * 1.0e3             # %/ms -> fractional rate [1/s]
+	t_eff = np.minimum(np.asarray(time, dtype=float), t_cut)
+	return P0 * (1.0 + k * t_eff)
 
 def getVolumeProfile_From_PressureProfile(gas,PressureProfile ):
 	rho_o,Po = gas.DP
@@ -2625,7 +2666,7 @@ def convert_and_transpose_ckcsv(input_filepath, output_filepath):
 
 	print(f"Conversion and transposition complete. Data saved to {{output_filepath}}")
 
-#mechanism in yaml format: {mech}
+mech_yaml = '{mech}'
 gas = ct.Solution('{mech}')
 
 # Parameters
@@ -2649,10 +2690,33 @@ else:
 
 dpdt = {dpdt}#%/ms
 estimatedIgnitionDelayTime = {estimateTIG}
-time = getTimeProfile(0,estimatedIgnitionDelayTime)
-pressure_profile = getPressureProfile(gas,time,dpdt)
-volume_profile = getVolumeProfile_From_PressureProfile(gas,pressure_profile)
 
+# --- Build a BOUNDED facility dp/dt window keyed to this sample's tau --------
+# 1) Cheap constant-volume pre-estimate of tau (no facility effect, never blows up).
+tau_cv = estimate_tau_cv(mech_yaml, reactorTemperature, reactorPressure, spec,
+                         t_max=estimatedIgnitionDelayTime)
+
+# 2) Position the compression window and the run length from tau.
+if tau_cv is None:
+	# No ignition found within the base window: run full window, no compression.
+	t_cut   = 0.0
+	endTime = estimatedIgnitionDelayTime
+	print("WARNING: no ignition within base window; disabling facility ramp.")
+else:
+	t_cut   = 1.2 * tau_cv                                   # freeze ramp just past ignition
+	endTime = float(min(3.0 * tau_cv, estimatedIgnitionDelayTime))
+
+# 3) Physicality guard: facility rise over the induction period must stay modest.
+k = (dpdt / 100.0) * 1.0e3
+if tau_cv is not None and (k * tau_cv) > 0.5:
+	print(f"WARNING: facility rise k*tau = {{k*tau_cv:.2f}} (>0.5) at "
+	      f"{{reactorTemperature}} K — dp/dt model may be unphysical here; "
+	      f"treat tau as suspect / penalize this sample.")
+
+time = getTimeProfile(0,estimatedIgnitionDelayTime)
+pressure_profile = getPressureProfile(gas,time,dpdt,t_cut)
+volume_profile = getVolumeProfile_From_PressureProfile(gas,pressure_profile)
+# -----------------------------------------------------------------------------
 keywords = {{"vproTime": time, "vproVol": volume_profile}}
 VP = VolumeProfile(keywords)
 
@@ -2737,7 +2801,7 @@ directory_path = "output/"
 delete_files(directory_path)
 """.format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], dpdt = target.add["dpdt"],dt = float(target.add["dt"]),estimateTIG = float(target.add["estimateTIG"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
-			elif "FlameMaster" in target.add["solver"] and target.add["BoundaryLayer"] == True:
+			elif "FlameMaster" in solver and target.add["BoundaryLayer"] == True:
 				instring = """############
 # Numerics #
 ############
@@ -3139,7 +3203,7 @@ file_d2.close()
 		else:
 			raise AssertionError("Invalid ignition mode specified for ignition delay simulations")
 	elif "Fls" in target.target:
-		if "cantera" in target.add["solver"] and "phi" not in target.add["type"]:
+		if "cantera" in solver and "phi" not in target.add["type"]:
 			instring = """#!/usr/bin/python
 from __future__ import print_function
 from __future__ import division
@@ -3167,7 +3231,7 @@ Su_file.write("#T(K)	Su(cm/s)"+"\\n"+"{{}}	{{}}".format(To,Su0*(100)))
 Su_file.close()
 """.format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,width = target.add["width"],ratio = target.add["ratio"],slope = target.add["slope"],curve = target.add["curve"],loglevel = target.add["loglevel"],auto = target.add["auto"])
 				
-		elif "cantera" in target.add["solver"] and "phi" in target.add["type"]:
+		elif "cantera" in solver and "phi" in target.add["type"]:
 			instring = """#!/usr/bin/python
 from __future__ import print_function
 from __future__ import division
@@ -3311,7 +3375,7 @@ Unburnt Side {{
 		"""
 	
 	elif "Flf_a" in target.target:
-		if "cantera" in target.add["solver"]:
+		if "cantera" in solver:
 				
 			instring = """#!/usr/bin/python
 import cantera as ct
@@ -3502,7 +3566,7 @@ Unburnt Side {{
 	elif "Flw" in target.target:
 	#No startProfile needed
 		if target.reactor == "JSR" or target.reactor =="PSR" or target.reactor =="FlowReactor":
-			if "cantera" in target.add["solver"]:
+			if "cantera" in solver:
 				
 				instring = """#!/usr/bin/python
 import cantera as ct
@@ -4099,7 +4163,7 @@ time_.close()
 	else:
 		raise AssertionError("Unknown type of experiment")	
 	
-	if target.add["solver"] == "cantera":
+	if solver == "cantera":
 		s_convert = """#!/bin/bash
 ck2yaml --input=mechanism.mech --thermo=thermo.therm --transport=transport.trans &> out """
 		
@@ -4108,7 +4172,7 @@ python3.9 cantera_.py &> solve"""
 
 		extract = """
 		"""
-	elif target.add["solver"] == "CHEMKIN_PRO":
+	elif solver == "CHEMKIN_PRO":
 		s_convert = """#!/bin/bash
 ck2yaml --input=mechanism.mech --thermo=thermo.therm --transport=transport.trans &> out """
 		s_run = """#!/bin/bash

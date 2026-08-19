@@ -108,7 +108,7 @@ def _interactive() -> None:
 
 def _from_config(yaml_path: str, run_label: str, dry_run: bool = False) -> None:
     """Run one simulation using the pipeline YAML config."""
-    cfg = load_config(yaml_path)
+    raw, cfg = load_config(yaml_path)
 
     if run_label not in cfg.simulations:
         logger.error(
@@ -124,6 +124,7 @@ def _from_config(yaml_path: str, run_label: str, dry_run: bool = False) -> None:
         base_opt_file = cfg.base_opt_file,
         muqsac_dir    = cfg.muqsac_src_dir,
         dry_run       = dry_run,
+        raw		  = raw,
     )
     logger.info("Status: %s", result["status"])
     if result["status"] == "done":
@@ -176,7 +177,7 @@ def main() -> None:
     if args.list_runs:
         if not args.config:
             parser.error("--list-runs requires --config.")
-        cfg = load_config(args.config)
+        raw, cfg = load_config(args.config)
         print("Configured run labels:")
         for lbl in cfg.simulations:
             print(f"  {lbl}")

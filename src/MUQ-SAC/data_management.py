@@ -31,7 +31,51 @@ class RunCmd(threading.Thread):
 			self.p.terminate()	  #use self.p.kill() if process needs a kill -9
 			self.join()
 
+def cleanup_files(workdir):
+    """
+    Deletes:
+      1. Everything in ./output except RCM.out and tau.out.
+      2. time_history.csv and ScanMan.log anywhere under workdir.
 
+    A log of deleted files is written to:
+      delete.log
+      delete2.log
+    """
+
+    delete_log = os.path.join(workdir, "delete.log")
+    delete2_log = os.path.join(workdir, "delete2.log")
+
+    # ---------------------------------------------------------
+    # Cleanup output directory
+    # ---------------------------------------------------------
+    output_dir = Path(workdir) / "output"
+
+    with open(delete_log, "w") as log:
+        if output_dir.exists():
+            for file in output_dir.iterdir():
+                if (
+                    file.is_file()
+                    and file.name not in ("RCM.out", "tau.out")
+                ):
+                    try:
+                        file.unlink()
+                        log.write(f"Deleted: {file}\n")
+                    except Exception as e:
+                        log.write(f"ERROR deleting {file}: {e}\n")
+
+    # ---------------------------------------------------------
+    # Cleanup time_history.csv and ScanMan.log everywhere
+    # ---------------------------------------------------------
+    with open(delete2_log, "w") as log:
+        for root, _, files in os.walk(workdir):
+            for name in files:
+                if name in ("time_history.csv", "ScanMan.log"):
+                    file = Path(root) / name
+                    try:
+                        file.unlink()
+                        log.write(f"Deleted: {file}\n")
+                    except Exception as e:
+                        log.write(f"ERROR deleting {file}: {e}\n")
 
 def run_sim(index, case, input_, caseID, path, total):
 	eta = "N/A"
@@ -53,7 +97,12 @@ def run_sim(index, case, input_, caseID, path, total):
 			os.chdir(loc)
 			os.chdir("..")
 			workdir = os.getcwd()
+			loc_path = Path(loc)
+			shutil.rmtree(loc_path, ignore_errors=True)
 
+			# Recreate the directory
+			loc_path.mkdir()
+			#print()
 			#print(f"[INFO] Working directory changed to: {workdir}")
 
 		except Exception as e:
@@ -101,7 +150,8 @@ def run_sim(index, case, input_, caseID, path, total):
 				caseID,
 				input_,
 				case,
-				mech_file=mech_path
+				mech_file=mech_path,
+				solver="CHEMKIN_PRO"
 			)
 
 			if not instring:
@@ -138,14 +188,45 @@ def run_sim(index, case, input_, caseID, path, total):
 		# -------------------------------
 		try:
 			solve_out = os.path.join(workdir, "solve_1.out")
+			log_file = os.path.join(workdir, "sol2ck_2.log")
 			#print(f"[INFO] Running cantera_1.py in {workdir}")
 			#print(f"[INFO] Output log: {solve_out}")
+			env = os.environ.copy()
+			env["NUMEXPR_MAX_THREADS"] = "1"
+			
+			# Execute the soln2ck command from the run script
+			run_script = os.path.join(workdir, "run")   # replace "run" with the actual filename
 
+			#print(run_script)
+			with open(run_script, "r") as f:
+				for line in f:
+					if "soln2ck_2.py" in line:
+						soln2ck_cmd = line.strip()
+						break
+				else:
+					raise RuntimeError("Could not find the soln2ck_2.py command in the run script.")
+
+			#print(f"[INFO] Executing: {soln2ck_cmd}")
+
+			with open(log_file,"a") as f:
+			
+				subprocess.run(
+				    soln2ck_cmd,
+				    cwd=workdir,
+				    shell=True,
+				    check=True,
+				    env=env,
+				    stdout=f,
+				    stderr=subprocess.STDOUT,
+				)
+			
+			
 			with open(solve_out, "w") as f:
 				result = subprocess.call(
 					["python3.9", run_cantera],
 					stdout=f,
-					stderr=subprocess.STDOUT
+					stderr=subprocess.STDOUT,
+					env=env
 				)
 
 			#print(f"[INFO] Subprocess return code: {result}")
@@ -159,6 +240,24 @@ def run_sim(index, case, input_, caseID, path, total):
 			traceback.print_exc()
 			return (index, eta, ETA, string, total)
 
+		try:
+			subprocess.run(
+				"find ./output -type f ! -name 'RCM.out' ! -name 'tau.out' -delete",
+				cwd=workdir,
+				shell=True,
+				check=True,
+			)
+
+			subprocess.run(
+				"find . -type f \\( -name 'time_history.csv' -o -name 'ScanMan.log' \\) -delete",
+				cwd=workdir,
+				shell=True,
+				check=True,
+			)
+
+		except subprocess.CalledProcessError as e:
+			print(f"[WARNING] Cleanup command failed: {e}")
+		
 		# -------------------------------
 		# Step 6: Read tau.out
 		# -------------------------------
@@ -286,6 +385,63 @@ def extract_index_and_uncertainty(uns):
 			continue
 	return uncertainty_a, uncertainty_n, uncertainty_e, index
 
+def select_case_rows(locations, case):
+	"""
+	Select every simulation-output location belonging to `case`, and the
+	index (within that location's own path) of its case directory.
+
+	BUG FIX (root cause of the adaptive-outlier-retraining corruption
+	documented in report/ -- reproduced and confirmed on disk: retrained
+	case-3's sim_data_case-3_pass-1.lst had 998 lines for a 499-row mini
+	design matrix, every response duplicated, causing training error to climb
+	monotonically 0.25%->11.8% over 5 retraining passes):
+
+	The original per-caller logic was:
+	    for location in locations:
+	        for i in location.split("/"):
+	            if i == "case-<N>":
+	                data_loc.append(location)          # (A)
+	    ...
+	    start = pathList.index("case-<N>")              # (B)
+
+	(A) appends the SAME location once per matching path COMPONENT, not once
+	per location. Ordinary run paths (`Opt/case-3/17/run`) contain "case-3"
+	exactly once, so this looked correct for years. But the adaptive
+	outlier-retraining paths are nested
+	(`Opt/Outlier_Resample/case-3/pass-1/case-3/17/run`) and contain
+	"case-3" TWICE, so every such location was silently appended twice,
+	doubling the response list.
+
+	(B) then used `list.index(...)`, which always returns the FIRST match --
+	the outer "case-3" -- so `pathList[start+1]` read "pass-1" (a directory
+	name) instead of "17" (the sample index), for every retrained row.
+
+	Fix: append each location at most once, and use the LAST ("innermost",
+	closest to the actual per-sample subdirectory) occurrence of "case-<N>"
+	as the anchor. For ordinary single-occurrence paths this is byte-for-byte
+	identical to the old behaviour; for nested paths it is now correct.
+
+	Returns
+	-------
+	list of (location, case_dir_index) tuples, in `locations` order, with no
+	duplicates -- safe to enumerate() directly instead of the fragile
+	`data_loc.index(i)` "row number" pattern the callers used to rely on
+	(which is also silently wrong if two locations ever collide as strings).
+	"""
+	tag = "case-" + str(case).strip()
+	rows = []
+	for location in locations:
+		loc = location.strip("\n")
+		parts = loc.split("/")
+		idx = None
+		for i, p in enumerate(parts):
+			if p == tag:
+				idx = i   # keep overwriting -> ends on the LAST occurrence
+		if idx is not None:
+			rows.append((loc, idx))
+	return rows
+
+
 #Once the simulations are completed, this function goes through all the locations where FlameMaster simulation is performed and read the output value based on the type of target.
 #and print as a text file containg four columns. First three contain location information and last column contain  target value.
 def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
@@ -296,12 +452,8 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 			list_fuel.append(fuel[i])
 		fuel = list_fuel[0]
 
-	data_loc = []
-	for location in locations:
-		list_loc = location.split("/")
-		for i in list_loc:
-			if i == "case-" + str(case).strip():
-				data_loc.append(location.strip("\n"))
+	rows = select_case_rows(locations, case)
+	data_loc = [loc for loc, _ in rows]
 
 	data = ''
 	failed_sim = ""
@@ -314,12 +466,12 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 	re_run_sim_dict = {}
 	count = 0
 
-	for i in data_loc:
+	for row_index, (i, _start) in enumerate(rows):
 		eta_, ETA_, file_path = extract_output(
 			t_list[case],
 			fuel,
 			i[:-4] + "/output/",
-			data_loc.index(i),
+			row_index,
 			input_=input_,
 			caseID=case
 		)
@@ -366,17 +518,15 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 	# --------------------------------------------------
 	folderName = []
 
-	for i in data_loc:
+	for row_index, (i, start) in enumerate(rows):
 		pathList = i.split("/")
 		file_loc = open("./eta_file_location.txt", "+a")
-
-		start = pathList.index("case-{}".format(case))
 
 		eta_, ETA_, file_path = extract_output(
 			t_list[case],
 			fuel,
 			i[:-4] + "/output/",
-			data_loc.index(i),
+			row_index,
 			input_=input_,
 			caseID=case
 		)
@@ -414,25 +564,20 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 		fuel = list_fuel[0]
 	
 	#print(fuel)
-	data_loc = []
-	for location in locations:
-		#print(location)
-		list_loc = location.strip("\n").split("/")
-		#print(list_loc)
-		for i in list_loc:
-			if i == "case-"+str(case).strip():
-				data_loc.append(location.strip("\n"))
-		#print(data_loc)
-		#raise AssertionError("Stop!!")
-	#print(data_loc)
+	# BUG FIX: see select_case_rows()'s docstring -- the previous per-component
+	# `data_loc.append(...)` loop double-counted (and mis-indexed) every
+	# location under a nested case-N directory, i.e. every location produced
+	# by adaptive outlier retraining (Opt/Outlier_Resample/case-N/pass-P/case-N/...).
+	rows = select_case_rows(locations, case)
+	data_loc = [loc for loc, _ in rows]
 	data =''
 	failed_sim = ""
 	ETA = []
 	eta = []
 	re_run_sim_dict = {}
 	count = 0
-	for i in data_loc:
-		eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)		
+	for row_index, (i, _start) in enumerate(rows):
+		eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",row_index,input_=optInputs,caseID = case)
 		if "N/A" in str(eta_):
 			re_run_sim_dict[count] = file_path
 			count+=1
@@ -445,18 +590,17 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 	if len(re_run_loc)!=0:
 		print("#############______________________################\n")
 		print(f"\t\tFor Case-{case}:\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not returned expected results\n\t\tRe-running those simulations........\n\n\n")
-		W = Worker(100)
+		W = Worker(input_["Counts"]["parallel_threads"])
 		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(re_run_loc,t_list[case],optInputs,case)
 		del W
 		print(f"\t\tSimulations ended successfully\n\n#############______________________################\n")
 		#raise AssertionError("Stop!")
-	for i in data_loc:
+	for row_index, (i, start) in enumerate(rows):
 		pathList = i.split("/")
 		file_loc = open("./eta_file_location.txt","+a")
-		start = pathList.index("case-{}".format(case))
 
 		#print(i)
-		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)
+		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",row_index,input_=optInputs,caseID = case)
 		if "N/A" in str(eta_):
 			#print(eta)
 			#print(file_path)
@@ -509,6 +653,9 @@ def extract_direct_simulation_values(case,loc,target_list,fuel):
 def extract_output(case,fuel,path,index,input_=None,caseID=None):
 	eta = string = ETA = None
 	#print(case.target)
+	if not os.path.exists(path):
+		os.makedirs(path,exist_ok=True)
+	#print(path)
 	if case.target.strip() == "RCM":
 		if "cantera" in case.add["solver"]:
 			string = path +"RCM.out"

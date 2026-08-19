@@ -41,7 +41,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Optional
-
+import subprocess, sys
 from .config       import PipelineConfig, load_config
 from .sim_runner   import run_nominal_simulation
 from .merge        import merge_simulation_results
@@ -68,6 +68,7 @@ class MSO_Pipeline:
 
     def __init__(self, config: PipelineConfig):
         self.cfg = config
+        self._config_path: Optional[str] = None
 
     # ── Constructor ────────────────────────────────────────────────────────
 
@@ -81,7 +82,8 @@ class MSO_Pipeline:
         yaml_path : str
             Path to ``mso_config.yaml``.
         """
-        cfg = load_config(yaml_path)
+        raw, cfg = load_config(yaml_path)
+        
         return cls(cfg)
 
     # ── Plan / dry-run ─────────────────────────────────────────────────────

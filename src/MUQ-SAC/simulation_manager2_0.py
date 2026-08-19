@@ -680,11 +680,11 @@ class SM(object):
 		#os.chdir('..')
 		return sim_location	
 		
-	def make_dir_in_parallel(self,yaml_loc):
-		
+	def make_dir_in_parallel(self,yaml_loc,cases=None):
+
 		#Prior_Mechanism = Parser(self.mech_loc).mech
 		#self.copy_of_mech = copy.deepcopy(Prior_Mechanism)
-		
+
 		start_time = time.time()
 		print("Creating Directories for simulations......\n\n\n This may take a while... Please be patient...\n\n ")
 		#Parallel_jobs = multiprocessing.Pool(self.allowed_count-1)
@@ -697,15 +697,21 @@ class SM(object):
 		#self.n = 0
 		#for i in self.unsrt:
 		#	self.n+=len(self.unsrt[i].activeparameters)
-		
+
 		"""
 		1] Number of required simulations
 		2] Generating the sampling matrix:
 			A.x = b
-		
+
+		`cases` (optional): restrict simulation to a subset of case indices
+		(e.g. adaptive outlier re-training only needs the one resampled case).
+		Defaults to all cases. case_dir is range(len(target_list)) so the case
+		value equals its index -- keep case_index == case for the dir naming.
 		"""
-		sim_location = []	
-		for case_index,case in enumerate(self.case_dir):
+		case_iterable = list(self.case_dir) if cases is None else list(cases)
+		sim_location = []
+		for case in case_iterable:
+			case_index = case
 			if "case-"+str(case_index) in os.listdir():
 				print("Case-{index} is generated".format(index = case_index))
 			else:

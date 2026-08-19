@@ -33,17 +33,26 @@ Bug fixes over original merge_idt_results.py
 * Missing counterpart files in stage folders only emit a warning; the
   remaining common files are still processed.
 * Output directories are created automatically.
+* Datasets that share the same (φ, P) condition (e.g. two different fuels
+  tested at identical conditions) no longer silently overwrite each other —
+  their output filenames are disambiguated with a dataset tag prefix.
 """
 
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import Dict, Optional
 
 import pandas as pd
 
-from .utils import parse_phi_pressure, phi_folder_name, standardise_filename
+from .utils import (
+    extract_dataset_tag,
+    parse_phi_pressure,
+    phi_folder_name,
+    standardise_filename,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +204,23 @@ def merge_simulation_results(
 
     logger.info("Merging %d file(s) …", len(common))
 
+    # ── Detect (φ, P) collisions across different source datasets ──────────
+    # Two different datasets (e.g. two fuels) tested at the same φ/P would
+    # otherwise standardise to the identical output filename, silently
+    # overwriting one another.  Any filename involved in such a collision is
+    # disambiguated with a dataset tag prefix (e.g. "Butanoate_Phi_1_P_30.csv"
+    # vs "Ethyl_Butanoate_Phi_1_P_30.csv"); non-colliding files keep the
+    # plain "Phi_<phi>_P_<p>.csv" convention.
+    std_name_of: Dict[str, str] = {}
+    for fname in common:
+        try:
+            std_name_of[fname] = standardise_filename(fname)
+        except ValueError:
+            continue
+    collisions = {
+        name for name, count in Counter(std_name_of.values()).items() if count > 1
+    }
+
     # ── Process each file ──────────────────────────────────────────────────
     for fname in sorted(common):
         # Parse φ and P from the original dataset-ID filename
@@ -206,6 +232,14 @@ def merge_simulation_results(
 
         std_fname  = standardise_filename(fname)      # e.g. "Phi_0_5_P_10.csv"
         phi_folder = phi_folder_name(phi_str)         # e.g. "phi_0_5"
+
+        if std_fname in collisions:
+            tag = extract_dataset_tag(fname) or Path(fname).stem
+            std_fname = f"{tag}_{std_fname}"
+            logger.info(
+                "  Shared φ/P condition across datasets — disambiguated "
+                "'%s' → %s", fname, std_fname,
+            )
 
         logger.info("  %-50s → %s / %s", fname, phi_folder, std_fname)
 

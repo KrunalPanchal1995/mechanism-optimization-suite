@@ -15,15 +15,26 @@ class PartialPRS(object):
 
 	Supports two design modes
 	--------------------------
-	* ``"A-facto"``	  – single A-factor perturbation (tested, unchanged).
+	* ``"A-facto"``	  – single A-factor perturbation (sensitivity cut-off
+						   plus PLOG-linked propagation, plus -- NEW --
+						   correlation-aware rescue from `correlation_list`).
 	* ``"A1+B1+C1"``	 – full three-parameter (A, n, Ea) perturbation using
-						   the *some* sparsity framework (new).
+						   the sparsity framework; correlation-aware rescue
+						   wired in via ``correlation_list`` (same as A-facto).
 
 	Parameters
 	----------
 	sensitivity_dict : dict
 		For ``"A-facto"``: ``{rxn: sensitivity_value}``.
 		For three-param:  ``{rxn: [s_A, s_n, s_Ea]}``.
+	correlation_list : list
+		Active-parameter strings (same naming convention as
+		``self.active_params``, e.g. ``"12_A"``) identified by the
+		cross-target SA correlation analysis as needing to be in the
+		active set, even when their own sensitivity is below the cut-off.
+		Only PARENT reactions appear here -- PLOG duplicates/linked
+		reactions sharing a parent are represented once. ``A-facto`` only
+		for now.
 	unsrt_data : dict
 		Reaction → uncertainty object (provides ``activeParameters``,
 		``linked_rIndex``, ``cholskyDeCorrelateMat``).
@@ -47,6 +58,7 @@ class PartialPRS(object):
 	def __init__(
 		self,
 		sensitivity_dict,
+		correlation_list,
 		unsrt_data,
 		optInputs,
 		target_list,
@@ -63,11 +75,13 @@ class PartialPRS(object):
 		self.design	   = design
 		self.case_index   = case_index
 		self.unsrt		= unsrt_data
+		self.correlation_list = correlation_list or []
 
 		self.s_A  = []
 		self.s_n  = []
 		self.s_Ea = []
 		self.no_of_sim = None
+		self.selection_detail = []   # populated in __init__; written by partial_DesignMatrix
 
 		# Build linked-reaction map keyed on each reaction's A-param string.
 		# Used to propagate selection to PLOG-linked reactions.
@@ -76,7 +90,8 @@ class PartialPRS(object):
 		self.active_params = []
   
 		# ------------------------------------------------------------------ #
-		# A-factor design – tested and frozen, do not alter				   #
+		# A-factor design – sensitivity cut-off + linked propagation +	   #
+		# correlation-aware rescue (NEW)									   #
 		# ------------------------------------------------------------------ #
 		if self.design == "A-facto":
 			for rxn in unsrt_data:
@@ -115,11 +130,34 @@ class PartialPRS(object):
 							self.getSelectedLinkedRxn(sens_SA_dict[sc], ap)
 						)
 
+			# ---------------------------------------------------------- #
+			# Correlation-aware rescue: force-select any active_param   #
+			# that appears in `correlation_list`, even if its own       #
+			# sensitivity is below the cut-off.  abs_coeff is already   #
+			# a binary 1.0/0.0 indicator at this point.                 #
+			# ---------------------------------------------------------- #
+			# Capture pre-rescue state for selection_detail tracking
+			_pre_rescue_a = {
+				ap for ind, ap in enumerate(self.active_params)
+				if ind < len(self.abs_coeff) and self.abs_coeff[ind] >= 1.0
+			}
+			correlation_set = set(self.correlation_list)
+			for ind, ap in enumerate(self.active_params):
+				if self.abs_coeff[ind] < 1.0 and self.getCorrelationRescue(ap, correlation_set):
+					self.abs_coeff[ind] = 1.0
+			# Params that moved 0→1 due to correlation rescue
+			_corr_rescued_a = {
+				ap for ind, ap in enumerate(self.active_params)
+				if ind < len(self.abs_coeff) and self.abs_coeff[ind] >= 1.0
+				and ap not in _pre_rescue_a
+			}
+
 			self.check_list		= []
 			self.selected_rxn_string = ""
 
+			cf = self.cut_off / 100
 			for ind, active_param in enumerate(self.active_params):
-				if abs(self.abs_coeff[ind]) >= self.cut_off / 100:
+				if abs(self.abs_coeff[ind]) >= cf:
 					self.partial_active[active_param]  = 1
 					self.partial_active_list.append(active_param)
 					self.selected.append(1)
@@ -129,6 +167,25 @@ class PartialPRS(object):
 					self.selected.append(0)
 
 			self.selected_rxn_count = sum(self.selected)
+
+			# Build selection_detail (written alongside DesignMatrix)
+			for ind, active_param in enumerate(self.active_params):
+				s_val = self.coeff[ind] if ind < len(self.coeff) else float("nan")
+				import math
+				abs_s = abs(s_val) if not math.isnan(s_val) else float("nan")
+				in_final = self.selected[ind] == 1
+				by_thresh = not math.isnan(abs_s) and abs_s >= cf
+				by_rescue = active_param in _corr_rescued_a
+				by_linked = in_final and (not by_thresh) and (not by_rescue)
+				self.selection_detail.append({
+					"param": active_param,
+					"S_value": round(s_val, 6) if not math.isnan(s_val) else None,
+					"abs_S": round(abs_s, 6) if not math.isnan(abs_s) else None,
+					"selected_by_threshold": by_thresh,
+					"selected_by_linked_propagation": by_linked,
+					"rescued_by_correlation": by_rescue,
+					"final_in_PRS": in_final,
+				})
 
 		# ------------------------------------------------------------------ #
 		# Three-parameter design (A, n, Ea) – new implementation			  #
@@ -172,6 +229,9 @@ class PartialPRS(object):
 		PLOG-linked reaction pairs are handled identically to the A-facto
 		case: if a parameter of the linked partner exceeds the threshold, the
 		corresponding parameter of this reaction is also selected.
+
+		NOTE: correlation-aware rescue (`self.correlation_list`) is NOT yet
+		wired into this branch -- A-facto only, for now.
 		"""
 		# Populate s_A / s_n / s_Ea in unsrt_data order so that abs_coeff
 		# is aligned 1-to-1 with active_parameters / DesignMatrix columns.
@@ -182,11 +242,11 @@ class PartialPRS(object):
 					self.s_n.append(float(sensitivity_dict[rxn_][1]))
 					self.s_Ea.append(float(sensitivity_dict[rxn_][2]))
 
-		self.active_params	   = active_parameters
-		self.partial_active	  = {}
+		self.active_params	     = active_parameters
+		self.partial_active	     = {}
 		self.partial_active_list = []
 		self.selected			= []
-		self.abs_coeff		   = []
+		self.abs_coeff		     = []
 		self.selected_rxn_string = ""
 
 		# Per-parameter maxima – guard against empty lists
@@ -217,6 +277,25 @@ class PartialPRS(object):
 		for ind, active_param in enumerate(self.active_params):
 			if self.abs_coeff[ind] >= thresholds[ind % 3]:
 				self.check_list.append(active_param)
+
+		# ---------------------------------------------------------- #
+		# Correlation-aware rescue (3-param) — wired in here         #
+		# Mirrors the A-facto branch: force abs_coeff up to threshold #
+		# for any feature listed in correlation_list, and add it to   #
+		# check_list so linked-reaction propagation works correctly   #
+		# in the second pass below.                                   #
+		# ---------------------------------------------------------- #
+		_corr_rescued_3p = set()
+		if self.correlation_list:
+			_corr_set_3p = set(self.correlation_list)
+			for ind, active_param in enumerate(self.active_params):
+				param_type = ind % 3
+				if (self.abs_coeff[ind] < thresholds[param_type]
+						and active_param in _corr_set_3p):
+					self.abs_coeff[ind] = thresholds[param_type]
+					_corr_rescued_3p.add(active_param)
+					if active_param not in self.check_list:
+						self.check_list.append(active_param)
 
 		# Suffix table aligned with param_type = ind % 3
 		_param_suffixes = ["_A", "_n", "_Ea"]
@@ -251,6 +330,29 @@ class PartialPRS(object):
 				self.selected.append(0)
 
 		self.selected_rxn_count = sum(self.selected)
+
+		# Build selection_detail (written alongside DesignMatrix)
+		import math
+		for ind, active_param in enumerate(self.active_params):
+			rxn_idx = ind // 3
+			p_idx   = ind % 3
+			if rxn_idx < len(self.s_A):
+				s_raw = [self.s_A[rxn_idx], self.s_n[rxn_idx], self.s_Ea[rxn_idx]][p_idx]
+			else:
+				s_raw = float("nan")
+			in_final  = self.selected[ind] == 1
+			by_thresh = not math.isnan(s_raw) and abs(s_raw) >= thresholds[p_idx]
+			by_rescue = active_param in _corr_rescued_3p
+			by_linked = in_final and (not by_thresh) and (not by_rescue)
+			self.selection_detail.append({
+				"param": active_param,
+				"S_value": round(s_raw, 6) if not math.isnan(s_raw) else None,
+				"abs_S": round(abs(s_raw), 6) if not math.isnan(s_raw) else None,
+				"selected_by_threshold": by_thresh,
+				"selected_by_linked_propagation": by_linked,
+				"rescued_by_correlation": by_rescue,
+				"final_in_PRS": in_final,
+			})
 
 	def _reload_three_param_selection(self, active_parameters):
 		"""
@@ -318,7 +420,8 @@ class PartialPRS(object):
 		return [sa, sn, se]
 
 	# ====================================================================== #
-	# A-factor helpers – unchanged											 #
+	# A-factor helpers – sensitivity cut-off, linked propagation,			#
+	# and correlation-aware rescue (NEW)									   #
 	# ====================================================================== #
 
 	def populateCheckList(self, sa, activeParams):
@@ -339,6 +442,30 @@ class PartialPRS(object):
 			return [1.0]
 		return [0.0]
 
+	def getCorrelationRescue(self, active_param, correlation_set):
+		"""
+		Return True if *active_param* should be force-selected because of
+		the correlation analysis, either:
+		  (a) it appears directly in `correlation_set`, or
+		  (b) its PLOG-linked partner appears in `correlation_set` --
+			  `correlation_list` only lists parent reactions, so linked
+			  duplicates have to be pulled in this way, mirroring how
+			  `getSelectedLinkedRxn` propagates the sensitivity cut-off.
+
+		NOTE on naming: `correlation_set` is assumed to already use the
+		same active-parameter string format as `self.active_params`
+		(e.g. "12_A"), per how the correlation list was described. If your
+		correlation list instead uses raw reaction-equation keys, match it
+		against `self.unsrt` first (the same `rxn.split(":")[0]` pattern
+		used elsewhere in this class) before calling this method.
+		"""
+		if active_param in correlation_set:
+			return True
+		linked_idx = self.linked_list.get(active_param)
+		if linked_idx is not None and (str(linked_idx) + "_A") in correlation_set:
+			return True
+		return False
+
 	# ====================================================================== #
 	# Design-matrix sizing utilities – unchanged							   #
 	# ====================================================================== #
@@ -352,26 +479,68 @@ class PartialPRS(object):
 		return 4 * n_ if design == "A-facto" else 7 * n_
 
 	# ====================================================================== #
+	# Selection-detail CSV writer                                             #
+	# ====================================================================== #
+
+	def _write_selection_details(self, case_dir):
+		"""
+		Write selection_details.csv to *case_dir* explaining why each
+		parameter is (or is not) in the final p-PRS active set.
+		Columns: param, S_value, abs_S, selected_by_threshold,
+		         selected_by_linked_propagation, rescued_by_correlation,
+		         final_in_PRS.
+		"""
+		if not self.selection_detail:
+			return
+		import csv
+		path = os.path.join(case_dir, "selection_details.csv")
+		headers = [
+			"param", "S_value", "abs_S",
+			"selected_by_threshold", "selected_by_linked_propagation",
+			"rescued_by_correlation", "final_in_PRS",
+		]
+		with open(path, "w", newline="") as f:
+			w = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
+			w.writeheader()
+			w.writerows(self.selection_detail)
+		# Also write a compact summary
+		n_thresh  = sum(1 for r in self.selection_detail if r["selected_by_threshold"])
+		n_linked  = sum(1 for r in self.selection_detail if r["selected_by_linked_propagation"])
+		n_rescue  = sum(1 for r in self.selection_detail if r["rescued_by_correlation"])
+		n_final   = sum(1 for r in self.selection_detail if r["final_in_PRS"])
+		summary = (
+			f"# Selection summary for Case {self.case_index}\n"
+			f"total_active_params,{len(self.selection_detail)}\n"
+			f"selected_by_threshold,{n_thresh}\n"
+			f"selected_by_linked_propagation,{n_linked}\n"
+			f"rescued_by_correlation,{n_rescue}\n"
+			f"final_in_PRS,{n_final}\n"
+		)
+		open(os.path.join(case_dir, "selection_summary.csv"), "w").write(summary)
+
+	# ====================================================================== #
 	# Partial design matrix builder                    						#
 	# ====================================================================== #
-	
+
 	def partial_DesignMatrix(self):
 		na = len(self.partial_active_list)
 		n_rxn = len(self.active_params)
-		self.no_of_sim = self.getSim(na,self.design)
-		
-		print(f"\n[Case-{self.case_index}]\n\tNo. of Simulations required: {self.getSim(na,self.design)}\n\tNo. of selected reactions: {self.selected_rxn_count}\n")
+		self.no_of_sim = self.getSim(na, self.design)   # formula estimate; updated to actual below
+
 		if "DM_FOR_PARTIAL_PRS" not in os.listdir():
 			os.mkdir("DM_FOR_PARTIAL_PRS")
 			os.mkdir(f"DM_FOR_PARTIAL_PRS/{self.case_index}")
 		else:
 			if f"{self.case_index}" not in os.listdir("DM_FOR_PARTIAL_PRS/"):
 				os.mkdir(f"DM_FOR_PARTIAL_PRS/{self.case_index}")
-		
+
+		# Write selection details alongside the DesignMatrix directory
+		self._write_selection_details(f"DM_FOR_PARTIAL_PRS/{self.case_index}")
+
 		#######################################################################
 		### Goes to DesignMatrix Modules to create Matrix for Partial PRS ###
 		#######################################################################
-		
+
 		if "DesignMatrix.csv" not in os.listdir(f"DM_FOR_PARTIAL_PRS/{self.case_index}/"):
 			design_matrix,selection_matrix,p_design_matrix,p_selection_matrix = DM.DesignMatrix(self.unsrt,self.design,self.getSim(na,self.design),n_rxn).getSample_partial(self.case_index,self.selected)
 			g = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv","w").write(self.selected_rxn_string)
@@ -403,10 +572,20 @@ class PartialPRS(object):
 			for row in p_selection_matrix_file:
 				p_selection_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
 		
+		# Update no_of_sim to the ACTUAL row count of the design matrix
+		# (Sobol or other samplers may produce more rows than the formula estimate)
+		self.no_of_sim = len(p_design_matrix)
+		print(
+			f"\n[Case-{self.case_index}]"
+			f"\n\tSelected features/reactions  : {self.selected_rxn_count}"
+			f"\n\tEstimated sims (2nd-order formula) : {self.getSim(na, self.design)}"
+			f"\n\tActual sims (design matrix rows)   : {self.no_of_sim}\n"
+		)
+
 		####################################################################################################
 		### Goes to Simulation Manager to generate YAML mechanisms based on DesignMatrix for Partial PRS ###
 		####################################################################################################
-		
+
 		SSM = simulator.SM(self.target_list,self.optInputs,self.unsrt,design_matrix,tag="Partial")
 		if f"YAML_FILES_FOR_PARTIAL_PRS" not in os.listdir():
 			os.mkdir("YAML_FILES_FOR_PARTIAL_PRS")
@@ -415,20 +594,13 @@ class PartialPRS(object):
 			print("\nPerturbing the Mechanism files\n")
 			
 			chunk_size = 500
-			params_yaml = [design_matrix[i:i+chunk_size] for i in range(0, len(design_matrix), chunk_size)]
-			params_selection_yaml = [selection_matrix[i:i+chunk_size] for i in range(0, len(selection_matrix), chunk_size)]
-			"""
-			print(self.sens_param)
-			if self.sens_param == "zeta":
-				params_selection_yaml = [selection_matrix[i:i+chunk_size] for i in range(0, len(selection_matrix), chunk_size)]
-			else:
-				params_selection_yaml = [p_selection_matrix[i:i+chunk_size] for i in range(0, len(p_selection_matrix), chunk_size)]
-			"""	
+			params_yaml = [p_design_matrix[i:i+chunk_size] for i in range(0, len(p_design_matrix), chunk_size)]
+			params_selection_yaml = [p_selection_matrix[i:i+chunk_size] for i in range(0, len(p_selection_matrix), chunk_size)]
 			count = 0
 			yaml_loc = []
 			for index,params in enumerate(params_yaml):
 				if self.design == "A-facto":
-					yaml_list = SSM.getYAML_List(params)#,selection=params_selection_yaml[index])
+					yaml_list = SSM.getYAML_List(params,selection=params_selection_yaml[index])
 				else:
 					yaml_list = SSM.getYAML_List(params,selection=params_selection_yaml[index])
 				#yaml_loc = []

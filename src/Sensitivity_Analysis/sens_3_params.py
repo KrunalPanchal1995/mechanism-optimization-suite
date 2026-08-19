@@ -337,7 +337,7 @@ for param_type, select_mask, dm_attr, sel_attr in [
     ("n",  select_param_n,  "design_matrix_n",  "selection_matrix_n"),
     ("Ea", select_param_ea, "design_matrix_Ea", "selection_matrix_Ea"),
 ]:
-    csv_dm  = f"DesignMatrix_{param_type}.csv"
+    csv_dm  = f"pDesignMatrix_{param_type}.csv"
     csv_sel = f"pSelectionMatrix_{param_type}.csv"
     if csv_dm not in os.listdir():
         sel_mat, dm = DM.DesignMatrix(
@@ -366,7 +366,7 @@ if sa_scheme == "central_difference":
         ("n",  select_param_n),
         ("Ea", select_param_ea),
     ]:
-        csv_dm  = f"DesignMatrix_{param_type}_neg.csv"
+        csv_dm  = f"pDesignMatrix_{param_type}_neg.csv"
         csv_sel = f"pSelectionMatrix_{param_type}_neg.csv"
         if csv_dm not in os.listdir():
             sel_mat_neg, dm_neg = DM.DesignMatrix(
@@ -936,6 +936,7 @@ for case_index, case in enumerate(temp_sim_opt_A):
         normalized_A = A_o / delta_a
 
         delta_n_val  = float(delta_dict[rxn]["delta_n"])
+        print(rxn,delta_dict[rxn]["delta_n"])
         normalized_n = 1.0 / delta_n_val              # n is not log-scaled
 
         delta_ea     = float(delta_dict[rxn]["delta_Ea"])
@@ -1052,7 +1053,7 @@ for case_index, case in enumerate(temp_sim_opt_A):
 
     tag = f"T_{T_}_case_{case_index}_{scheme_tag}"
     open(f"Data/SensitivityCoeffs/FM_sensitivity_{tag}.txt",    'w').write(_write_sens(sort_rlist, sort_alist))
-    open(f"Data/SensitivityCoeffs/FM_sensitivity_{tag}_1.txt",  'w').write(_write_sens(sort_rlist, sort_alist_1))
+    #open(f"Data/SensitivityCoeffs/FM_sensitivity_{tag}_1.txt",  'w').write(_write_sens(sort_rlist, sort_alist_1))
     open(f"Data/SensitivityCoeffs/FM_sensitivity_{tag}_n.txt",  'w').write(_write_sens(sort_rlist, sort_nlist))
     open(f"Data/SensitivityCoeffs/FM_sensitivity_{tag}_ea.txt", 'w').write(_write_sens(sort_rlist, sort_ealist))
     log.info(f"    Sensitivity files written (tag='{tag}').")

@@ -9,6 +9,7 @@ setup_logging          — Configure and return a timestamped logger
 parse_phi_pressure     — Extract φ and P from dataset IDs / filenames
 standardise_filename   — Convert dataset ID to standard CSV filename
 phi_folder_name        — Return the sub-folder name for a φ value
+extract_dataset_tag    — Extract a dataset/fuel tag preceding the φ/P pattern
 load_opt_file          — Load a .opt YAML file
 apply_overrides        — Deep-merge override dict into a base config dict
 build_run_config       — Build the optInputs dict for one SimRunConfig
@@ -35,51 +36,30 @@ def setup_logging(
     log_file: Optional[str] = None,
     level:    int = logging.INFO,
 ) -> logging.Logger:
-    """
-    Create and configure a logger.
-
-    A StreamHandler to stdout is always added.  If *log_file* is given,
-    a FileHandler is also added (parent directories are created automatically).
-
-    Parameters
-    ----------
-    name : str
-        Logger name (typically ``__name__`` of the calling module).
-    log_file : str | None
-        Optional path to a log file.
-    level : int
-        Logging level (default ``logging.INFO``).
-
-    Returns
-    -------
-    logging.Logger
-    """
-    logger = logging.getLogger(name)
-
-    # Avoid adding duplicate handlers on repeated calls (e.g., in interactive use)
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(level)
+    root = logging.getLogger()
+    root.setLevel(level)
 
     fmt = logging.Formatter(
         "%(asctime)s  [%(levelname)-8s]  %(name)s — %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Console handler
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setFormatter(fmt)
-    logger.addHandler(ch)
+    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setFormatter(fmt)
+        root.addHandler(ch)
 
-    # Optional file handler
     if log_file:
+        # swap out any previous per-run file handler so each run's log file
+        # only contains that run's own messages
+        for h in [h for h in root.handlers if isinstance(h, logging.FileHandler)]:
+            root.removeHandler(h)
         Path(log_file).parent.mkdir(parents=True, exist_ok=True)
         fh = logging.FileHandler(log_file)
         fh.setFormatter(fmt)
-        logger.addHandler(fh)
+        root.addHandler(fh)
 
-    return logger
+    return logging.getLogger(name)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +148,35 @@ def phi_folder_name(phi_str: str) -> str:
     'phi_1'
     """
     return f"phi_{phi_str}"
+
+
+def extract_dataset_tag(name: str) -> Optional[str]:
+    """
+    Extract a short dataset/fuel identifier from a dataset ID or filename —
+    everything *before* the ``phi<value>_p<value>`` pattern, with a leading
+    ``ing_`` prefix stripped.
+
+    Used to disambiguate output filenames when two different source
+    datasets (e.g. two fuels) share the same (φ, P) condition and would
+    otherwise standardise to an identical filename.
+
+    Examples
+    --------
+    >>> extract_dataset_tag("ing_Ethyl_Butanoate_PHI_1_P_30.csv")
+    'Ethyl_Butanoate'
+    >>> extract_dataset_tag("ing_Butanoate_PHI_1_P_30.csv")
+    'Butanoate'
+    >>> extract_dataset_tag("phi1_p30.csv") is None
+    True
+    """
+    stem = Path(name).stem
+    idx = stem.lower().find("phi")
+    if idx <= 0:
+        return None
+    tag = stem[:idx].strip("_")
+    if tag.lower().startswith("ing_"):
+        tag = tag[4:]
+    return tag or None
 
 
 # ---------------------------------------------------------------------------

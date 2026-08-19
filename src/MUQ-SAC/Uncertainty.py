@@ -1980,6 +1980,33 @@ class UncertaintyExtractor(object):
 
 	# ── END NEW UncertaintyExtractor methods ──────────────────────────────────
 
+def _normalize_rxn_arrow(s):
+	"""Treat '<=>' (reversible) and '=>' (irreversible) as equivalent when
+	matching an XML uncertainty entry's reaction string against the
+	mechanism's own equation list -- some (uncertainty-file, mechanism)
+	pairs disagree on reversibility notation for the physically same
+	reaction (found 2026-08-19: MB_R_ALL_ECM_2025.xml's Reaction 2204 is
+	written irreversible, MB_MB2D_LALIT_2024.yaml's is reversible), which
+	would otherwise fail an exact-string match even though it is
+	unambiguously the same reaction."""
+	return s.replace("<=>", "=>")
+
+
+def _find_rxn_index(rxn, rxn_list):
+	"""Exact match first -- preserves existing lookup order/behavior for
+	every currently-working XML/YAML pair unchanged. Falls back to an
+	arrow-agnostic match (see _normalize_rxn_arrow) before giving up.
+	Returns None (never raises) if neither matches, so callers can decide
+	how to handle a genuine mismatch."""
+	if rxn in rxn_list:
+		return rxn_list.index(rxn)
+	target = _normalize_rxn_arrow(rxn)
+	for i, candidate in enumerate(rxn_list):
+		if _normalize_rxn_arrow(candidate) == target:
+			return i
+	return None
+
+
 class reaction(UncertaintyExtractor):
 	def __init__(self, Element,mechPath,binary_files):
 		#self.samap_executable = binary_files["samap_executable"]
@@ -1995,9 +2022,8 @@ class reaction(UncertaintyExtractor):
 		self.rIndex = str(Element.attrib["no"])
 		#self.rxn_dict = IFR.MechParsing(mechPath).getKappa(self.rxn)
 		#print(self.rIndex,IFR.MechParsing(mechPath).getArrhenius(self.rxn))
-		if self.rxn in RXN_LIST:
-			self.index = RXN_LIST.index(self.rxn)
-		else:
+		self.index = _find_rxn_index(self.rxn, RXN_LIST)
+		if self.index is None:
 			raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		for item in Element:
@@ -2556,10 +2582,9 @@ class PLOG(UncertaintyExtractor):
 		#print(self.rxn)
 		self.rIndex = str(Element.attrib["no"])
 		
-		if self.rxn in RXN_LIST:
-			self.index = RXN_LIST.index(self.rxn)
-		else:
-			raise AssertionError("Rxn not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
+		self.index = _find_rxn_index(self.rxn, RXN_LIST)
+		if self.index is None:
+			raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		#self.rxn_Details = DATA["reactions"][self.index]
 		#print(self.rxn_Details)
@@ -3648,15 +3673,18 @@ class uncertaintyData:
 
 		for child in self.root:
 			if child.tag == 'reaction':
-				# An XML uncertainty entry whose equation string doesn't
-				# exact-match anything in the paired mechanism YAML (e.g. an
-				# arrow-direction mismatch: XML says irreversible "=>", YAML
-				# has the same reaction as reversible "<=>") used to abort
-				# construction of the ENTIRE unsrt dict on the first such
-				# mismatch. Skipping just that one malformed entry (logged to
-				# self.skipped_reactions) instead is strictly more robust and
-				# changes nothing for any currently-working XML/YAML pair,
-				# since a well-formed pair never raises here.
+				# _find_rxn_index already tolerates the specific mismatch
+				# found in practice (arrow-direction: XML "=>" vs YAML
+				# "<=>" for the same physical reaction, see its docstring)
+				# by falling back to an arrow-agnostic match, so a
+				# reaction like that is now recovered, not skipped. This
+				# try/except is a secondary safety net for any OTHER kind
+				# of genuine mismatch (typo, reaction truly absent from
+				# the mechanism) -- skips just that one malformed entry
+				# (logged to self.skipped_reactions) instead of aborting
+				# construction of the ENTIRE unsrt dict, and changes
+				# nothing for any currently-working XML/YAML pair, since
+				# a well-formed entry never raises here.
 				try:
 					r = reaction(child,self.mechPath,binary_files)
 				except AssertionError as e:

@@ -246,7 +246,7 @@ def load_config(yaml_path: str) -> PipelineConfig:
     err_raw   = raw.get("error_metrics", {})
     plot_raw  = raw.get("plots", {})
 
-    return PipelineConfig(
+    return raw, PipelineConfig(
         project_name   = proj.get("name",        "MSO_Project"),
         working_dir    = proj.get("working_dir",  str(Path.cwd())),
         fuel           = proj.get("fuel",         ""),

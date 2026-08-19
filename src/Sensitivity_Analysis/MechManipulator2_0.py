@@ -282,6 +282,7 @@ class Manipulator:
 			for local_i, global_i in enumerate(active_indices):
 				p[global_i] = p0[global_i] + delta_r[local_i]
 
+		#print(f"Rxn: {rxn}",f"Active parameters: {len(active_indices)}",f"selected params:{select_vector}",f"Nominal:{p0}",f"Perturbed: {p}\n\n")
 		return p
 
 	def _write_rate_constant(self, p, reaction_details):

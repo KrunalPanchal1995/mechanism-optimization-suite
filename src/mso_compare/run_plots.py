@@ -240,7 +240,7 @@ def main() -> None:
     if not args.config:
         parser.error("--config is required (or use --two-threshold).")
 
-    cfg      = load_config(args.config)
+    raw, cfg = load_config(args.config)
     mode     = args.mode     or cfg.plots.mode
     unc_frac = args.unc_frac or cfg.error_metrics.uncertainty_fraction
 

@@ -97,12 +97,102 @@ def _create_sim_directories(output_dir: Path) -> Dict[str, Path]:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+from typing import Optional
+
+def _locate_progress_files(nominal_dir: Path, output_dir: Path):
+    """
+    Search only this run's own directories for an existing progress/locations
+    pair. original_cwd is deliberately excluded — it's shared across every
+    run label, so searching it (especially recursively) can pick up a
+    sibling run's leftover files instead of this run's own.
+    """
+    candidates = (nominal_dir, output_dir)
+
+    def _find(filename: str) -> Optional[Path]:
+        for cand in candidates:
+            p = cand / filename
+            if p.exists():
+                return p
+        # fallback: recurse, but never leave this run's own output_dir
+        return next(output_dir.rglob(filename), None)
+
+    return _find("progress"), _find("locations")
+
+
+def _sweep_missing_simulations(
+    data_management,
+    exe_locations: List[str],
+    target_list: List[Any],
+    fuel: Any,
+    optInputs: Dict[str, Any],
+) -> None:
+    """
+    Detect every simulation across ALL cases that failed to produce output,
+    then re-run all of them in a single multiprocessing pool.
+
+    ``data_management_nominal.generate_target_value_tables`` (called once per
+    case, right after this) already does exactly this detect-then-rerun
+    dance, but only within its own case -- so a compare run with e.g. 68
+    cases spins up 68 separate multiprocessing pools, most of them idle
+    apart from the handful of cases that actually had a failure. Sweeping
+    across cases first collapses that into one pool, sized off this study's
+    own ``Counts.parallel_threads`` (never hardcoded -- the per-case
+    ``Worker(100)`` at the call site below ignores the configured thread
+    budget; that is a separate, pre-existing issue in the shared module).
+    The per-case loop that follows becomes a fast no-op re-check once this
+    sweep has filled in the missing output.
+    """
+    missing: List[tuple] = []  # (case_idx, target, file_path)
+    for case_idx, t in enumerate(target_list):
+        case_tag = f"case-{case_idx}"
+        case_locs = [
+            loc.strip("\n") for loc in exe_locations
+            if case_tag in loc.strip("\n").split("/")
+        ]
+        for i, loc in enumerate(case_locs):
+            eta_, _ETA, file_path = data_management.extract_output(
+                t, fuel, loc[:-3] + "output/", i,
+                input_=optInputs, caseID=case_idx,
+            )
+            if "N/A" in str(eta_):
+                missing.append((case_idx, t, file_path))
+
+    if not missing:
+        return
+
+    workers = int(
+        optInputs.get("Counts", {}).get("rerun_workers")
+        or optInputs["Counts"]["parallel_threads"]
+    )
+    n_cases = len({c for c, _, _ in missing})
+    logger.info(
+        "Cross-case sweep: %d simulation(s) across %d case(s) did not "
+        "return expected results — re-running in one pool (%d workers) …",
+        len(missing), n_cases, workers,
+    )
+
+    W = data_management.Worker(workers)
+    for idx, (case_idx, t, file_path) in enumerate(missing):
+        W.pool.apply_async(
+            data_management.run_sim,
+            args=(idx, t, optInputs, case_idx, file_path, len(missing)),
+            callback=W.callback_run,
+            error_callback=W.callback_error,
+        )
+    W.pool.close()
+    W.pool.join()
+    W.pool.terminate()
+    del W
+
+    logger.info("Cross-case sweep complete — %d simulation(s) re-run.", len(missing))
+
 
 def run_nominal_simulation(
     sim_run_cfg: SimRunConfig,
     base_opt_file: str,
     muqsac_dir:  str  = "",
     dry_run:     bool = False,
+    raw: dict = {},
 ) -> Dict[str, Any]:
     """
     Run one nominal simulation.
@@ -165,7 +255,7 @@ def run_nominal_simulation(
     # ── Import MUQ-SAC modules (deferred so sys.path is ready) ────────────
     try:
         import combustion_target_class       # noqa: PLC0415
-        import data_management               # noqa: PLC0415
+        import data_management_nominal as data_management               # noqa: PLC0415
         import simulation_manager2_0 as simulator   # noqa: PLC0415
     except ImportError as exc:
         logger.error(
@@ -182,7 +272,8 @@ def run_nominal_simulation(
     # ── Create directory structure ─────────────────────────────────────────
     dirs        = _create_sim_directories(output_dir)
     nominal_dir = dirs["nominal"]   # absolute Path
-
+    #print(nominal_dir)
+    #print(output_dir)
     # ── Read target file ───────────────────────────────────────────────────
     locations     = optInputs["Locations"]
     addendum_path = locations.get("addendum", "")
@@ -224,53 +315,66 @@ def run_nominal_simulation(
     progress_file  = nominal_dir / "progress"
     locations_file = nominal_dir / "locations"
 
+    
+    
     original_cwd = Path.cwd()
-    os.chdir(nominal_dir)
+    progress_path, locations_path = _locate_progress_files(nominal_dir, output_dir)
 
+    os.chdir(nominal_dir)
+    
     try:
-        if not progress_file.exists():
-            logger.info("No progress file found — launching simulations …")
-            exe_locations: List[str] = (
-                simulator.SM(target_list, optInputs, {}, [])
-                .make_nominal_dir_in_parallel()
-            )
+        if progress_path is None or locations_path is None:
+           logger.info("Progress/locations pair incomplete (progress=%s, locations=%s) — "
+                       "launching simulations …", progress_path, locations_path)
+           exe_locations: List[str] = (
+               simulator.SM(target_list, optInputs, {}, [])
+               .make_nominal_dir_in_parallel()
+           )
         else:
-            logger.info("Progress file detected — loading existing simulation locations …")
-            exe_locations = locations_file.read_text().splitlines()
+           logger.info("Reusing progress=%s, locations=%s", progress_path, locations_path)
+           exe_locations = locations_path.read_text().splitlines()
     finally:
-        # Always restore the original working directory
         os.chdir(original_cwd)
 
+    fuel = optInputs["Inputs"].get("fuel", {})
+
+    # ── Cross-case re-run sweep ─────────────────────────────────────────────
+    # Catch every case's missing simulations up front, in one pool, before
+    # the per-case extraction loop below does its own (much smaller) retry.
+    _sweep_missing_simulations(data_management, exe_locations, target_list, fuel, optInputs)
+
     # ── Extract simulation results ─────────────────────────────────────────
+    print(nominal_dir)
     logger.info("Extracting simulation results …")
-    fuel            = optInputs["Inputs"].get("fuel", {})
     temp_sim_opt:   Dict[str, List[float]] = {}
 
     for case_idx in range(len(target_list)):
+        t = target_list[case_idx]                       # NEW
         cached_file = dirs["sims"] / f"sim_data_case-{case_idx}.lst"
 
         if cached_file.exists():
-            # Re-use previously extracted results
             rows = [r for r in cached_file.read_text().splitlines() if r.strip()]
             eta  = [np.exp(float(r.split("\t")[1])) / 10.0 for r in rows]
-            temp_sim_opt[str(case_idx)] = eta
+            temp_sim_opt[str(t.index)] = eta             # was case_idx
         else:
-            # Extract from simulation case directory
             case_dir_path = nominal_dir / f"case-{case_idx}"
             os.chdir(case_dir_path)
             try:
                 data_sheet, failed_sim, eta_arr = (
-                    data_management.generate_target_value_tables(
-                        exe_locations, target_list, case_idx, fuel
-                    )
+                   data_management.generate_target_value_tables(
+                       exe_locations, target_list, case_idx, fuel,
+                   input_= optInputs)
                 )
-                temp_sim_opt[str(case_idx)] = list(np.exp(eta_arr) / 10.0)
+                temp_sim_opt[str(t.index)] = list(np.exp(eta_arr) / 10.0)  # was case_idx
             finally:
                 os.chdir(original_cwd)
 
-            # Cache results
             (dirs["sims"] / f"sim_data_case-{case_idx}.lst").write_text(data_sheet)
             (dirs["sims"] / f"failed_sim_data_case-{case_idx}.lst").write_text(failed_sim)
+
+            if not temp_sim_opt[str(t.index)]:
+                logger.warning("Case %d (target index %s) produced no result — "
+                               "check failed_sim_data_case-%d.lst", case_idx, t.index, case_idx)
 
     # ── Write per-dataset CSV files ────────────────────────────────────────
     logger.info("Writing dataset CSV files …")
@@ -317,7 +421,13 @@ def _write_dataset_csv(
     if target_type in ("Tig", "RCM", "JSR"):
         lines = ["DS_ID,T,Obs(us),Nominal\n"]
         for t in matching:
-            sim_val = temp_sim_opt.get(str(t.index), [None])[0]
+            vals = temp_sim_opt.get(str(t.index))
+            if not vals:
+               logger.warning("No simulated value for target index %s (dataset %s) — writing NaN.",
+                            t.index, d_set)
+               sim_val = float("nan")
+            else:
+               sim_val = vals[0]
             lines.append(f"{t.uniqueID},{t.temperature},{t.observed},{sim_val}\n")
 
         out_dir = dirs.get(target_type.lower(), dirs["tig"])
@@ -327,7 +437,8 @@ def _write_dataset_csv(
     elif target_type == "Fls":
         lines = ["DS_ID,T,P,Phi,Fuel,Ox,BathGas,Obs(us),Nominal\n"]
         for t in matching:
-            sim_val = temp_sim_opt.get(str(t.index), [None])[0]
+            vals = temp_sim_opt.get(str(t.index), [None])[0]
+            sim_val = vals[0] if vals else float("nan")
             lines.append(
                 f"{t.uniqueID},{t.temperature},{t.pressure},{t.phi},"
                 f"{t.fuel_dict},{t.oxidizer_x},{t.BG_dict},"

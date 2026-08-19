@@ -13,6 +13,7 @@ import combustion_target_class
 import data_management
 import pickle
 import MechanismParser as MP
+import correlation_analysis as CA
 #########################################
 ###    Reading the input file        ####
 ###    -----------------------       ####
@@ -351,4 +352,6 @@ for case in case_dir:
 if "sens_parameters.pkl" not in os.listdir(".."):
 	with open('../sens_parameters.pkl', 'wb') as file_:
 		pickle.dump(selected_PRS, file_)	
-print("\n\t################################\n\tSENSITIVITY ANALYSIS DONE!!\n\t################################\n\t")	
+print("\n\t################################\n\tSENSITIVITY ANALYSIS DONE!!\n\t################################\n\t")
+
+

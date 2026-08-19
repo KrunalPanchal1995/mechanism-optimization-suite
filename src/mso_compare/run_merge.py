@@ -134,8 +134,8 @@ def main() -> None:
         help="Print paths without writing files.",
     )
 
-    args   = parser.parse_args()
-    cfg    = load_config(args.config)
+    args        = parser.parse_args()
+    raw, cfg    = load_config(args.config)
 
     for prefix in _resolve_regime(args.regime):
         _merge_regime(cfg, prefix, dry_run=args.dry_run)
