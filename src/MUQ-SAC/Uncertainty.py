@@ -3637,6 +3637,7 @@ class uncertaintyData:
 		#self.Plog_additional_Rxn = {}
 		self.thermoUnsrt = {}
 		self.transportUnsrt = {}
+		self.skipped_reactions = []   # [(xml rxn string, error message), ...] -- see below
 		self.tree = ET.parse(self.xmlPath)
 		self.root = self.tree.getroot()
 		count_rxn = 0
@@ -3644,16 +3645,33 @@ class uncertaintyData:
 		count_m = 0
 		count_thermo = 0
 		count_transport = 0
-		
+
 		for child in self.root:
 			if child.tag == 'reaction':
-				r = reaction(child,self.mechPath,binary_files)
+				# An XML uncertainty entry whose equation string doesn't
+				# exact-match anything in the paired mechanism YAML (e.g. an
+				# arrow-direction mismatch: XML says irreversible "=>", YAML
+				# has the same reaction as reversible "<=>") used to abort
+				# construction of the ENTIRE unsrt dict on the first such
+				# mismatch. Skipping just that one malformed entry (logged to
+				# self.skipped_reactions) instead is strictly more robust and
+				# changes nothing for any currently-working XML/YAML pair,
+				# since a well-formed pair never raises here.
+				try:
+					r = reaction(child,self.mechPath,binary_files)
+				except AssertionError as e:
+					self.skipped_reactions.append((child.attrib.get("rxn", "?"), str(e)))
+					continue
 				self.Reactionlist.append(r.nametag)
 				self.reactionUnsrt[r.nametag] = r
 				self.unsrt_data[r.nametag] = r
 				count_rxn +=1
 			if child.tag == 'PLOG':
-				p = PLOG(child,self.mechPath,binary_files)
+				try:
+					p = PLOG(child,self.mechPath,binary_files)
+				except AssertionError as e:
+					self.skipped_reactions.append((child.attrib.get("rxn", "?"), str(e)))
+					continue
 				self.PlogRxnlist.append(p.rIndex)
 				self.PlogRxnIndex[p.rIndex] = p.nametag
 				self.Plog_index[p.rIndex] = p.index
