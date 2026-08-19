@@ -9,12 +9,12 @@ from MechanismParser import Parser
 # Supported design modes (detected automatically from unsrt + select_vector):
 #
 #   ┌──────────────────┬───────────┬───────────────────────────────────────┐
-#   │ Mode             │ n_params  │ Perturbation formula                  │
+#   │ Mode			 │ n_params  │ Perturbation formula				  │
 #   ├──────────────────┼───────────┼───────────────────────────────────────┤
-#   │ Full A-factor    │     1     │ p[0] = p0[0] + σ_A · ζ_A             │
-#   │ Full A1+B1+C1    │     3     │ p    = p0   + L · ζ        (3×3 L)   │
-#   │ Partial A-factor │     1     │ p[0] = p0[0] + σ_A · ζ_A · sel[0]   │
-#   │ Partial A1+B1+C1 │     3     │ p_S  = p0_S + L_r · ζ_r   (m×m L_r) │
+#   │ Full A-factor	│	 1	 │ p[0] = p0[0] + σ_A · ζ_A			 │
+#   │ Full A1+B1+C1	│	 3	 │ p	= p0   + L · ζ		(3×3 L)   │
+#   │ Partial A-factor │	 1	 │ p[0] = p0[0] + σ_A · ζ_A · sel[0]   │
+#   │ Partial A1+B1+C1 │	 3	 │ p_S  = p0_S + L_r · ζ_r   (m×m L_r) │
 #   └──────────────────┴───────────┴───────────────────────────────────────┘
 #
 # For Partial A1+B1+C1, L_r is the Cholesky factor of the principal submatrix
@@ -26,20 +26,20 @@ from MechanismParser import Parser
 
 class Manipulator:
 	def __init__(self, copy_of_mech, unsrt_object, perturbation,
-	             selection=np.array([])):
+				 selection=np.array([])):
 		"""
 		Parameters
 		----------
 		copy_of_mech  : dict   Parsed YAML mechanism (deepcopy is taken internally).
 		unsrt_object  : dict   {rxn_key → UncertaintyExtractor subclass instance}.
 		perturbation  : list   Flat design-matrix row (full-space, zeros at inactive
-		                       positions for partial PRS).
-		selection     : array  Flat selection row from the design matrix
-		                       (1 = active, 0 = inactive).  If empty, defaults to
-		                       all-ones (full PRS / backward-compatible behaviour).
+							   positions for partial PRS).
+		selection	 : array  Flat selection row from the design matrix
+							   (1 = active, 0 = inactive).  If empty, defaults to
+							   all-ones (full PRS / backward-compatible behaviour).
 		"""
 		self.mechanism  = deepcopy(copy_of_mech)
-		self.unsrt      = unsrt_object
+		self.unsrt	  = unsrt_object
 		self.perturbation = perturbation
 		self.rxn_list   = [rxn for rxn in self.unsrt]
 
@@ -71,101 +71,150 @@ class Manipulator:
 
 		Compressed-diagonal format  (SA mode, one value per reaction)
 		──────────────────────────────────────────────────────────────
-		  len(perturbation) == N_rxns
-		  selection has exactly 3 entries per reaction (pSelectionMatrix layout,
-		  length 3*N_rxns).
-		  For reaction j:
-		    sel_3 = selection[3j : 3j+3]  — which Arrhenius param is active
-		    [1,0,0] → A-factor   [0,1,0] → n   [0,0,1] → Ea/R
-		    [0,0,0] → inactive   → beta = zeros → _compute returns nominal
-		  perturbation[j] is the single zeta scalar placed at the active position.
+		  len(perturbation) == N_rxns  (one scalar zeta per reaction, indexed
+		  directly by position j — this stride is always 1 and never varies).
+
+		  selection does NOT have a fixed stride of 3 per reaction. Its
+		  per-reaction width is n = len(self.unsrt[rxn].activeParameters):
+		  1 for an "A-factor only" reaction, 3 for an "A1+B1+C1" reaction.
+		  A reaction not selected for perturbation still occupies its n-width
+		  slot in selection — it's just all-zero. Reading a hardcoded 3
+		  elements per reaction (then trimming to n) silently misaligns the
+		  cursor as soon as an A-factor-only reaction is encountered, and the
+		  reactions after it would read someone else's flags. So selection
+		  must be walked with a running cursor that advances by n, not 3*j.
+
+		  For reaction j, with sel_n = selection[sel_count : sel_count+n]:
+			n=1: [1] → A-factor active        [0] → inactive
+			n=3: [1,0,0] → A-factor   [0,1,0] → n   [0,0,1] → Ea/R
+				 [0,0,0] → inactive  → beta = zeros → _compute returns nominal
+		  perturbation[j] is the single zeta scalar placed at whichever
+		  position within sel_n is nonzero.
 
 		Returns
 		-------
-		perturb     : dict  rxn → np.ndarray  zeta vector (length n_params)
+		perturb	 : dict  rxn → np.ndarray  zeta vector (length n_params)
 		select_dict : dict  rxn → np.ndarray  selection flags (length n_params)
 		"""
-		perturb     = {}
+		perturb	 = {}
 		select_dict = {}
 		N_rxns = len(self.rxn_list)
 
 		if len(self.perturbation) == N_rxns:
 			# ── Compressed-diagonal format ─────────────────────────────────────
+			sel_count = 0   # cursor into self.selection (advances by n, NOT 3*j)
+
 			for j, rxn in enumerate(self.rxn_list):
 				n = len(self.unsrt[rxn].activeParameters)   # 1 or 3
 
-				# 3 selection flags for this reaction from pSelectionMatrix
-				sel_3 = np.asarray(self.selection[3*j : 3*j + 3], dtype=float)
-				sel_n = sel_3[:n]   # trimmed to n for _compute_perturbed_params
-
-				m = int(np.sum(sel_3 != 0.0))   # number of active params (0 or 1 for SA)
+				# Read exactly n selection flags for this reaction — its own
+				# width, whether or not it's one of the selected/perturbed ones.
+				sel_n = np.asarray(
+					self.selection[sel_count : sel_count + n], dtype=float)
+				#print(f"sel_n:{sel_n}|Rxn:{rxn}\n")
+				m = int(np.sum(sel_n != 0.0))   # number of active params (0 or 1 for SA)
 				if m == 0:
 					# Inactive: zero beta + zero selection → _compute returns nominal
-					perturb[rxn]     = np.zeros(n)
+					perturb[rxn]	 = np.zeros(n)
 					select_dict[rxn] = np.zeros(n)
 				else:
 					# Active: place the single diagonal zeta at the selected position
 					beta_val  = float(self.perturbation[j])
 					beta_full = np.zeros(n)
-					for k in range(min(n, 3)):
-						if sel_3[k] != 0.0:
+					for k in range(n):
+						if sel_n[k] != 0.0:
 							beta_full[k] = beta_val
-					perturb[rxn]     = beta_full
+					perturb[rxn]	 = beta_full
 					select_dict[rxn] = sel_n
+
+				sel_count += n   # advance by THIS reaction's own width
+
+			# ── Sanity check ──────────────────────────────────────────────────
+			if sel_count != len(self.selection):
+				raise ValueError(
+					f"getRxnPerturbationDict: consumed {sel_count} selection "
+					f"entries but self.selection has {len(self.selection)}. "
+					f"Check that self.selection's per-reaction layout matches "
+					f"activeParameters (1 for A-factor-only, 3 for A1+B1+C1)."
+				)
 
 		else:
 			# ── Full-space format ──────────────────────────────────────────────
 			#
-			# Two vectors with DIFFERENT strides must use SEPARATE cursors:
-			#
-			#   self.perturbation  (pDesignMatrix row)
-			#       Stride = n_active per reaction (variable: 0, 1, 2, or 3).
-			#       dm_count advances by the number of 1s in sel_3.
+			# Two vectors with DIFFERENT, *reaction-dependent* strides must use
+			# SEPARATE cursors:
 			#
 			#   self.selection  (pSelectionMatrix row)
-			#       Stride = 3 per reaction, always fixed.
-			#       sel_count advances by 3 regardless of n_active.
+			#	   Stride = n = len(self.unsrt[rxn].activeParameters) per
+			#	   reaction — i.e. 1 for an "A-factor only" reaction, 3 for an
+			#	   "A1+B1+C1" reaction (same n_params used by the
+			#	   compressed-diagonal branch above and by
+			#	   _compute_perturbed_params). sel_count must advance by n,
+			#	   NOT by a hardcoded 3: a rxn_list that mixes both kinds (as
+			#	   happens under p-SAC partial sampling) makes a fixed stride
+			#	   of 3 read past the end of self.selection the moment an
+			#	   n=1 reaction is hit, producing an IndexError.
 			#
-			# Using a single counter for both causes the selection cursor to
-			# drift after any reaction where n_active ≠ len(activeParameters),
-			# reading pSelectionMatrix flags from wrong positions and
-			# producing wrong active_indices → wrong parameters perturbed.
+			#   self.perturbation  (pDesignMatrix row)
+			#	   Stride = n_active per reaction (variable: 0..n).
+			#	   dm_count advances by the number of 1s found within THIS
+			#	   reaction's n-length selection slice (sel_n) — not by n
+			#	   itself.
 			#
-			# beta_full is built in FULL SPACE (always 3 elements):
-			#   inactive positions → 0.0
-			#   active positions   → the corresponding DM value
-			# This guarantees that beta_arr[list(active_indices)] in
-			# _compute_perturbed_params (Mode 4) works correctly for any
-			# subset of {0, 1, 2}, including n-only (active_indices=(1,))
-			# and A+Ea (active_indices=(0, 2)) which would raise IndexError
-			# if beta_arr were compressed to n_active elements.
-			dm_count  = 0   # cursor into self.perturbation  (advances by n_active)
-			sel_count = 0   # cursor into self.selection     (always advances by 3)
+			# beta_full / sel_n are built at length n (1 or 3), matching the
+			# compressed-diagonal branch and what _compute_perturbed_params
+			# expects (it trims select_vector to n_params anyway, so a
+			# length-n vector is sufficient — and for n_params == 3 it's
+			# still a full 3-element vector, so Mode-4 partial-A1+B1+C1
+			# indexing via active_indices ⊆ {0,1,2} keeps working exactly
+			# as before).
+			dm_count  = 0   # cursor into self.perturbation (advances by n_active)
+			sel_count = 0   # cursor into self.selection	(advances by n)
 
 			for rxn in self.rxn_list:
-				# Read exactly 3 selection flags for this reaction
-				sel_3    = np.asarray(
-				    self.selection[sel_count : sel_count + 3], dtype=float)
-				n_active = int(np.sum(sel_3 != 0.0))
+				n = len(self.unsrt[rxn].activeParameters)   # 1 or 3
+
+				# Read exactly n selection flags for this reaction
+				sel_n	 = np.asarray(
+					self.selection[sel_count : sel_count + n], dtype=float)
+				n_active = int(np.sum(sel_n != 0.0))
+				#print(f"Sel_n:{sel_n}|Rxn:{rxn}\n")
 
 				# Extract the n_active DM values and place them at their
-				# global parameter positions (0=lnA, 1=n, 2=Ea/R) in a
-				# full-space 3-element beta vector.
+				# local parameter positions (0=lnA, 1=n, 2=Ea/R, truncated
+				# to n) in a length-n beta vector.
 				dm_vals   = np.asarray(
-				    self.perturbation[dm_count : dm_count + n_active],
-				    dtype=float)
-				beta_full = np.zeros(3)
+					self.perturbation[dm_count : dm_count + n_active],
+					dtype=float)
+				beta_full = np.zeros(n)
 				k = 0
-				for param_i in range(3):
-					if sel_3[param_i] != 0.0:
+				for param_i in range(n):
+					if sel_n[param_i] != 0.0:
 						beta_full[param_i] = dm_vals[k]
 						k += 1
 
-				perturb[rxn]     = beta_full
-				select_dict[rxn] = sel_3
+				perturb[rxn]	 = beta_full
+				select_dict[rxn] = sel_n
 
-				sel_count += 3          # pSelectionMatrix: fixed stride
-				dm_count  += n_active   # pDesignMatrix:    variable stride
+				sel_count += n		  # pSelectionMatrix: stride = n
+				dm_count  += n_active   # pDesignMatrix:	variable stride
+
+			# ── Sanity check ──────────────────────────────────────────────────
+			# Catches any remaining rxn_list/selection/perturbation length
+			# mismatch immediately, with a clear message, instead of a deep,
+			# confusing IndexError mid-loop.
+			if sel_count != len(self.selection):
+				raise ValueError(
+					f"getRxnPerturbationDict: consumed {sel_count} selection "
+					f"entries but self.selection has {len(self.selection)}. "
+					f"Check that self.selection's per-reaction layout matches "
+					f"activeParameters (1 for A-factor-only, 3 for A1+B1+C1)."
+				)
+			if dm_count != len(self.perturbation):
+				raise ValueError(
+					f"getRxnPerturbationDict: consumed {dm_count} perturbation "
+					f"entries but self.perturbation has {len(self.perturbation)}."
+				)
 
 		return perturb, select_dict
 
@@ -187,101 +236,135 @@ class Manipulator:
 
 		  n_params = 1  →  A-factor only (factor perturbation type)
 		  n_params = 3
-		    len(active_indices) = 3  →  Full A1+B1+C1
-		    len(active_indices) < 3  →  Partial A1+B1+C1  (reduced L_r)
-		    len(active_indices) = 0  →  No perturbation   (return nominal)
+			len(active_indices) = 3  →  Full A1+B1+C1
+			len(active_indices) < 3  →  Partial A1+B1+C1  (reduced L_r)
+			len(active_indices) = 0  →  No perturbation   (return nominal)
 
 		Parameters
 		----------
-		rxn           : str   Reaction key in self.unsrt.
-		beta          : array Per-reaction zeta vector from the design matrix.
-		                      Full-space (length = n_active_params of reaction);
-		                      zeros occupy inactive positions for partial PRS.
+		rxn		   : str   Reaction key in self.unsrt.
+		beta		  : array Per-reaction zeta vector from the design matrix.
+							  Full-space (length = n_active_params of reaction);
+							  zeros occupy inactive positions for partial PRS.
 		select_vector : array 1/0 flags, one per active parameter of this reaction.
-		                      Derived from the design-matrix selection row.
-		                      If None, falls back to self.unsrt[rxn].selection
-		                      (backward-compatible: uses the reaction's own
-		                      perturbation-type selection, not partial PRS).
+							  Derived from the design-matrix selection row.
+							  If None, falls back to self.unsrt[rxn].selection
+							  (backward-compatible: uses the reaction's own
+							  perturbation-type selection, not partial PRS).
 
 		Returns
 		-------
 		p : np.ndarray, shape (3,)
-		    Perturbed [ln A, n, Ea/R].  Unperturbed parameters keep nominal values.
+			Perturbed [ln A, n, Ea/R].  Unperturbed parameters keep nominal values.
 
 		Notes
 		-----
 		Partial A1+B1+C1 uses UncertaintyExtractor.get_reduced_cholesky(indices),
 		which computes  Σ_r = Σ[I,I]  (principal submatrix)  then  L_r = chol(Σ_r).
 		This is the only mathematically correct path; L_full · beta_sparse is wrong.
+
+		Bug-fixes applied (vs original)
+		--------------------------------
+		FIX-1  p0 shape:
+			np.asarray(self.unsrt[rxn].nominal) can produce a 2-D array (shape
+			(3,1)) when `nominal` stores each value as a length-1 ndarray.
+			.ravel() guarantees p0 is always 1-D shape (3,).
+
+		FIX-2  beta_arr shape:
+			`beta` is often a 2-D slice of the design matrix  (shape (1,3) or
+			(3,1)).  np.asarray alone preserves that shape, so indexing
+			beta_arr[list(active_indices)] selects ROWS not ELEMENTS, producing
+			a 2-D zeta_r and therefore a 2-D delta_r.  delta_r[local_i] then
+			returns a length-3 array, and the assignment
+				p[global_i] = p0[global_i] + delta_r[local_i]
+			raises the chained TypeError → ValueError seen in the traceback.
+			.ravel() collapses beta_arr to 1-D before any indexing.
+
+		FIX-3  delta_r shape:
+			Even after fixing beta_arr, L_r @ zeta_r can return a 2-D array
+			when L_r is exactly (1,1).  .ravel() ensures delta_r is always 1-D.
+			The explicit float() wrappers in the assignment loop give one more
+			guard against residual array elements reaching p.
+
+		FIX-4  sigma_A extraction (n_params == 1):
+			If cholskyDeCorrelateMat is a full 3×3 matrix (not trimmed to the
+			active-parameter count), cov[0] returns the first ROW (length 3),
+			and float(cov[0]) raises
+				TypeError: only size-1 arrays can be converted to Python scalars
+			which NumPy re-raises as the ValueError seen first in the traceback.
+			Using np.asarray(cov).ravel()[0] always extracts the scalar
+			regardless of whether cov is a scalar, 1-D, or 2-D array.
+
+		FIX-5  active_indices tolerance:
+			The original check `float(sel[i]) != 0.0` triggers on floating-point
+			residues (e.g. 1e-15 from upstream arithmetic) that should be treated
+			as "inactive".  Replacing it with `abs(float(sel[i])) > 1e-10` makes
+			the boundary robust.  This was causing reactions that should be
+			unperturbed (active_indices should be ()) to instead enter the
+			partial-Cholesky branch and hit FIX-2/FIX-3.
 		"""
-		p0       = np.asarray(self.unsrt[rxn].nominal, dtype=float)
-		cov      = self.unsrt[rxn].cholskyDeCorrelateMat
+		# ── FIX-1: ravel() guarantees 1-D regardless of how nominal is stored ──
+		p0	   = np.asarray(self.unsrt[rxn].nominal, dtype=float).ravel()
+		cov	  = self.unsrt[rxn].cholskyDeCorrelateMat
 		n_params = len(self.unsrt[rxn].activeParameters)
 
 		# Resolve selection vector ────────────────────────────────────────────
 		if select_vector is None:
-			# Backward-compatible default: use the reaction's own selection attr.
-			# For factor-type: [1,0,0]; for all-param type: [1,1,1].
-			sel = np.asarray(self.unsrt[rxn].selection, dtype=float)
-			# Trim to n_params entries (factor type has [1,0,0] but n_params=1)
+			sel = np.asarray(self.unsrt[rxn].selection, dtype=float).ravel()
 			sel = sel[:n_params]
 		else:
-			sel = np.asarray(select_vector, dtype=float)[:n_params]
+			sel = np.asarray(select_vector, dtype=float).ravel()[:n_params]
 
-		beta_arr = np.asarray(beta, dtype=float)
-
-		# ── Mode 1 & 3: A-factor only  (n_params = 1) ───────────────────────
-		# This covers both "Full A-factor" and "Partial A-factor" reactions.
-		# cov is a 1-element array [σ_A] (the scalar Cholesky factor for ln A).
+		# ── FIX-2: ravel() collapses 2-D DM slices to 1-D ──────────────────
+		beta_arr = np.asarray(beta, dtype=float).ravel()
+		#print(beta_arr)
+		# ── Mode 1: A-factor only  (n_params = 1) ───────────────────────────
 		if n_params == 1:
-			sigma_A = float(cov[0]) if hasattr(cov, '__len__') else float(cov)
+			# ── FIX-4: ravel()[0] handles scalar, 1-D, or 2-D cov ──────────
+			sigma_A = float(np.asarray(cov, dtype=float).ravel()[0])
 			active  = float(sel[0]) if len(sel) > 0 else 1.0
-			p       = p0.copy()
+			p	   = p0.copy()
 			p[0]   += sigma_A * float(beta_arr[0]) * active
+			#print(f"Rxn: {rxn}  Active parameters: 1  selected params:{select_vector}"
+			#	  f"  Nominal:{p0}  Perturbed: {p}\n")
 			return p
 
 		# ── Three-parameter cases  (n_params = 3) ────────────────────────────
-		# Determine which of the three Arrhenius parameters are active.
-		# active_indices maps into p0-space (0=lnA, 1=n, 2=Ea/R).
+		# ── FIX-5: tolerance-based zero check ───────────────────────────────
 		active_indices = tuple(
-			i for i in range(3) if i < len(sel) and float(sel[i]) != 0.0
+			i for i in range(3) if i < len(sel) and abs(float(sel[i])) > 1e-10
 		)
 
 		if not active_indices:
-			# Nothing selected for this reaction — return nominal unchanged.
+			# Nothing selected — return nominal unchanged.
+			#print(f"Rxn: {rxn}  Active parameters: 0  selected params:{select_vector}"
+			#	  f"  Nominal:{p0}  Perturbed: {p0}  [no perturbation]\n")
 			return p0.copy()
 
 		if len(active_indices) == 3:
-			# ── Mode 2: Full A1+B1+C1 ─────────────────────────────────────
-			# Use the full 3×3 L matrix (identical to original MUQ-SAC formula).
-			#   p = p0 + L · ζ
-			p = p0 + np.asarray(cov.dot(beta_arr)).flatten()
+			# ── Mode 2: Full A1+B1+C1 ────────────────────────────────────────
+			# p = p0 + L · ζ   (full 3×3 Cholesky)
+			p = p0 + np.asarray(cov, dtype=float).dot(beta_arr).ravel()
 
 		else:
-			# ── Mode 4: Partial A1+B1+C1 ─────────────────────────────────
+			# ── Mode 4: Partial A1+B1+C1 ─────────────────────────────────────
 			# Build reduced Cholesky from the principal submatrix of Σ = L L^T.
-			# get_reduced_cholesky(indices) → (Σ_r, L_r)
-			# where Σ_r = Σ[active_indices, active_indices], L_r = chol(Σ_r).
-			#
-			# beta_arr is FULL-SPACE (3 elements, zeros at inactive positions,
-			# DM values at global positions 0/1/2 for A/n/Ea).
-			# Guaranteed by the fixed getRxnPerturbationDict above.
-			#
-			# beta_arr[list(active_indices)] correctly extracts the active
-			# zeta values regardless of which subset {0,1,2} is active
-			# (n-only: active_indices=(1,) → beta_arr[[1]] ✓;
-			#  A+Ea:   active_indices=(0,2) → beta_arr[[0,2]] ✓).
-			#
+			#   Σ_r = Σ[active_indices, active_indices],  L_r = chol(Σ_r)
 			#   ζ_r = beta_arr[active_indices]   (m active zeta values)
-			#   Δp_r = L_r · ζ_r                (m-vector)
+			#   Δp_r = L_r · ζ_r				(m-vector)
 			#   p[active_indices] += Δp_r
-			_, L_r  = self.unsrt[rxn].get_reduced_cholesky(active_indices)
-			zeta_r  = beta_arr[list(active_indices)]
-			delta_r = L_r @ zeta_r
-			p       = p0.copy()
+			_,(_, L_r)  = self.unsrt[rxn].get_reduced_cholesky(active_indices)
+			zeta_r  = beta_arr[list(active_indices)]			 # 1-D, length m
+			# ── FIX-3: ravel() so delta_r[local_i] is always a scalar ───────
+			delta_r = np.asarray(L_r, dtype=float).dot(zeta_r).ravel()
+			p	   = p0.copy()
 			for local_i, global_i in enumerate(active_indices):
-				p[global_i] = p0[global_i] + delta_r[local_i]
+				# explicit float() is the final guard against residual array dims
+				p[global_i] = float(p0[global_i]) + float(delta_r[local_i])
 
+		#print(f"Rxn: {rxn}  Active parameters: {len(active_indices)}"
+		#	  f"  selected params:{select_vector}"
+		#	  f"  Nominal:{p0}  Perturbed: {p}\n")
 		return p
 
 	def _write_rate_constant(self, p, reaction_details):
@@ -290,7 +373,7 @@ class Manipulator:
 
 		Parameters
 		----------
-		p                : array  [ln A, n, Ea/R]
+		p				: array  [ln A, n, Ea/R]
 		reaction_details : dict   YAML rate-constant entry (mutated in place).
 		"""
 		reaction_details["A"]  = float(np.exp(p[0]))
@@ -310,7 +393,7 @@ class Manipulator:
 		matrix selection (1 = active, 0 = inactive).  When omitted the
 		reaction's own .selection attribute is used (backward compatible).
 		"""
-		p     = self._compute_perturbed_params(rxn, beta, select_vector)
+		p	 = self._compute_perturbed_params(rxn, beta, select_vector = select_vector )
 		index = self.unsrt[rxn].index
 
 		reaction_details = mechanism["reactions"][index]["rate-constant"]
@@ -325,7 +408,7 @@ class Manipulator:
 		The pressure level (High / Low / interpolated) is determined from
 		self.unsrt[rxn].pressure_limit as in the original code.
 		"""
-		p = self._compute_perturbed_params(rxn, beta, select_vector)
+		p = self._compute_perturbed_params(rxn, beta, select_vector = select_vector)
 
 		# Determine PLOG pressure index ───────────────────────────────────────
 		rxn_split_index = None
@@ -335,7 +418,7 @@ class Manipulator:
 			except (IndexError, ValueError):
 				rxn_split_index = 0
 
-		index          = self.unsrt[rxn].index
+		index		  = self.unsrt[rxn].index
 		pressure_limit = self.unsrt[rxn].pressure_limit
 
 		if pressure_limit == "High":
@@ -348,7 +431,7 @@ class Manipulator:
 		reaction_details = mechanism["reactions"][index]["rate-constants"][pressure_index]
 		self._write_rate_constant(p, reaction_details)
 		mechanism["reactions"][index]["rate-constants"][pressure_index] = deepcopy(
-		    reaction_details)
+			reaction_details)
 		return mechanism
 
 	def BranchingReactions(self, rxn, beta, mechanism, select_vector=None):
@@ -365,8 +448,8 @@ class Manipulator:
 		A-factor and Full / Partial A1+B1+C1).
 		"""
 		p0_base = np.asarray(self.unsrt[rxn].nominal, dtype=float)
-		p_base  = self._compute_perturbed_params(rxn, beta, select_vector)
-		delta   = p_base - p0_base        # [Δ(lnA), Δn, Δ(Ea/R)]
+		p_base  = self._compute_perturbed_params(rxn, beta, select_vector = select_vector)
+		delta   = p_base - p0_base		# [Δ(lnA), Δn, Δ(Ea/R)]
 
 		# Collect base reaction index + all branch indices ─────────────────────
 		indexes = [self.unsrt[rxn].index]
@@ -376,9 +459,9 @@ class Manipulator:
 			reaction_details = mechanism["reactions"][index]["rate-constant"]
 			# Each branch has its own nominal; apply the shared delta to it.
 			p0_branch = np.array([
-			    float(np.log(reaction_details["A"])),
-			    float(reaction_details["b"]),
-			    float(reaction_details["Ea"] / 1.987),
+				float(np.log(reaction_details["A"])),
+				float(reaction_details["b"]),
+				float(reaction_details["Ea"] / 1.987),
 			])
 			p_branch = p0_branch + delta
 			self._write_rate_constant(p_branch, reaction_details)
@@ -398,7 +481,7 @@ class Manipulator:
 		self.unsrt[rxn].pressure_limit, matching the original behaviour.
 		All four design modes are supported through _compute_perturbed_params.
 		"""
-		p       = self._compute_perturbed_params(rxn, beta, select_vector)
+		p	   = self._compute_perturbed_params(rxn, beta, select_vector = select_vector)
 		P_limit = self.unsrt[rxn].pressure_limit
 		index   = self.unsrt[rxn].index
 
@@ -406,12 +489,12 @@ class Manipulator:
 			reaction_details = mechanism["reactions"][index]["high-P-rate-constant"]
 			self._write_rate_constant(p, reaction_details)
 			mechanism["reactions"][index]["high-P-rate-constant"] = deepcopy(
-			    reaction_details)
+				reaction_details)
 		else:
 			reaction_details = mechanism["reactions"][index]["low-P-rate-constant"]
 			self._write_rate_constant(p, reaction_details)
 			mechanism["reactions"][index]["low-P-rate-constant"] = deepcopy(
-			    reaction_details)
+				reaction_details)
 
 		return mechanism
 
@@ -433,13 +516,14 @@ class Manipulator:
 		mechanism : dict   The perturbed YAML mechanism.
 		perturb   : dict   Per-reaction zeta vectors {rxn → np.ndarray}.
 		"""
-		rxn_type              = self.getRxnType()
+		rxn_type			  = self.getRxnType()
 		perturb, self.select_dict = self.getRxnPerturbationDict()
-		mechanism             = self.mechanism
+		mechanism			 = self.mechanism
 
 		for rxn in self.rxn_list:
-			beta        = np.asarray(perturb[rxn])
-			sel         = self.select_dict[rxn]   # per-reaction selection flags
+			beta		= np.asarray(perturb[rxn])
+			sel		 = self.select_dict[rxn]   # per-reaction selection flags
+			#print(f"Sel: {sel}| Rxn:{rxn}\n")
 			type_of_rxn = rxn_type[rxn]
 
 			if type_of_rxn == "Elementary":

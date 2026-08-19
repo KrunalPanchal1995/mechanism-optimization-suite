@@ -20,23 +20,23 @@ from scipy.optimize import BFGS
 import pickle
 import functools
 class EarlyStopper:
-    def __init__(self, patience=30):
-        self.patience = patience
-        self.best_fitness = None
-        self.counter = 0
+	def __init__(self, patience=30):
+		self.patience = patience
+		self.best_fitness = None
+		self.counter = 0
 
-    def check(self,ga_instance):
-        current_best_fitness = ga_instance.best_solution()[1]
-        
-        if self.best_fitness is None or current_best_fitness > self.best_fitness:
-            self.best_fitness = current_best_fitness
-            self.counter = 0  # Reset counter
-        else:
-            self.counter += 1  # Increase counter if no improvement
-        
-        if self.counter >= self.patience:
-            print(f"Stopping early: No improvement for {self.patience} generations")
-            ga_instance.stop()
+	def check(self,ga_instance):
+		current_best_fitness = ga_instance.best_solution()[1]
+		
+		if self.best_fitness is None or current_best_fitness > self.best_fitness:
+			self.best_fitness = current_best_fitness
+			self.counter = 0  # Reset counter
+		else:
+			self.counter += 1  # Increase counter if no improvement
+		
+		if self.counter >= self.patience:
+			print(f"Stopping early: No improvement for {self.patience} generations")
+			ga_instance.stop()
 
 
 class OptimizationTool(object):
@@ -212,9 +212,7 @@ class OptimizationTool(object):
 		
 		return obj
 	
-	
-	
-	
+
 	def obj_func_of_selected_PRS(self,x):	
 		
 		self.count +=1
@@ -381,7 +379,7 @@ class OptimizationTool(object):
 		
 	def FITNESS_PRS_BASED_OPT(self):
 		global obj_func_of_selected_PRS
-		def obj_func_of_selected_PRS(x,solution_idx):	
+		def obj_func_of_selected_PRS(ga_instance, x, solution_idx):	
 		
 			self.count +=1
 			string_x = ""
@@ -773,6 +771,7 @@ class OptimizationTool(object):
 		response_stvd = []	
 		target_weights = []	
 		COUNT_Tig = 0
+		COUNT_RCM = 0
 		COUNT_Fls = 0
 		COUNT_All = 0	
 		COUNT_Flw = 0
@@ -788,6 +787,28 @@ class OptimizationTool(object):
 						frequency[case.d_set] = 1
 					COUNT_All +=1
 					COUNT_Tig +=1
+					#dataset_weights = (1/len(self.frequency))*float(self.frequency[case.d_set])
+					#dataset_weights = (1/COUNT_All)
+					
+					val = self.ResponseSurfaces[i].evaluate(x)
+					#print(val)
+					#val,grad = case.evaluateResponse(x)
+					response_value.append(val)
+					#response_stvd.append(grad)
+					target_value.append(np.log(case.observed*10))
+					
+					target_value_2.append(np.log(case.observed))
+					target_stvd.append(1/(np.log(case.std_dvtn*10)))
+					case_stvd.append(case.std_dvtn/case.observed)
+					case_systematic_error.append(abs(np.log(case.observed*10)-val))
+				
+				elif case.target == "RCM":
+					if case.d_set in frequency:
+						frequency[case.d_set] += 1
+					else:
+						frequency[case.d_set] = 1
+					COUNT_All +=1
+					COUNT_RCM +=1
 					#dataset_weights = (1/len(self.frequency))*float(self.frequency[case.d_set])
 					#dataset_weights = (1/COUNT_All)
 					
@@ -850,6 +871,9 @@ class OptimizationTool(object):
 			if self.ResponseSurfaces[i].selection == 1:	
 				if case.target == "Tig":
 					multiplicating_factors.append(1/COUNT_Tig)
+				
+				elif case.target == "RCM":
+					multiplicating_factors.append(1/COUNT_RCM)
 		
 				elif case.target == "Fls":
 					multiplicating_factors.append(0.05*(1/COUNT_Fls))
@@ -1017,11 +1041,121 @@ class OptimizationTool(object):
 		get_opt = open("Objective.txt","+a").write(f"{obj}\n")
 		return obj
 	
-	
+	def FITNESS_PRS_BASED_OPT_A_FACTO(self):
+		"""
+		Fitness function factory for A-factor GA optimization using PRS.
+		
+		For A-factor ('A-facto') design, x has one element per reaction and
+		lives directly in the PRS input (zeta) space — the kappa->zeta
+		transformation that the 3-temperature branch requires is NOT needed.
+		The scalar objective is identical to obj_func_of_selected_PRS so that
+		GA and the (commented-out) gradient-descent branch are consistent.
+		"""
+		global fitness_func_A_facto_PRS
+		def fitness_func_A_facto_PRS(ga_instance, x, solution_idx):
+
+			self.count += 1
+			string_x = ""
+			for i in x:
+				string_x += f"{i},"
+			note = open("guess_values.txt", "+a").write(f"{self.count},{string_x}\n")
+
+			# x IS already zeta for A-factor — write it to the zeta log as well
+			string = ""
+			for k in x:
+				string += f"{k},"
+			string += "\n"
+			zeta_file = open("zeta_guess_values.txt", "+a").write(string)
+			note2 = open("guess_values_TRANSFORMED.txt", "+a").write(
+				f"{self.count},{x}\n"
+			)
+
+			# ----------------------------------------------------------------
+			# Objective computation — mirrors obj_func_of_selected_PRS exactly
+			# ----------------------------------------------------------------
+			obj = 0.0
+			target_value = []
+			response_value = []
+			diff = []
+			diff_3 = {}
+			COUNT_Tig = 0
+			COUNT_Fls = 0
+			COUNT_All = 0
+			COUNT_Flw = 0
+			frequency = {}
+
+			for i, case in enumerate(self.target_list):
+				if self.ResponseSurfaces[i].selection == 1:
+
+					if case.target == "Tig":
+						if case.d_set in frequency:
+							frequency[case.d_set] += 1
+						else:
+							frequency[case.d_set] = 1
+						COUNT_All += 1
+						COUNT_Tig += 1
+
+						val = self.ResponseSurfaces[i].evaluate(x)
+						f_exp = np.log(case.observed * 10)
+						w_ = case.std_dvtn / case.observed
+						w = 1 / w_
+						diff.append((val - f_exp) * w)
+						diff_3[case.uniqueID] = (val - f_exp) / f_exp
+						response_value.append(val)
+						target_value.append(np.log(case.observed * 10))
+
+					elif case.target == "Fls":
+						if case.d_set in frequency:
+							frequency[case.d_set] += 1
+						else:
+							frequency[case.d_set] = 1
+						COUNT_All += 1
+						COUNT_Fls += 1
+
+						val = np.exp(self.ResponseSurfaces[i].evaluate(x))
+						response_value.append(val)
+						f_exp = case.observed
+						w = 1 / case.std_dvtn
+						diff.append((val - f_exp) * w)
+						target_value.append(case.observed)
+
+					elif case.target == "Flw":
+						if case.d_set in frequency:
+							frequency[case.d_set] += 1
+						else:
+							frequency[case.d_set] = 1
+						COUNT_All += 1
+						COUNT_Flw += 1
+
+						val = self.ResponseSurfaces[i].evaluate(x)
+						response_value.append(val)
+						f_exp = case.observed
+						w = 1 / case.std_dvtn
+						diff.append((val - f_exp) * w)
+						target_value.append(np.log(case.observed))
+
+			diff = np.asarray(diff)
+			for dif in diff:
+				obj += dif ** 2
+
+			Diff_3 = open("Dataset_based_obj", "+a").write(f"{diff_3}\n")
+			get_opt = open("Objective.txt", "+a").write(f"{obj}\n")
+			get_target_value = open("response_values.txt", "+a").write(
+				f"\t{target_value},{response_value}\n"
+			)
+
+			fitness = 1.0 / (np.abs(obj - 0) + 0.000001)
+			record = open("samplefile.txt", "+a").write(
+				f"{self.ga_instance.generations_completed},"
+				f"{self.count},{obj},{fitness}\n"
+			)
+			return fitness
+
+		return fitness_func_A_facto_PRS
 	
 	def fitness_function_for_T_INDIPENDENT(self):
 		global fitness_func_T_indi
-		def fitness_func_T_indi(x,solution_idx):
+		def fitness_func_T_indi(ga_instance, x, solution_idx):
 			string = ""
 			for i in x:
 				string+=f"{i},"
@@ -1190,29 +1324,29 @@ class OptimizationTool(object):
 			early_stopper = EarlyStopper()
 			#on_generation=lambda ga_instance: early_stopper.check(ga_instance),
 			self.ga_instance = pygad.GA(num_generations=2000,
-			               num_parents_mating=300,
-			               fitness_func=fitness_function,
-			               init_range_low=-1,
-			               init_range_high=1,
-			               sol_per_pop=400,
-			               num_genes=len(self.init_guess),
-			               crossover_type="uniform",
-			               crossover_probability=0.6,
-			               mutation_type="adaptive",
-			               mutation_probability=(0.03, 0.008),
-			               gene_type=float,
-			               allow_duplicate_genes=False,
-			               gene_space=gene_space,
-			               keep_parents = -1,
-			               save_best_solutions=True,
-			               save_solutions=True,
-			               stop_criteria=["reach_20"])
+						   num_parents_mating=300,
+						   fitness_func=fitness_function,
+						   init_range_low=-1,
+						   init_range_high=1,
+						   sol_per_pop=400,
+						   num_genes=len(self.init_guess),
+						   crossover_type="uniform",
+						   crossover_probability=0.6,
+						   mutation_type="adaptive",
+						   mutation_probability=(0.03, 0.008),
+						   gene_type=float,
+						   allow_duplicate_genes=False,
+						   gene_space=gene_space,
+						   keep_parents = -1,
+						   save_best_solutions=True,
+						   save_solutions=True,
+						   stop_criteria=["reach_20"])
 			"""
 			opt_output = minimize(self._obj_func_MLE_no_PRS_A_facto,
-					    self.init_guess,
-					    bounds=bounds,
-					    method=algorithm,  # Replace 'algorithm' with specific method if known
-					    options={"maxiter": 500000}  # Replace 'maxfev' with 'maxiter'
+						self.init_guess,
+						bounds=bounds,
+						method=algorithm,  # Replace 'algorithm' with specific method if known
+						options={"maxiter": 500000}  # Replace 'maxfev' with 'maxiter'
 					)
 			"""
 			#opt_output = minimize(self._obj_func,self.init_guess,bounds=bounds,method=algorithm,options={"maxiter":500000})
@@ -1402,42 +1536,69 @@ class OptimizationTool(object):
 		bounds = tuple([(-1,1) for _ in self.init_guess ])
 		
 		if Input_data["Stats"]["Design_of_PRS"] == "A-facto":
-		
-			#
-			"""
-			fitness_function = self.fitness_function_for_T_INDIPENDENT()
-			self.init_guess = np.zeros(len(self.rxn_index))
-			gene_space = [{'low': -1, 'high': 1} for _ in self.init_guess ]
-			self.ga_instance = pygad.GA(num_generations=2000,
-			               num_parents_mating=300,
-			               fitness_func=fitness_function,
-			               init_range_low=-1,
-			               init_range_high=1,
-			               sol_per_pop=400,
-			               num_genes=len(self.init_guess),
-			               crossover_type="uniform",
-			               crossover_probability=0.6,
-			               mutation_type="adaptive",
-			               mutation_probability=(0.03, 0.008),
-			               gene_type=float,
-			               allow_duplicate_genes=False,
-			               gene_space=gene_space,
-			               keep_parents = -1,
-			               save_best_solutions=True,
-			               save_solutions=True,
-			               stop_criteria=["reach_300"])
 
+			# Use PRS-based fitness (not direct-simulation fitness)
+			fitness_function = self.FITNESS_PRS_BASED_OPT_A_FACTO()
+
+			self.init_guess = np.zeros(len(self.rxn_index))
+			gene_space = [{'low': -1, 'high': 1} for _ in self.init_guess]
+
+			self.ga_instance = pygad.GA(
+				num_generations=2000,
+				num_parents_mating=300,
+				fitness_func=fitness_function,
+				init_range_low=-1,
+				init_range_high=1,
+				sol_per_pop=400,
+				num_genes=len(self.init_guess),
+				crossover_type="uniform",
+				crossover_probability=0.6,
+				mutation_type="adaptive",
+				mutation_probability=(0.03, 0.008),
+				gene_type=float,
+				allow_duplicate_genes=False,
+				gene_space=gene_space,
+				keep_parents=-1,
+				save_best_solutions=True,
+				save_solutions=True,
+				stop_criteria=["reach_300"]
+			)
+
+			self.ga_instance.run()
+			self.ga_instance.plot_fitness(title="GA with Adaptive Mutation", linewidth=5)
+			filename = 'genetic'
+			self.ga_instance.save(filename=filename)
+
+			optimal_parameters, solution_fitness, solution_idx = self.ga_instance.best_solution()
+			optimal_parameters = np.asarray(optimal_parameters)
+
+			# For A-factor the GA solution lives directly in zeta space — no back-transformation needed
+			optimal_parameters_zeta = np.asarray(optimal_parameters)
+			cov = []
+
+			print("Parameters of the best solution : {solution}".format(solution=optimal_parameters))
+			print("Fitness value of the best solution = {solution_fitness}".format(
+				solution_fitness=solution_fitness))
+			print("Index of the best solution : {solution_idx}".format(solution_idx=solution_idx))
+			if self.ga_instance.best_solution_generation != -1:
+				print("Best fitness value reached after {best_solution_generation} generations.".format(
+					best_solution_generation=self.ga_instance.best_solution_generation))
+			print("<<<<<<<<<<<<<<<<FOUND BEST SOLUTION>>>>>>>>>>>>>>>>>>>>>\n")
+		
+		
 			"""
 			opt_output = minimize(self._obj_func,
-					    self.init_guess,
-					    bounds=bounds,
-					    method='SLSQP',  # Replace 'algorithm' with specific method if known
-					    options={"maxiter": 500000}  # Replace 'maxfev' with 'maxiter'
+						self.init_guess,
+						bounds=bounds,
+						method='SLSQP',  # Replace 'algorithm' with specific method if known
+						options={"maxiter": 500000}  # Replace 'maxfev' with 'maxiter'
 					)
 			print(opt_output)
+			
 			optimal_parameters = np.asarray(opt_output.x)
 			optimal_parameters_zeta = np.asarray(opt_output.x)
 			cov = []
+			"""
 		else:
 			self.rxn_index = []
 			self.kappa_0 = {}
@@ -1599,4 +1760,3 @@ class OptimizationTool(object):
 		
 						
 		return np.asarray(optimal_parameters),np.asarray(optimal_parameters_zeta),cov
-	

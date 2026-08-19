@@ -1,6 +1,7 @@
 import os
 import math
 import json
+import pickle
 import statistics
 import numpy as np
 import scipy as sp
@@ -20,6 +21,7 @@ from sklearn.linear_model import HuberRegressor, LinearRegression
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import QuantileRegressor
 from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
+from IdentifiablePRS import FeatureMap, build_layout_blocks
 
 #
 # ─── DATA-SPACE CONTRACT ────────────────────────────────────────────────────
@@ -54,7 +56,28 @@ from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
 
 class ResponseSurface(object):
 	def __init__(self, xdata, ydata, case, case_index,
-	             responseOrder=2, selected_params=None, prs_type="Full", criteria = 2):
+	             responseOrder=2, selected_params=None, prs_type="Full", criteria = 2,
+	             feature_map=None, ridge_alpha=0.0):
+		"""
+		feature_map : IdentifiablePRS.FeatureMap or None
+			When given, the PRS is fitted/evaluated in the *identifiable
+			subspace* `scores = compressed_zeta @ feature_map.M + feature_map.c`
+			instead of directly on the raw (often near-unidentifiable, see
+			IdentifiablePRS.py's module docstring) zeta coordinates. This is
+			opt-in and fully backward compatible: feature_map=None reproduces
+			the original raw-zeta polynomial exactly, unchanged.
+			The map is affine, so evaluate()/Jacobian() keep their original
+			FULL-space contract for the live SLSQP optimizer -- only what the
+			compressed BZeta *means* changes; see Jacobian()'s feature_map
+			branch for the chain-rule composition.
+		ridge_alpha : float
+			Optional L2 penalty (intercept excluded) added to the normal
+			equations. 0.0 (default) reproduces the original QR solve exactly.
+			Only meaningful together with feature_map; the raw-zeta path is
+			so ill-conditioned that ridge alone cannot fix it (verified: the
+			penalized directions carry the largest raw variance, so shrinkage
+			barely helps -- see report/).
+		"""
 		if prs_type == "Full":
 			self.selected_params = np.repeat(1, len(xdata[0]))
 		else:
@@ -74,6 +97,74 @@ class ResponseSurface(object):
 		self.n_comp      = len(xdata[0])
 		self._active_idx = [i for i, s in enumerate(self.selected_params) if s == 1]
 		self.criteria    = criteria
+
+		self.feature_map = feature_map
+		self.ridge_alpha = float(ridge_alpha)
+		self._poly       = None   # lazily-built sklearn PolynomialFeatures, see _ensure_poly
+		#self.flag = ""
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# Identifiable-subspace polynomial engine (used only when feature_map is set)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	def _ensure_poly(self, k):
+		"""Lazily build/reuse the PolynomialFeatures(degree=self.order) object
+		for the k-dimensional score space. Depends only on (order, k), never
+		on data values, so it is safe to rebuild after a coefficient-cache
+		hit (which skips MatPolyFitTransform entirely)."""
+		if self._poly is None or self._poly.n_features_in_ != k:
+			self._poly = PolynomialFeatures(degree=self.order, include_bias=True)
+			self._poly.fit(np.zeros((1, k)))
+		return self._poly
+
+	def _poly_value_and_grad(self, scores):
+		"""Generic multivariate-polynomial value + gradient at one point,
+		using self._poly.powers_ (n_terms, k) and self.coeff. Replaces the
+		hand-rolled, order-2-only jacobian_element() for the feature-map path
+		so cubic (or higher) score-space fits get correct gradients for the
+		live SLSQP optimizer without hand-deriving each order's index algebra.
+
+		For a term coeff_t * prod_i scores_i^e_i, d/d(scores_j) is 0 unless
+		e_j > 0, in which case it is
+		    e_j * scores_j^(e_j-1) * prod_{i != j} scores_i^e_i.
+		Computed via a zeroed-exponent-at-j "others" product so no division
+		(and hence no 0/0) is ever needed, even where scores_j == 0.
+		"""
+		powers = self._poly.powers_                       # (n_terms, k)
+		coeff  = np.asarray(self.coeff, dtype=float)
+		scores = np.asarray(scores, dtype=float)
+		term_vals = np.prod(np.power(scores[None, :], powers), axis=1)
+		val = float(coeff @ term_vals)
+
+		k = len(scores)
+		grad = np.zeros(k)
+		for j in range(k):
+			e = powers[:, j]
+			powers_no_j = powers.copy()
+			powers_no_j[:, j] = 0
+			others = np.prod(np.power(scores[None, :], powers_no_j), axis=1)
+			dvj = e * np.power(scores[j], np.clip(e - 1, 0, None)) * others
+			grad[j] = float(coeff @ dvj)
+		return val, grad
+
+	def build_basis(self, X_comp):
+		"""Public, side-effect-free: compressed-space rows (n, n_comp) ->
+		polynomial-basis matrix (n, p) in the identifiable subspace, using
+		THIS instance's feature_map and order. Used internally by
+		MatPolyFitTransform (feature_map path) and externally by
+		AdaptiveResampler.DOptimalResampler to score new candidate rows
+		against the CURRENT fit's basis for D-optimal augmentation, without
+		needing self.X to be set or a fit to have happened yet (only
+		feature_map + order matter -- self._poly is built/reused lazily).
+		Requires feature_map to be set (raises otherwise; the legacy
+		raw-zeta path has no single reusable basis builder of this kind --
+		see MatPolyFitTransform for that path instead).
+		"""
+		if self.feature_map is None:
+			raise ValueError("build_basis requires feature_map to be set")
+		scores = self.feature_map.transform(np.asarray(X_comp, dtype=float))
+		poly = self._ensure_poly(scores.shape[1])
+		return poly.transform(scores)
 	# ═══════════════════════════════════════════════════════════════════════
 	# Space-bridging helpers
 	# ═══════════════════════════════════════════════════════════════════════
@@ -119,25 +210,148 @@ class ResponseSurface(object):
 		stats_obj.generate_pdf(os.getcwd()+'/Data/ResponseSurface/stats_report_'+str(self.case_index)+'.pdf')
 
 	def plot(self,index,slice_type="",slice_no=""):
+		#if self.flag != "Zero_rxn_selected":
 		if "Plots" not in os.listdir(".."):
-			os.mkdir("../Plots")		
+			os.mkdir("../Plots")
 		fig = plt.figure()
 		ax = fig.add_subplot()
 		for spine in ax.spines.values():
 		    spine.set_edgecolor('black')
-		    spine.set_linewidth(0.7) 
-		plt.xlabel("Response Surface estimation")
-		plt.ylabel("Direct Simulation")
+		    spine.set_linewidth(0.7)
+		# BUG FIX: labels were swapped -- x is the simulation value (what
+		# self.y_Test_simulation / self.Y hold), y is the PRS prediction.
+		plt.xlabel("Direct Simulation")
+		plt.ylabel("Response Surface estimation")
 		plt.plot(np.asarray(self.y_Test_simulation),np.asarray(self.y_Test_Predict),"k.",ms=8,label=f"Testing (max error = {self.ytestMaxError :.3f}%)")
 		plt.scatter(np.asarray(self.Y), np.asarray(self.resFramWrk), color="none", edgecolor="green",label=f"Training (max error = {self.MaxError:.3f}%)")
 		x = np.linspace(0,500,1000)
-		plt.xlim(min(np.asarray(self.Y))*0.93,max(np.asarray(self.Y))*1.07)
-		plt.ylim(min(np.asarray(self.Y))*0.93,max(np.asarray(self.Y))*1.07)
+		# BUG FIX: limits must cover BOTH train and test so an outlier test
+		# point never falls outside the visible axes.
+		lo = min(np.min(np.asarray(self.Y)), np.min(np.asarray(self.y_Test_simulation)))
+		hi = max(np.max(np.asarray(self.Y)), np.max(np.asarray(self.y_Test_simulation)))
+		plt.xlim(lo*0.93, hi*1.07)
+		plt.ylim(lo*0.93, hi*1.07)
 		ax.grid(False)
 		plt.plot(x,x,"-", linewidth = 0.5, label="parity line")
 		plt.legend(loc="upper left")
-		print(os.getcwd(),index)
-		plt.savefig('../Plots/Parity_plot_case_'+str(self.case_index) + str(slice_type) + str(slice_no) +'_TESTING.pdf',bbox_inches="tight")	
+		print(f"Case-{index}: max-error: {self.ytestMaxError:.3f}%\n")
+		plt.savefig('../Plots/Parity_plot_case_'+str(self.case_index) + str(slice_type) + str(slice_no) +'_TESTING.pdf',bbox_inches="tight")
+		plt.close(fig)   # BUG FIX: figures were never closed, accumulating across cases
+
+	def plot_parity_scaled(self, ratio=None, y_global=None, location="Plots",
+	                        tag="", n_train_show=400):
+		"""
+		Two-panel parity plot at TWO deliberately different scales, so a
+		reader can judge fit quality without either (a) an outlier point
+		crushing everything else into an invisible sliver, or (b) a
+		single-fold's own narrow y-range making the fit look artificially
+		tight/loose relative to the PRS's true dynamic range.
+
+		Must be called after .test(xTest, yTest) (uses self.y_Test_Predict,
+		self.y_Test_simulation, self.error_testing_relative) and after
+		create_response_surface() (uses self.Y, self.resFramWrk for the
+		training overlay in the zoomed-out panel).
+
+		Parameters
+		----------
+		ratio : optional, array of length len(y_Test_simulation)
+			Band-violation ratio per test row (e.g. from
+			IdentifiablePRS.violation_detail / band_valid_mask's underlying
+			ratio). If given, points with ratio > 1 are drawn as red
+			triangles and are EXCLUDED from the zoomed-in panel (they are
+			the officially-non-scored subset -- see
+			report_10fold_validation/main.tex, band_valid_mask). If not
+			given, every test point is treated as valid.
+		y_global : optional (lo, hi) tuple
+			The PROPER scale of the PRS -- the full case's y range across
+			every row in the design matrix (train+val+hold-out+outlier
+			pool), NOT just this test split's own min/max. Anchors the
+			LEFT (zoomed-out) panel so the viewer sees this split's error
+			in the context of the response surface's true dynamic range.
+			Defaults to this call's own train+test range if not supplied
+			(same behaviour as the original `plot()` method).
+		location, tag : output path is
+			f"{location}/parity_scaled_case_{self.case_index}{tag}.pdf"
+
+		Returns the output path.
+		"""
+		os.makedirs(location, exist_ok=True)
+		y_true = np.asarray(self.y_Test_simulation, dtype=float)
+		y_pred = np.asarray(self.y_Test_Predict, dtype=float)
+		rel_err = np.asarray(self.error_testing_relative, dtype=float)
+		y_train = np.asarray(self.Y, dtype=float)
+		y_train_fit = np.asarray(self.resFramWrk, dtype=float)
+
+		if ratio is None:
+			valid = np.ones(len(y_true), dtype=bool)
+		else:
+			ratio = np.asarray(ratio, dtype=float)
+			valid = ratio <= 1.0
+
+		fig, (ax_out, ax_in) = plt.subplots(1, 2, figsize=(11.5, 5.4))
+
+		# ---- LEFT: zoomed OUT, proper (global) PRS scale ----
+		# y_global anchors the MINIMUM extent (so the panel is never scaled
+		# tighter than the PRS's true dynamic range); the actual union with
+		# this call's own data is always taken so an out-of-band prediction
+		# is never silently clipped off the visible axes.
+		lo = min(y_true.min(), y_pred.min(), y_train.min())
+		hi = max(y_true.max(), y_pred.max(), y_train.max())
+		if y_global is not None:
+			lo = min(lo, float(y_global[0]))
+			hi = max(hi, float(y_global[1]))
+		pad = 0.05 * (hi - lo if hi > lo else 1.0)
+
+		if n_train_show and len(y_train) > n_train_show:
+			show = np.random.default_rng(0).choice(len(y_train), size=n_train_show, replace=False)
+		else:
+			show = slice(None)
+		ax_out.scatter(y_train[show], y_train_fit[show], s=10, facecolors="none",
+		               edgecolors="#2b8a3e", alpha=0.5, linewidths=0.6,
+		               label=f"Training (max err={self.MaxError:.2f}%)", zorder=2)
+		ax_out.scatter(y_true[valid], y_pred[valid], s=22, c="#2c7fb8", alpha=0.75,
+		               edgecolors="none", label=f"Test, band-valid (n={int(valid.sum())})", zorder=3)
+		if (~valid).any():
+			ax_out.scatter(y_true[~valid], y_pred[~valid], s=40, c="#d7301f", marker="^",
+			               alpha=0.85, edgecolors="k", linewidths=0.3,
+			               label=f"Test, band-invalid (n={int((~valid).sum())})", zorder=4)
+		ax_out.plot([lo - pad, hi + pad], [lo - pad, hi + pad], "k--", lw=1, zorder=1, label="1:1")
+		ax_out.set_xlim(lo - pad, hi + pad)
+		ax_out.set_ylim(lo - pad, hi + pad)
+		ax_out.set_aspect("equal", adjustable="box")
+		ax_out.set_xlabel("Actual (simulated)")
+		ax_out.set_ylabel("PRS-predicted")
+		scale_note = "$\\geq$case-global scale" if y_global is not None else "train+test scale"
+		ax_out.set_title(f"Zoomed OUT ({scale_note})\nall-points test max err={self.ytestMaxError:.2f}%",
+		                  fontsize=9.5)
+		ax_out.legend(fontsize=7, loc="lower right", framealpha=0.9)
+
+		# ---- RIGHT: zoomed IN, band-valid points only ----
+		yv, pv = y_true[valid], y_pred[valid]
+		if len(yv):
+			lo_z = min(yv.min(), pv.min()); hi_z = max(yv.max(), pv.max())
+			pad_z = 0.08 * (hi_z - lo_z if hi_z > lo_z else 1.0)
+		else:
+			lo_z, hi_z, pad_z = lo, hi, pad
+		ax_in.scatter(yv, pv, s=22, c="#2c7fb8", alpha=0.75, edgecolors="none", zorder=3)
+		ax_in.plot([lo_z - pad_z, hi_z + pad_z], [lo_z - pad_z, hi_z + pad_z],
+		           "k--", lw=1, zorder=1)
+		ax_in.set_xlim(lo_z - pad_z, hi_z + pad_z)
+		ax_in.set_ylim(lo_z - pad_z, hi_z + pad_z)
+		ax_in.set_aspect("equal", adjustable="box")
+		ax_in.set_xlabel("Actual (simulated)")
+		ax_in.set_ylabel("PRS-predicted")
+		valid_mre = float(np.max(np.abs(rel_err[valid]))) if valid.any() else float("nan")
+		ax_in.set_title(f"Zoomed IN (band-valid only)\nvalid-only test max err={valid_mre:.2f}%",
+		                 fontsize=9.5)
+
+		fig.suptitle(f"Case {self.case_index}: PRS parity, proper scale", fontsize=11)
+		fig.tight_layout(rect=[0, 0, 1, 0.93])
+		out_path = os.path.join(location, f"parity_scaled_case_{self.case_index}{tag}.pdf")
+		fig.savefig(out_path, bbox_inches="tight", dpi=150)
+		fig.savefig(out_path.replace(".pdf", ".png"), bbox_inches="tight", dpi=150)
+		plt.close(fig)
+		return out_path
 
 	def create_gauss_response_surface(self):
 		kernel = DotProduct() + WhiteKernel()
@@ -200,6 +414,7 @@ class ResponseSurface(object):
 	# ═══════════════════════════════════════════════════════════════════════
 
 	def test(self, xTest, yTest):
+		#if self._active_idx:
 		"""
 		Hold-out accuracy evaluation.  xTest rows are COMPRESSED (from the
 		pDesignMatrix train/test split), so evaluate_prs is called directly.
@@ -234,14 +449,21 @@ class ResponseSurface(object):
 			self.selection = 0
 		else:
 			self.selection = 1
+		#else:
+		#	self.MaxError = 0
+		#	self.ytestMaxError = 0
 		return self.MaxError, self.ytestMaxError, self.criteria
 	# ═══════════════════════════════════════════════════════════════════════
 	# FIXED: create_response_surface  (cache check)
 	# ═══════════════════════════════════════════════════════════════════════
 
 	def create_response_surface(self):
+		#if self._active_idx:
 		"""
-		Fit PRS by QR least-squares on COMPRESSED self.X.
+		Fit PRS on COMPRESSED self.X -- either the raw zeta polynomial (QR
+		least squares, feature_map=None, byte-identical to the original) or,
+		when feature_map is set, the identifiable-subspace polynomial
+		(optionally ridge-penalized via ridge_alpha) built by MatPolyFitTransform.
 
 		BUG FIX — cache check:
 		    Original: if  os.getcwd() + '/.../responsecoef_case-N.csv'  is True:
@@ -249,8 +471,8 @@ class ResponseSurface(object):
 		    Fix: os.path.isfile(path).
 		"""
 		coef_path = (os.getcwd()
-		             + '/Data/ResponseSurface/responsecoef_case-'
-		             + str(self.case_index) + '.csv')
+			        + '/Data/ResponseSurface/responsecoef_case-'
+			        + str(self.case_index) + '.csv')
 
 		# BUG FIX: was  ``if coef_path is True:``  → always False
 		if os.path.isfile(coef_path):
@@ -258,9 +480,17 @@ class ResponseSurface(object):
 			self.coeff = np.asarray([float(i) for i in f[1:]])
 		else:
 			self.BTrsMatrix = self.MatPolyFitTransform()
-			self.Q, self.R  = np.linalg.qr(self.BTrsMatrix)
-			y               = np.dot(np.transpose(self.Q), self.Y)
-			self.coeff      = np.linalg.solve(self.R, np.transpose(y))
+			if self.feature_map is not None and self.ridge_alpha > 0:
+				# Normal-equation ridge, intercept (column 0) unpenalized.
+				B = np.asarray(self.BTrsMatrix, dtype=float)
+				G = B.T @ B
+				I = np.eye(G.shape[0]); I[0, 0] = 0.0
+				self.coeff = np.linalg.solve(
+					G + self.ridge_alpha * len(B) * I, B.T @ np.asarray(self.Y, dtype=float))
+			else:
+				self.Q, self.R  = np.linalg.qr(self.BTrsMatrix)
+				y               = np.dot(np.transpose(self.Q), self.Y)
+				self.coeff      = np.linalg.solve(self.R, np.transpose(y))
 
 			rr  = open(coef_path, 'w')
 			res = "Coefficients\n"
@@ -269,17 +499,29 @@ class ResponseSurface(object):
 			rr.write(res)
 			rr.close()
 
-			if self.order == 2:
-				self.zero, self.a, self.b = self.resCoeffTransform(self.order)
+			if hasattr(self, "Q"):
+				del self.BTrsMatrix, self.Q, self.R
+			else:
+				del self.BTrsMatrix
 
-			del self.BTrsMatrix, self.Q, self.R
+		# BUG FIX: resCoeffTransform (needed by the legacy evaluateResponse/
+		# estimate a,b-matrix path) must run on EVERY fit, not only a fresh
+		# one -- previously it was skipped entirely on a coefficient-cache
+		# hit, leaving self.zero/.a/.b unset. Only meaningful for the raw
+		# order-2 path (feature_map=None); score-space fits don't use it
+		# (evaluate()/Jacobian(), the only methods the live optimizer calls,
+		# go through evaluate_prs()/_poly_value_and_grad() instead).
+		if self.order == 2 and self.feature_map is None:
+			self.zero, self.a, self.b = self.resCoeffTransform(self.order)
 
 		# Training-error diagnostics (self.X rows are compressed)
 		self.resFramWrk = []
 		for i in self.X:
 		    self.resFramWrk.append(self.evaluate_prs(i))
 
-		fileResponse = open(os.getcwd()+'/Data/ResponseSurface/FlaMan_Response_comparison_.csv','w')
+		# BUG FIX: filename had no case index, so every case overwrote the
+		# same file and only the last case's comparison data survived.
+		fileResponse = open(os.getcwd()+'/Data/ResponseSurface/FlaMan_Response_comparison_case-'+str(self.case_index)+'.csv','w')
 		simVSresp  = "FlameMaster,Response Surface,Error_(ln(tau)),Error(Tau)\n"
 		self.RMS_error = []
 		self.error = []
@@ -290,8 +532,8 @@ class ResponseSurface(object):
 			self.RMS_error.append(abs(self.Y[i]-self.resFramWrk[i])**2)
 			self.relative_error.append((abs(self.Y[i]-self.resFramWrk[i])/(self.Y[i]))*100)
 			TraError.append(1-np.exp(-(self.Y[i]-self.resFramWrk[i])))
-			simVSresp +='{},{},{},{}\n'.format(self.Y[i],self.resFramWrk[i],(self.Y[i]-self.resFramWrk[i])/self.Y[i],1-np.exp(-(self.Y[i]-self.resFramWrk[i])))	
-		fileResponse.write(simVSresp)		
+			simVSresp +='{},{},{},{}\n'.format(self.Y[i],self.resFramWrk[i],(self.Y[i]-self.resFramWrk[i])/self.Y[i],1-np.exp(-(self.Y[i]-self.resFramWrk[i])))
+		fileResponse.write(simVSresp)
 		fileResponse.close()
 
 		self.MaxError  = max(self.error)
@@ -300,6 +542,10 @@ class ResponseSurface(object):
 		self.MaxError  = max(self.relative_error)
 		self.MeanError = statistics.mean(self.relative_error)
 		del self.X
+		#else:
+		#	self.flag = "Zero_rxn_selected"
+		#	self.selection = 0
+		#	del self.X
 
 	def MatPolyFitTransform(self):
 		"""
@@ -315,6 +561,9 @@ class ResponseSurface(object):
 		        Buggy:   21 order-3 terms  (duplicates because index(0.5) = 0 always)
 		        Correct: 10 order-3 terms  = C(3+3-1, 3) = C(5,3).
 		"""
+		if self.feature_map is not None:
+			return self.build_basis(np.asarray(self.X, dtype=float))
+
 		BTrsMatrix = []
 		for outer_row in self.X:
 			tow  = self.order
@@ -387,6 +636,12 @@ class ResponseSurface(object):
 
 		For the optimiser use evaluate(x) which accepts full-space input.
 		"""
+		if self.feature_map is not None:
+			scores = self.feature_map.transform_row(np.asarray(x, dtype=float))
+			poly   = self._ensure_poly(len(scores))
+			Phi    = poly.transform(scores.reshape(1, -1))[0]
+			return float(Phi @ self.coeff)
+
 		BZeta = x
 		coeff = self.coeff
 		tow   = self.order
@@ -452,9 +707,22 @@ class ResponseSurface(object):
 		    Step 3. Expand the compressed gradient to full space via
 		            _expand_gradient  (0 at inactive positions).
 		"""
-		x_comp    = self._compress(x)   # length n_comp
-		grad_comp = []
+		x_comp = self._compress(x)   # length n_comp
 
+		if self.feature_map is not None:
+			# Chain rule through the affine feature map: scores = x_comp @ M + c,
+			# so d(PRS)/d(x_comp) = M @ d(PRS)/d(scores). M is constant (affine
+			# map), so this is exact for any polynomial order the map was
+			# fitted with -- unlike jacobian_element below, which is hand-derived
+			# for order 2 only.
+			x_comp_arr = np.asarray(x_comp, dtype=float)
+			scores     = self.feature_map.transform_row(x_comp_arr)
+			self._ensure_poly(len(scores))
+			_, grad_scores = self._poly_value_and_grad(scores)
+			grad_comp = self.feature_map.M @ grad_scores
+			return list(self._expand_gradient(grad_comp))
+
+		grad_comp = []
 		for k in range(len(x_comp)):
 			# BZeta is x_comp (compressed) — coefficient indexing is correct
 			grad_comp.append(
@@ -742,3 +1010,185 @@ class ResponseSurface(object):
 				f"transformed_value_and_jacobian: target {case.target!r} not wired.")
 
 		return value, float(y_obs), float(sigma), J_eff
+
+
+class RowGeneratorDiagnostics:
+	"""
+	Per-row, per-reaction band-violation + generator-class attribution plot.
+
+	For one flagged design-matrix row (a row whose ResponseSurface.test()
+	prediction was a large outlier -- see report_10fold_validation/
+	main.tex's diagnosis), this draws, for EVERY reaction in the case's
+	identifiable layout, one small panel showing:
+	  - the physical uncertainty band  +-f_prior(T)  (IdentifiablePRS's own
+	    quantity -- band-crossing here means band-invalid by the exact same
+	    test IdentifiablePRS.violation_ratio uses, not an approximation)
+	  - background samples from each of the sampler's three generator
+	    classes (A/B/C -- see Uncertainty.py's _psac_class_* methods and
+	    DM_FOR_PARTIAL_PRS/<case>/{a,b,c}_type_samples_partial_numpy.pkl)
+	  - the flagged row's own curve for that reaction, highlighted and
+	    colored by whichever generator class it matches
+
+	The row's generator class is identified by exact nearest-neighbor
+	lookup against the case's raw (uncompressed) DesignMatrix.csv -- this
+	is not a guess: matches come back at essentially float-precision zero
+	distance because each row's per-reaction perturbation is drawn verbatim
+	from one of the three class pools before per-reaction shuffling
+	assembles the joint row (confirmed 2026-07-31: both of
+	report_10fold_validation's cited flagged rows -- Case 3 row 609, Case 0
+	row 1702 -- matched Class B at distance ~1e-9, i.e. exactly, which is
+	why Class B's broken rejection test, already diagnosed in report/
+	main.tex sec:upstream item 1, is the right thing to blame).
+
+	Usage
+	-----
+	    from IdentifiablePRS import build_layout_blocks
+	    blocks = build_layout_blocks(layout, sigma_of, T_arr)
+	    diag = RowGeneratorDiagnostics(case, blocks, rxn_index,
+	                                    design_matrix_raw_csv_path,
+	                                    class_pool_dir, T_min, T_max)
+	    diag.plot_row(row_id=609, X_compressed=X, location="Plots")
+	"""
+
+	CLASS_COLORS = {"a": "#2ca25f", "b": "#d7301f", "c": "#2c7fb8"}
+	CLASS_LABEL = {"a": "Class A (single-param sensitivity)",
+	               "b": "Class B (correlated multi-param)",
+	               "c": "Class C (broad exploration)"}
+
+	def __init__(self, case, blocks, rxn_index, design_matrix_raw_csv_path,
+	             class_pool_dir, T_min, T_max, n_T=150):
+		"""
+		case : int/str -- case identifier (for titles only).
+		blocks : list of IdentifiablePRS.ReactionBlock -- this case's
+		    identifiable layout (from IdentifiablePRS.build_layout_blocks).
+		rxn_index : dict[str, int] -- reaction name -> column-block index
+		    in the RAW (uncompressed) DesignMatrix.csv (3 columns/reaction,
+		    i.e. raw_col = 3*rxn_index[rxn]).
+		design_matrix_raw_csv_path : str -- path to
+		    DM_FOR_PARTIAL_PRS/<case>/DesignMatrix.csv (the UNcompressed
+		    per-reaction zeta, used only for generator-class lookup).
+		class_pool_dir : str -- directory containing
+		    {a,b,c}_type_samples_partial_numpy.pkl for this case.
+		T_min, T_max : float -- temperature window (K), e.g. the case's own
+		    0.85*T_target .. 1.25*T_target resampling window.
+		"""
+		self.case = case
+		self.blocks = blocks
+		self.rxn_index = rxn_index
+		self.design_matrix_raw = np.asarray(
+			[np.fromstring(l.strip().rstrip(","), sep=",")
+			 for l in open(design_matrix_raw_csv_path) if l.strip()])
+		self.pools = {}
+		for cls in ("a", "b", "c"):
+			path = os.path.join(class_pool_dir, f"{cls}_type_samples_partial_numpy.pkl")
+			with open(path, "rb") as f:
+				self.pools[cls] = pickle.load(f)
+		self.T = np.linspace(T_min, T_max, n_T)
+		self.Theta_full = np.column_stack(
+			[np.ones_like(self.T), np.log(self.T), -1.0 / self.T])
+
+	def identify_generator(self, row_id, rxn, tol=1e-4):
+		"""Nearest-neighbor match of this row's raw per-reaction zeta
+		against every class pool. Returns (class, pool_idx, distance);
+		class is None if no pool entry is close (e.g. a D-optimal
+		outlier-resample row, which was never part of the class-A/B/C
+		pools to begin with)."""
+		j = self.rxn_index[rxn]
+		raw3 = self.design_matrix_raw[row_id, 3 * j: 3 * j + 3]
+		best = (None, None, np.inf)
+		for cls, pool_dict in self.pools.items():
+			pool = pool_dict.get(rxn)
+			if not pool:
+				continue
+			pool = np.asarray(pool)
+			dist = np.linalg.norm(pool - raw3[None, :], axis=1)
+			k = int(np.argmin(dist))
+			if dist[k] < best[2]:
+				best = (cls, k, float(dist[k]))
+		cls, idx, dist = best
+		if dist > tol * max(1.0, np.linalg.norm(raw3)):
+			return None, None, dist
+		return cls, idx, dist
+
+	def plot_row(self, row_id, X_compressed, location="Plots", n_cols=4,
+	             n_bg=10, figsize_per_panel=(4.2, 3.0)):
+		"""
+		X_compressed : the case's COMPRESSED design matrix (same array
+		    ResponseSurface is fit/tested on, e.g. pDesignMatrix.csv) --
+		    X_compressed[row_id, block.col_slice] gives each reaction's raw
+		    zeta_r for this row (IdentifiablePRS's own convention).
+
+		Returns the output path.
+		"""
+		os.makedirs(location, exist_ok=True)
+		invT = 1.0 / self.T
+		n = len(self.blocks)
+		ncols = n_cols
+		nrows = int(np.ceil(n / ncols))
+		fig, axes = plt.subplots(nrows, ncols,
+		                          figsize=(figsize_per_panel[0] * ncols,
+		                                   figsize_per_panel[1] * nrows))
+		axes = np.atleast_1d(axes).ravel()
+		rng = np.random.default_rng(0)
+
+		generator_by_rxn = {}
+		for ax_i, block in enumerate(self.blocks):
+			ax = axes[ax_i]
+			rxn = block.rxn
+			cls, pool_idx, dist = self.identify_generator(row_id, rxn)
+			generator_by_rxn[rxn] = cls
+
+			Theta_S = self.Theta_full[:, block.indices]
+			zeta_r = X_compressed[row_id, block.col_slice]
+			dk_row = Theta_S @ (block.L_r @ zeta_r)
+			fp_fine = np.linalg.norm(Theta_S @ block.L_r, axis=1)
+
+			# official ratio, exactly IdentifiablePRS.violation_ratio's per-block value
+			dk3 = zeta_r @ block.W.T
+			ratio = float((np.abs(dk3) / block.fp).max())
+
+			ax.fill_between(invT, -fp_fine, fp_fine, color="steelblue", alpha=0.15, zorder=1)
+			for cls_bg, pool_dict in self.pools.items():
+				pool = pool_dict.get(rxn)
+				if not pool:
+					continue
+				pool = np.asarray(pool)
+				n_show = min(n_bg, len(pool))
+				idxs = rng.choice(len(pool), size=n_show, replace=False)
+				for k in idxs:
+					zr = pool[k][list(block.indices)] if pool.shape[1] == 3 else pool[k]
+					dk = Theta_S @ (block.L_r @ zr)
+					ax.plot(invT, dk, color=self.CLASS_COLORS[cls_bg], lw=0.4, alpha=0.35, zorder=2)
+
+			row_color = self.CLASS_COLORS.get(cls, "black")
+			ax.plot(invT, dk_row, color=row_color, lw=2.0, zorder=4)
+
+			status = "FAIL" if ratio > 1.0 else "ok"
+			gen_tag = cls.upper() if cls else "?"
+			ax.set_title(f"{rxn}\nratio={ratio:.2f} [{status}]  gen={gen_tag}",
+			             fontsize=6.7, color=("#d7301f" if ratio > 1 else "#2b8a3e"))
+			ax.tick_params(labelsize=6)
+			for spine in ax.spines.values():
+				spine.set_linewidth(0.6)
+
+		for ax_i in range(n, len(axes)):
+			axes[ax_i].axis("off")
+
+		handles = [plt.Line2D([0], [0], color=self.CLASS_COLORS[c], lw=2, label=self.CLASS_LABEL[c])
+		           for c in ("a", "b", "c")]
+		handles.append(plt.Line2D([0], [0], color="black", lw=2.5,
+		                           label=f"row {row_id}'s own curve (colored by its matched generator)"))
+		handles.append(plt.Rectangle((0, 0), 1, 1, color="steelblue", alpha=0.3, label="physical band"))
+		fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8, bbox_to_anchor=(0.5, -0.02))
+		n_fail = sum(1 for b in self.blocks
+		             if float((np.abs(X_compressed[row_id, b.col_slice] @ b.W.T) / b.fp).max()) > 1.0)
+		fig.suptitle(f"Case {self.case}, row {row_id}: per-reaction band violation and generator "
+		             f"attribution ({n_fail}/{n} reactions band-invalid for this row)\n"
+		             r"($y=\Delta\ln\kappa(T)$ vs $1/T$; band $=\pm f_{\rm prior}(T)$)",
+		             fontsize=11)
+		fig.tight_layout(rect=[0, 0.04, 1, 0.93])
+		out_path = os.path.join(location, f"violation_row{row_id}_case{self.case}_generators.pdf")
+		fig.savefig(out_path, bbox_inches="tight", dpi=170)
+		fig.savefig(out_path.replace(".pdf", ".png"), bbox_inches="tight", dpi=170)
+		plt.close(fig)
+		return out_path, generator_by_rxn
