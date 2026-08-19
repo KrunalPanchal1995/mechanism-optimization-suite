@@ -752,7 +752,7 @@ class BandValidityComparisonPlotter:
         self.after = np.asarray(after_ratio, dtype=float)
         self.rxn_label = rxn_label
 
-    def plot(self, location="Plots", figsize=(7.5, 5)):
+    def plot(self, location="Plots", figsize=(7.5, 5), filename="band_validity_before_after.pdf"):
         os.makedirs(location, exist_ok=True)
         fig, ax = plt.subplots(figsize=figsize)
         # Log-x: the "before" distribution spans nearly two orders of
@@ -781,7 +781,7 @@ class BandValidityComparisonPlotter:
         ax.set_title(title, fontsize=11)
         ax.legend(fontsize=8.5, loc="upper left")
         fig.tight_layout()
-        out_path = os.path.join(location, "band_validity_before_after.pdf")
+        out_path = os.path.join(location, filename)
         fig.savefig(out_path, bbox_inches="tight", dpi=150)
         fig.savefig(out_path.replace(".pdf", ".png"), bbox_inches="tight", dpi=150)
         plt.close(fig)
