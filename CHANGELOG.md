@@ -58,6 +58,7 @@ Repo kept as canonical; t3-only improvements grafted in:
 - `simulation_manager2_0.getDirectoryList` — an existing-but-EMPTY `output/` is treated as never-simulated (wipe + re-enqueue) so resumed runs repair them.
 - `data_management2_0_A_factor.py` — twin bug fixed: N/A branches returned `string = path` (folder) instead of `path + "<outfile>"`, which made `run_sim` look for a file named `output`; same bounded retry + missing/empty detection mirrored.
 - `make_input_file.py` — CHEMKIN_PRO / zerork / FlameMaster `s_run` chains now `&&`-gate the destructive `find ./output … -delete` so a failed solve can never wipe its own output.
+- `run_script.py` (Phase 9) — class-pool refresh now runs **serially in the main process**: the previous `multiprocessing.Pool` wrapper made every worker daemonic, and `refresh_class_pools`' inner class-B sampler pool then failed with `AssertionError: daemonic processes are not allowed to have children`, aborting the run before Stage 3 (this is what stalled the 5-case HTC run on 2026-08-26 ~14:08). Serial refresh costs seconds-to-minutes of pure numpy per case.
 
 **Ansys Chemkin license failures** (user's top priority — `~/Desktop/PyChemkin-master/chemkin.py`, the live copy on `PYTHONPATH`):
 - `preprocess()` and `postprocess()` now run through `_run_with_license_retry` (exponential backoff, `CHEMKIN_LICENSE_RETRY_MAX/DELAY/BACKOFF` env-tunable) — previously only `run()` retried, so the dominant "ANSYSLI exited or could not read server port ansyscl" transient failed samples outright on first checkout.
