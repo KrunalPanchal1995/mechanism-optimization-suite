@@ -1332,21 +1332,30 @@ if design_type == "A1+B1+C1" and outlier_cfg["enable"]:
 		     f"different method) -- these are what let Stage-3 D-optimal resampling "
 		     f"silently reject 80-100% of its candidates (see Case 52/56 in "
 		     f"report_resampling/DEBUG_REPORT.md). Refreshing now: pure numpy, zero "
-		     f"new simulations, parallelized across cases.")
+		     f"new simulations, serially per case (nested pools are illegal under "
+		     f"a daemonic parent -- see the 2026-08-26 fix below).")
 		_refresh_args = [
 			(ci, getSim(cost_estimate_dict[ci]["Active_Rxns"], design_type),
 			 len(activeParameters), outlier_cfg["method"])
 			for ci in _stale_cases
 		]
-		_n_workers = max(1, min(len(_stale_cases), int(0.70 * multiprocessing.cpu_count())))
-		step(f"Refreshing {len(_stale_cases)} case pool(s) across {_n_workers} worker(s)")
+		step(f"Refreshing {len(_stale_cases)} case pool(s) serially")
 		_t0 = time.time()
-		with multiprocessing.Pool(_n_workers) as _pool:
-			_results = _pool.map(_refresh_pool_worker, _refresh_args)
+		# 2026-08-26 fix: refresh SERIALLY in the main process. The previous
+		# multiprocessing.Pool wrapper failed with "AssertionError: daemonic
+		# processes are not allowed to have children": the pool's workers are
+		# daemonic, and refresh_class_pools itself spawns its own
+		# multiprocessing pool for the class-B sampler -- Python forbids a
+		# daemonic process from spawning children. Serial execution keeps the
+		# inner pool legal (the main process is not daemonic). Per-case
+		# refresh is pure numpy and takes seconds-to-minutes per case, so the
+		# lost cross-case parallelism is negligible next to the Stage-3
+		# simulation budget that follows.
+		_results = [_refresh_pool_worker(args) for args in _refresh_args]
 		_ok = [r for r in _results if r[1]]
 		_bad = [r for r in _results if not r[1]]
 		item(f"Refreshed {len(_ok)}/{len(_stale_cases)} case pool(s) in "
-		     f"{time.time()-_t0:.1f}s across {_n_workers} worker(s)",
+		     f"{time.time()-_t0:.1f}s",
 		     "ok" if not _bad else "warn")
 		if _bad:
 			for ci, _, _, err_msg in _bad:
