@@ -39,7 +39,7 @@ import qmc_sampling
 # comparable by simple string equality (exact match required, no ordering
 # logic implemented -- any change at all invalidates old caches, which is
 # the conservative and correct default for a physical-validity guarantee).
-SAMPLER_VERSION = "2026-08-19-bandgated"
+SAMPLER_VERSION = "2026-08-26-eacapped"
 
 def _rng_advance_sample(rng):
 	"""
@@ -1249,6 +1249,7 @@ class UncertaintyExtractor(object):
 	# ═══════════════════════════════════════════════════════════════════
 
 	_PSAC_MAX_DELTA_N = 2.0   # physical |Δn| bound (class-level constant)
+	_PSAC_MAX_ZETA_EA = 1500.0  # |ζ_Ea| bound (class-level constant, 2026-08-26)
 
 	# ── basis / prior-uncertainty helpers ──────────────────────────────
 	def _psac_theta_full(self, T_val):
@@ -1306,6 +1307,32 @@ class UncertaintyExtractor(object):
 		dn	= abs((L_r @ zeta_r)[pos_n])
 		if dn > self._PSAC_MAX_DELTA_N:
 			zeta_r = zeta_r * (self._PSAC_MAX_DELTA_N / (dn + 1e-30)) * 0.95
+		return zeta_r
+
+	def _psac_enforce_ea(self, zeta_r, indices):
+		"""Post-hoc cap |ζ_Ea| at _PSAC_MAX_ZETA_EA when Ea/R is active.
+
+		2026-08-26: the m=3 analytical solver (_psac_solve_3x3) scales ζ by
+		L_r^-1, so in the Ea/R direction -- where both L_33 and θ_Ea = -1/T
+		are tiny -- ζ_Ea explodes (observed: class-B pool ζ_Ea std 6500 vs
+		the pre-fix sampler's ~650, i.e. ±10^4 zeta, physical Δ(Ea/R) ≈
+		±1100 K on the n-heptane study). The band-ratio check barely
+		constrains this direction (the tiny L_33 keeps the Ea contribution
+		small relative to f_prior), so nothing bounded it -- unlike Δn,
+		which _psac_enforce_dn caps. The result: design-matrix columns with
+		ζ_Ea ±10^4, a response surface whose curvature an order-2 PRS
+		cannot track (observed: train MRE floor ~20-37% on the 5-case HTC
+		study vs 0.4-2% for the prior study whose sampler's [-1000,1000]
+		box bounded ζ_Ea to ~650). Scaling the whole ζ_r preserves the
+		curve's shape (ratio between components) exactly as enforce_dn
+		does, so accepted solutions keep their band validity.
+		"""
+		if 2 not in indices:
+			return zeta_r
+		pos_ea = list(indices).index(2)
+		ze = abs(zeta_r[pos_ea])
+		if ze > self._PSAC_MAX_ZETA_EA:
+			zeta_r = zeta_r * (self._PSAC_MAX_ZETA_EA / (ze + 1e-30))
 		return zeta_r
 
 	# ── covariance helpers ──────────────────────────────────────────────
@@ -1604,6 +1631,7 @@ class UncertaintyExtractor(object):
 						recorder.mark_rejection("no_sign_change")
 					continue
 				zr_final = self._psac_enforce_dn(zr, L_r, indices)
+				zr_final = self._psac_enforce_ea(zr_final, indices)
 				dk_final = self._psac_dk_S(T_arr, L_r, zr_final, indices)
 				fp_full  = self._f_prior(T_arr, L_full)
 				ratio = float(np.max(np.abs(dk_final) / np.maximum(fp_full, 1e-300)))
