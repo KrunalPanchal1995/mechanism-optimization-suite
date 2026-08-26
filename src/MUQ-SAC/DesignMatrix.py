@@ -20,7 +20,52 @@ import shuffle
 import warnings
 import contextlib
 import qmc_sampling
+import datetime
+from Uncertainty import SAMPLER_VERSION
 #print(dir(shuffle))
+
+def _pool_provenance_path(cache_dir):
+	return os.path.join(cache_dir, "pool_provenance.json")
+
+
+def pool_cache_is_fresh(cache_dir, tag):
+	"""True iff cache_dir/pool_provenance.json exists, is stamped with the
+	CURRENT Uncertainty.SAMPLER_VERSION, and was built with sampling method
+	`tag`. False (stale/missing) means the cached a/b/c_type_samples_partial
+	pickles in cache_dir must NOT be reused -- they may have been produced by
+	a since-fixed sampler (see SAMPLER_VERSION's docstring for why this
+	matters: this exact gap silently shadowed the 2026-08-19 class-B m=3
+	band-gating fix for THREE-PARAM-MSO-LLNL-N-HEPTANE_159_CORRELATION_AWARE,
+	leaving 93.2% of its rows band-invalid two weeks after the fix landed).
+	"""
+	p = _pool_provenance_path(cache_dir)
+	if not os.path.isfile(p):
+		return False
+	try:
+		with open(p) as fh:
+			prov = json.load(fh)
+	except Exception:
+		return False
+	return (prov.get("sampler_version") == SAMPLER_VERSION
+	        and prov.get("method") == tag)
+
+
+def _write_pool_provenance(cache_dir, tag, seed, n_a, n_b, n_c, extra=None):
+	prov = {
+		"sampler_version": SAMPLER_VERSION,
+		"method": tag,
+		"seed": seed,
+		"n_a": int(n_a), "n_b": int(n_b), "n_c": int(n_c),
+		"band_check": {"tolerance": 1.0, "source": "_safeguard_validate_curves"},
+		"timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+	}
+	if extra:
+		prov.update(extra)
+	with open(_pool_provenance_path(cache_dir), "w") as fh:
+		json.dump(prov, fh, indent=2)
+	return prov
+
+
 class DesignMatrix(object):
 	def __init__(self,UnsrtData,design,sample_length,ind=None,method='numpy',seed=None,
 				 lhs_optimization='random-cd'):
@@ -561,7 +606,144 @@ class DesignMatrix(object):
 		return curves
 
 	# ── END NEW partial generators ─────────────────────────────────────────
-	
+
+	def refresh_class_pools(self, case_index, selected_params, method=None, seed=None,
+	                          force=False, base_dir=None):
+		"""Regenerate ONLY this case's class-A/B/C curve pools
+		({a,b,c}_type_samples_partial_<method>.pkl) through the CURRENT
+		(band-gated) samplers, without touching DesignMatrix.csv,
+		pDesignMatrix.csv, the shuffle cache, or running any simulation.
+
+		This is the zero-simulation-cost half of the 2026-08-19 bad-sample
+		fix: a case's DesignMatrix.csv/pDesignMatrix.csv (and the
+		simulations that were actually run against those specific rows) are
+		a sunk cost worth keeping -- band-valid rows in there stay band-valid
+		regardless of what pool built them. But AdaptiveResampler.
+		DOptimalResampler's Stage-3 candidate generator draws NEW candidates
+		straight from these class pools, so if the pools are stale (e.g. the
+		2026-08-05 pre-fix batch, 60.7% class-B rows band-invalid, worst
+		85.2x), Stage 3 spends its whole candidate budget on points that get
+		rejected by the band gate before a single new simulation is even
+		requested -- exactly what happened to Case 52 (0/2940 band-valid,
+		every one of 8 passes) and Case 56 (34/2748, the same 34 points
+		re-picked 8 times). Refreshing the pools with pure numpy (seconds to
+		low minutes per case, no Chemkin/FlameMaster call) fixes that at the
+		source: run this once per case before constructing DOptimalResampler
+		for it, whenever pool_cache_is_fresh(cache_dir, tag) is False.
+
+		Sizing mirrors getSample_partial's A1+B1+C1 branch exactly (n_a/n_b/
+		n_c nominal ratios, sobol power-of-2 rounding) so a refreshed pool is
+		drawn from the same class-count budget the original design matrix
+		used -- this is a like-for-like resampler-quality fix, not a
+		resizing.
+
+		Returns the written pool_provenance.json dict. Raises AssertionError
+		if any refreshed pool is not 100% band-valid (the whole point of
+		routing through the fixed samplers + _safeguard_validate_curves is
+		that it should be -- a failure here means a NEW sampler defect, not
+		this case's data, and must not be silently absorbed).
+		"""
+		method, seed = self._resolve_method_seed(method, seed)
+		tag = method
+		# base_dir: the STUDY ROOT (home_dir in run_script.py), NOT cwd --
+		# by the time Stage 3 constructs a resampler the per-case PRS loop
+		# has already os.chdir()'d into optDir (home_dir/Opt), so a bare
+		# relative "DM_FOR_PARTIAL_PRS" here would resolve to the WRONG
+		# place (home_dir/Opt/DM_FOR_PARTIAL_PRS instead of
+		# home_dir/DM_FOR_PARTIAL_PRS). Mirrors AdaptiveResampler.
+		# OutlierResampler's own `base_dir` convention exactly (both are
+		# always called with home_dir by run_script.py) so a case's pools
+		# and its resampler agree on the same directory by construction.
+		root = base_dir if base_dir is not None else os.getcwd()
+		cache_dir = os.path.join(root, "DM_FOR_PARTIAL_PRS", str(case_index))
+		os.makedirs(cache_dir, exist_ok=True)
+
+		if not force and pool_cache_is_fresh(cache_dir, tag):
+			print(f"[Case-{case_index}] class pools already fresh "
+			      f"(SAMPLER_VERSION={SAMPLER_VERSION!r}, method={tag!r}) -- skipping refresh.")
+			with open(_pool_provenance_path(cache_dir)) as fh:
+				return json.load(fh)
+
+		n_a_req = int(0.1  * self.sim * 0.2)
+		n_b_req = int(0.45 * self.sim * 0.2)
+		n_c_req = int(self.sim * 0.2) - n_a_req - n_b_req
+		if method == "sobol":
+			n_a, n_b, n_c = (qmc_sampling.ceil_pow2(n_a_req),
+			                 qmc_sampling.ceil_pow2(n_b_req),
+			                 qmc_sampling.ceil_pow2(n_c_req))
+		else:
+			n_a, n_b, n_c = n_a_req, n_b_req, n_c_req
+
+		rxn_param_indices = self._get_rxn_param_indices(selected_params)
+		rxn_list = list(self.unsrt.keys())
+		J = len(rxn_list)
+
+		shadow_a, n_a = qmc_sampling.build_joint_shadow(
+			method, n_a, J, dims_per_reaction=2, seed=seed, optimization=self.lhs_optimization)
+		shadow_b, n_b = qmc_sampling.build_joint_shadow(
+			method, n_b, J, dims_per_reaction=4, seed=seed, optimization=self.lhs_optimization)
+		shadow_c, n_c = qmc_sampling.build_joint_shadow(
+			method, n_c, J, dims_per_reaction=2, seed=seed, optimization=self.lhs_optimization)
+
+		print(f"[Case-{case_index}] refreshing class pools through SAMPLER_VERSION="
+		      f"{SAMPLER_VERSION!r}: n_a={n_a} n_b={n_b} n_c={n_c} per reaction, method={method}")
+		a_curves = self.getClassA_Curves_partial(n_a, rxn_param_indices, shadow_a, base_seed=seed)
+		b_curves = self.getClassB_Curves_partial(n_b, rxn_param_indices, shadow_b, base_seed=seed)
+		c_curves = self.getClassC_Curves_partial(n_c, rxn_param_indices, shadow_c, base_seed=seed)
+
+		# Same defense-in-depth safeguard the main generation path uses --
+		# repairs (rather than drops) any curve a class sampler still let
+		# through invalid, so every reaction keeps its full requested count.
+		pools = {"A": a_curves, "B": b_curves, "C": c_curves}
+		repairs_total = {}
+		for label, curves in pools.items():
+			curves, repaired = self._safeguard_validate_curves(
+				curves, rxn_param_indices, tol=1.0, base_seed=seed,
+				label=f"refresh-case-{case_index}-{label}")
+			pools[label] = curves
+			if repaired:
+				repairs_total[label] = repaired
+
+		for label, curves in pools.items():
+			with open(f'{cache_dir}/{label.lower()}_type_samples_partial_{tag}.pkl', 'wb') as fh:
+				pickle.dump(curves, fh)
+
+		# Verify 100% band-valid -- this is the whole point of the refresh,
+		# so assert it rather than trust the sampler + safeguard silently.
+		T_check = np.linspace(300., 2500., 12)
+		theta_full = np.column_stack([np.ones_like(T_check), np.log(T_check), -1.0 / T_check])
+		worst_ratio, worst_label, worst_rxn = 0.0, None, None
+		for label, curves in pools.items():
+			for rxn, Z in curves.items():
+				Z = np.asarray(Z, dtype=float)
+				if Z.ndim != 2 or Z.shape[0] == 0:
+					continue
+				L = self.unsrt[rxn].cholskyDeCorrelateMat
+				Sigma = np.asarray(L, dtype=float) @ np.asarray(L, dtype=float).T
+				try:
+					L_full = np.linalg.cholesky(Sigma)
+				except np.linalg.LinAlgError:
+					eps = 1e-12 * max(float(np.trace(Sigma)), 1e-10) / 3
+					L_full = np.linalg.cholesky(Sigma + eps * np.eye(3))
+				W = theta_full @ L_full
+				fp = np.linalg.norm(W, axis=1)
+				ratio = (np.abs(W @ Z.T) / np.maximum(fp[:, None], 1e-300)).max()
+				if ratio > worst_ratio:
+					worst_ratio, worst_label, worst_rxn = float(ratio), label, rxn
+		assert worst_ratio <= 1.0 + 1e-9, (
+			f"[Case-{case_index}] refresh_class_pools produced a band-invalid curve "
+			f"after safeguard repair -- class {worst_label}, reaction {worst_rxn!r}, "
+			f"ratio {worst_ratio:.3f}x. This means a NEW sampler defect, not stale "
+			f"data -- do not proceed until the sampler is fixed.")
+
+		prov = _write_pool_provenance(
+			cache_dir, tag, seed, n_a, n_b, n_c,
+			extra={"refreshed": True, "repairs": repairs_total,
+			       "verified_max_ratio": worst_ratio})
+		print(f"[Case-{case_index}] class pools refreshed: 100% band-valid "
+		      f"(max ratio {worst_ratio:.3f}x <= 1.0), repairs={repairs_total or 'none'}")
+		return prov
+
 	def getSample_partial(self,case_index,selected_params,method=None,seed=None):
 		print("\nStarting to generate partial-design matrix!!\n")
 		method, seed = self._resolve_method_seed(method, seed)
@@ -710,6 +892,31 @@ class DesignMatrix(object):
 			# methods would silently reuse another method's stale samples.
 			tag = method
 
+			# ── Cache-freshness gate (2026-08-19) ───────────────────────────
+			# A cached a/b/c_type_samples_partial_{tag}.pkl from a sampler
+			# version older than the CURRENT Uncertainty.SAMPLER_VERSION must
+			# never be silently reused -- see pool_cache_is_fresh's docstring
+			# for why (this exact gap is what let the 2026-08-19 class-B m=3
+			# band-gating fix sit unused against a 2026-08-05 cache for two
+			# weeks, leaving 93.2% of this study's rows band-invalid). If
+			# stale, delete the class-pool pickles + the shuffled cache (NOT
+			# DesignMatrix.csv/pDesignMatrix.csv themselves -- those are
+			# gated separately, at the higher partial_PRS_system.py level,
+			# via dm_provenance.json) so the checks below regenerate them.
+			if not pool_cache_is_fresh(cache_dir, tag):
+				stale = [f for f in (f"a_type_samples_partial_{tag}.pkl",
+				                      f"b_type_samples_partial_{tag}.pkl",
+				                      f"c_type_samples_partial_{tag}.pkl",
+				                      f"RANDOM_SHUFFLING_partial_{tag}.pkl")
+				         if f in os.listdir(cache_dir)]
+				if stale:
+					print(f"\n[Case-{case_index}] cached class-pool samples predate "
+					      f"SAMPLER_VERSION={SAMPLER_VERSION!r} (or used a different "
+					      f"method) -- regenerating {len(stale)} stale pool file(s) "
+					      f"instead of reusing them: {', '.join(stale)}")
+					for f in stale:
+						os.remove(os.path.join(cache_dir, f))
+
 			# ── Build per-reaction active-parameter index tuples ──────────
 			rxn_param_indices = self._get_rxn_param_indices(selected_params)
 			rxn_list = list(self.unsrt.keys())
@@ -770,6 +977,16 @@ class DesignMatrix(object):
 				with open(f'{cache_dir}/c_type_samples_partial_{tag}.pkl', 'rb') as fh:
 					c_curves = pickle.load(fh)
 				print(f"\nPartial class-C curves ({method}) loaded from cache")
+
+			# Stamp/refresh provenance now that all three class pools are
+			# known-fresh (either just regenerated above, or already valid
+			# per the gate at the top of this branch) -- this is what lets a
+			# FUTURE run's freshness check trust this cache without having to
+			# re-derive it, and what AdaptiveResampler.DOptimalResampler
+			# asserts against before it will draw Stage-3 candidates from
+			# these same pkl files (see AdaptiveResampler.py's
+			# _load_class_pool / __init__ provenance assertion).
+			_write_pool_provenance(cache_dir, tag, seed, n_a, n_b, n_c)
 
 			"""
 			if f"fSAC_samples_partial_{tag}.pkl" not in os.listdir(cache_dir):

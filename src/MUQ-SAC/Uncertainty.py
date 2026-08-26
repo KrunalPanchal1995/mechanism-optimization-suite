@@ -23,6 +23,24 @@ import qmc_sampling
 ###	   of elementary reactions					  ######
 #############################################################
 
+# ── SAMPLER_VERSION (2026-08-19) ────────────────────────────────────────────
+# Bump this string whenever a class-A/B/C/D sampler's accept/reject logic
+# changes (i.e. whenever the set of curves a fresh call to
+# run_sampling_{a,b,c}_partial / getClass{A,B,C}_partial would produce could
+# differ from before). DesignMatrix.py stamps every cached class-pool pickle
+# with this value in `pool_provenance.json`; run_script.py / DesignMatrix's
+# own cache-freshness check refuse to reuse a pool stamped with an older
+# version, so a sampler bugfix (like the 2026-08-19 class-B m=3 band-gating
+# fix, see _psac_class_B_m3_'s docstring) can never be silently shadowed by
+# a pre-fix cache the way it was for the THREE-PARAM-MSO-LLNL-N-HEPTANE_159
+# study (pools generated 2026-08-05, fix landed 2026-08-19, cache check had
+# no version awareness so the fix never took effect -- 93.2% of that study's
+# rows ended up band-invalid). Format is free-form but should be sortable /
+# comparable by simple string equality (exact match required, no ordering
+# logic implemented -- any change at all invalidates old caches, which is
+# the conservative and correct default for a physical-validity guarantee).
+SAMPLER_VERSION = "2026-08-19-bandgated"
+
 def _rng_advance_sample(rng):
 	"""
 	Tell a QuasiRandomGenerator (Sobol/LHS-backed) that we're now drawing
@@ -1920,11 +1938,36 @@ class UncertaintyExtractor(object):
 	# ── public partial-parameter interface ────────────────────────────
 
 	def get_full_sigma_and_L(self):
-		"""Return (Σ, L_full) from self.cov (3×3 Cholesky). 
-		Requires getCovariance() to have been called first."""
+		"""Return (Σ, L_full) -- the CANONICAL (positive-diagonal) Cholesky
+		factor of Sigma, not self.cov directly.
+
+		CANONICAL-SIGN FIX (2026-08-19, extended from run_sampling_b_partial's
+		m==3-only fix to every caller of get_reduced_cholesky /
+		get_full_sigma_and_L -- i.e. getClassA_partial, getClassB_partial's
+		m==2 path, getClassC_partial, get_fsac_partial, and this class's own
+		is_band_valid). self.cov (set by getCovariance()'s unconstrained
+		SLSQP fit) is only ONE of several valid Cholesky-like factors of
+		Sigma = self.cov @ self.cov.T -- np.linalg.cholesky(Sigma)
+		(positive-diagonal, unique) is a DIFFERENT one whenever SLSQP's
+		diagonal signs don't happen to match, and IdentifiablePRS.
+		build_layout_blocks (what actually screens/scores every sampler's
+		output downstream) always reconstructs the canonical factor from the
+		stored Sigma.csv. A sample that is band-valid under self.cov's own
+		(possibly different-signed) convention is not guaranteed to read as
+		band-valid once screened by the canonical convention used everywhere
+		else -- this was the root of the m==3 class-B bug and is not
+		provably absent from A/C/D-m2, so it is fixed once, here, at the
+		single choke point every partial-parameter sampler routes through,
+		rather than re-patched per call site.
+		"""
 		L	 = self.cov
 		Sigma = L @ L.T
-		return Sigma, L
+		try:
+			L_full = np.linalg.cholesky(Sigma)
+		except np.linalg.LinAlgError:
+			eps = 1e-12 * max(float(np.trace(Sigma)), 1e-10) / 3
+			L_full = np.linalg.cholesky(Sigma + eps * np.eye(3))
+		return Sigma, L_full
 
 	def get_reduced_cholesky(self, param_indices):
 		"""

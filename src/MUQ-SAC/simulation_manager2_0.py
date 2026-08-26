@@ -713,7 +713,43 @@ class SM(object):
 		for case in case_iterable:
 			case_index = case
 			if "case-"+str(case_index) in os.listdir():
-				print("Case-{index} is generated".format(index = case_index))
+				# RESUMED-CASE FIX (2026-08-19): this branch used to just
+				# print a message and do NOTHING else -- sim_location never
+				# received any entries for a case whose directory already
+				# existed (e.g. a resumed/interrupted Stage-3 outlier-
+				# retraining pass), so make_dir_in_parallel's RETURN VALUE
+				# silently omitted every such case. Confirmed root cause of
+				# 537 FileNotFoundErrors on
+				# Opt/Outlier_Resample/case-53/pass-4/case-53/<n> during a
+				# resumed run (run_resampling_followup_20260819.log) and a
+				# missing case-55/pass-2/locations file -- downstream code
+				# (generate_target_value_tables via FlameMaster_Execution_
+				# location) had nothing to look up for that case at all,
+				# not even a partial list. getDirectoryList is safe to call
+				# on an existing case dir (it os.chdir()s into it rather than
+				# erroring, and already repairs/removes any incomplete
+				# per-sample dir missing its output/ subfolder before
+				# returning run_list) -- reuse it here PURELY to reconstruct
+				# the location list, without re-running the expensive
+				# Worker.do_job_map/do_job_create_opt/do_job_async_ calls
+				# that create files and launch simulations (those must not
+				# be blindly repeated for a case that is mostly/fully done;
+				# any sample getDirectoryList's own cleanup determined was
+				# incomplete is still on disk as a missing/malformed output,
+				# which generate_target_value_tables' existing N/A-retry
+				# logic already handles -- this fix's job is only to stop
+				# the location list itself from being silently empty).
+				print(f"\tCase-{case_index} directory already exists -- "
+				      f"reconstructing its simulation-location list "
+				      f"(no re-simulation).")
+				_ , _, _, _, run_list, _ = self.getDirectoryList(case, case_index, yaml_loc)
+				simulation_locations = open(optDir+"/locations", '+a')
+				for key in sorted(run_list, key=lambda k: int(k) if str(k).isdigit() else k):
+					loc = run_list[key]
+					simulation_locations.write(loc+"/run\n")
+					sim_location.append(loc+"/run\n")
+				simulation_locations.close()
+				os.chdir('..')
 			else:
 				#Old version of the code
 				#yaml_dict,instring_dict,s_run_dict,dir_list,run_convert_dict,run_list,extract_list,sim_dict = self.getDirectoryList(case,case_index)

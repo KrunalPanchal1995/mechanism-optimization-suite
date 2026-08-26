@@ -3,6 +3,10 @@ import numpy as np
 import DesignMatrix as DM
 import pickle
 import simulation_manager2_0 as simulator
+import json
+import hashlib
+import datetime
+from Uncertainty import SAMPLER_VERSION
 
 class PartialPRS(object):
 	"""
@@ -519,6 +523,48 @@ class PartialPRS(object):
 		open(os.path.join(case_dir, "selection_summary.csv"), "w").write(summary)
 
 	# ====================================================================== #
+	# DesignMatrix.csv provenance (2026-08-19, audit trail) — see the        #
+	# "NOTE" print in partial_DesignMatrix's else-branch for why this is a   #
+	# WARN-and-keep record, not a regeneration gate: the sunk simulation     #
+	# cost behind a cached DesignMatrix.csv is deliberately preserved, and   #
+	# per-row correctness is enforced downstream at fit time instead.       #
+	# ====================================================================== #
+
+	def _write_dm_provenance(self, dm_dir, n_rows, n_cols):
+		path = os.path.join(dm_dir, "DesignMatrix.csv")
+		sha1 = ""
+		try:
+			h = hashlib.sha1()
+			with open(path, "rb") as fh:
+				for chunk in iter(lambda: fh.read(1 << 20), b""):
+					h.update(chunk)
+			sha1 = h.hexdigest()
+		except Exception:
+			pass
+		prov = {
+			"sampler_version": SAMPLER_VERSION,
+			"design": self.design,
+			"prs_type": "Partial",
+			"n_rows": int(n_rows),
+			"n_cols": int(n_cols),
+			"sha1": sha1,
+			"timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+		}
+		with open(os.path.join(dm_dir, "dm_provenance.json"), "w") as fh:
+			json.dump(prov, fh, indent=2)
+		return prov
+
+	def _read_dm_provenance(self, dm_dir):
+		path = os.path.join(dm_dir, "dm_provenance.json")
+		if not os.path.isfile(path):
+			return None
+		try:
+			with open(path) as fh:
+				return json.load(fh)
+		except Exception:
+			return None
+
+	# ====================================================================== #
 	# Partial design matrix builder                    						#
 	# ====================================================================== #
 
@@ -541,13 +587,49 @@ class PartialPRS(object):
 		### Goes to DesignMatrix Modules to create Matrix for Partial PRS ###
 		#######################################################################
 
-		if "DesignMatrix.csv" not in os.listdir(f"DM_FOR_PARTIAL_PRS/{self.case_index}/"):
+		dm_dir = f"DM_FOR_PARTIAL_PRS/{self.case_index}"
+		if "DesignMatrix.csv" not in os.listdir(dm_dir + "/"):
 			design_matrix,selection_matrix,p_design_matrix,p_selection_matrix = DM.DesignMatrix(self.unsrt,self.design,self.getSim(na,self.design),n_rxn).getSample_partial(self.case_index,self.selected)
 			g = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv","w").write(self.selected_rxn_string)
-		
+			self._write_dm_provenance(dm_dir, n_rows=len(p_design_matrix), n_cols=(len(p_design_matrix[0]) if len(p_design_matrix) else 0))
+
 		# partial_PRS_system.py  →  partial_DesignMatrix(), else branch
 		else:
-			
+			# ── Provenance check (2026-08-19, audit-only, does NOT force
+			# regeneration) ──────────────────────────────────────────────
+			# A cached DesignMatrix.csv predating the current
+			# Uncertainty.SAMPLER_VERSION is EXPECTED here, by design: this
+			# study's ~30k already-simulated band-valid rows (and the real
+			# Chemkin simulation cost behind them) are a sunk cost worth
+			# keeping, not discarding and re-simulating from scratch (that
+			# option -- "full regeneration + full re-simulation" -- was
+			# offered and explicitly declined in favour of reusing existing
+			# band-valid rows). So this check WARNS (loudly, and writes an
+			# audit record) rather than deletes/regenerates -- the actual
+			# guarantee that a pre-fix bad sample can never again silently
+			# corrupt a fit or a reported error is enforced downstream, at
+			# FIT time, by run_script.py's per-case screen_case_samples
+			# (Part 2 of the 2026-08-19 fix): every row is re-scored against
+			# TODAY's band-validity test regardless of when/how it was
+			# generated, and only band-valid rows ever reach the PRS or the
+			# reported metrics. What DOES get force-regenerated on a stale
+			# sampler version is the case's class-A/B/C POOL
+			# ({a,b,c}_type_samples_partial_*.pkl, via
+			# DesignMatrix.refresh_class_pools, called from run_script.py
+			# before Stage 3 -- those feed NEW candidate generation, where
+			# there is no sunk cost to protect and a stale pool is actively
+			# harmful (see AdaptiveResampler.DOptimalResampler's own
+			# provenance assertion).
+			prov = self._read_dm_provenance(dm_dir)
+			if prov is None or prov.get("sampler_version") != SAMPLER_VERSION:
+				print(f"\n[Case-{self.case_index}] NOTE: cached DesignMatrix.csv predates "
+				      f"(or has no record of) SAMPLER_VERSION={SAMPLER_VERSION!r} -- "
+				      f"reusing it anyway (it is a sunk simulation cost), but every row "
+				      f"will be re-screened against the CURRENT band-validity test before "
+				      f"it can reach the PRS fit or any reported error (see run_script.py's "
+				      f"screen_case_samples). Class pools for Stage-3 resampling are "
+				      f"refreshed independently and are NOT covered by this note.")
+
 			design_matrix_file      = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/DesignMatrix.csv").readlines()
 			selection_matrix_file   = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/SelectionMatrix.csv").readlines()
 			p_design_matrix_file    = open(f"DM_FOR_PARTIAL_PRS/{self.case_index}/pDesignMatrix.csv").readlines()

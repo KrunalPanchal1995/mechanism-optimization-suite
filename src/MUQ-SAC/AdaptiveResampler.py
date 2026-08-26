@@ -78,6 +78,7 @@ but with no shuffled/duplicate block, so it stays sparse instead of dense).
 import os
 import glob
 import pickle
+import json
 
 import numpy as np
 from scipy.stats import qmc
@@ -93,6 +94,7 @@ from scipy.spatial import cKDTree
 # Uncertainty.py wholesale just to reach one pure function.
 from IdentifiablePRS import reduced_cholesky as _reduced_cholesky
 from IdentifiablePRS import reaction_W_fprior as _reaction_W_fprior
+from Uncertainty import SAMPLER_VERSION
 
 CLASS_LABELS = ("A", "B", "C")
 
@@ -272,6 +274,8 @@ class OutlierResampler:
 
         self.layout = self._build_layout()
         self.n_full = self.layout[-1]["full_offset"] + self.layout[-1]["active_len"]
+        self.class_pool_provenance = None
+        self.class_pool_stale = None   # None = N/A (design != A1+B1+C1); True/False set by _load_class_pool otherwise
         self.class_pool = self._load_class_pool()  # {rxn: [(vec, label), ...]} or None
 
     # ---- layout: PRS-space <-> FULL-space per reaction -------------------- #
@@ -308,12 +312,50 @@ class OutlierResampler:
     def n_prs(self):
         return self.layout[-1]["comp_offset"] + self.layout[-1]["n_cols"]
 
+    # ---- pool provenance (2026-08-19) -------------------------------------- #
+    def _pool_provenance(self, search_dir):
+        """Read search_dir/pool_provenance.json, or None if missing/unreadable.
+
+        See Uncertainty.SAMPLER_VERSION's docstring for why this file exists:
+        without it, a resampler drawing candidates from a STALE class pool
+        (built by a since-fixed sampler) is indistinguishable from one
+        drawing from a clean pool, and every candidate silently gets
+        rejected by the band-validity gate instead -- exactly what happened
+        to Case 52 (0/2940 band-valid, all 8 passes) and Case 56 (34/2748,
+        the same 34 points re-picked 8 times) before this fix.
+        """
+        p = os.path.join(search_dir, "pool_provenance.json")
+        if not os.path.isfile(p):
+            return None
+        try:
+            with open(p) as fh:
+                return json.load(fh)
+        except Exception:
+            return None
+
     # ---- load cached SAC class samples ------------------------------------ #
     def _load_class_pool(self):
         """Return {rxn: [(full_len_vec, class_label), ...]} or None.
 
         The class pkls only exist for the 'A1+B1+C1' design. Filenames are
         method-tagged, so we glob for whichever method actually ran.
+
+        Provenance-gated (2026-08-19), with a distinction that matters: a
+        directory with NO pkl files at all (this case's pool was simply
+        never built -- e.g. a fresh test fixture, or a design mode that
+        never generates one) is NOT "stale" -- that is the pre-existing,
+        already-documented "no class pool available" case every caller
+        already has a defined fallback for (geometric modes: uninformed
+        box-draw; DOptimalResampler: see its own __init__ guard, gated
+        separately below). Only a pool that DOES exist on disk but carries
+        no provenance record, or one whose provenance predates the current
+        Uncertainty.SAMPLER_VERSION, is "stale" -- that is the genuinely
+        dangerous case (a since-fixed sampler's old, possibly band-invalid
+        output silently reused) this gate exists to catch; see
+        _pool_provenance's docstring and the SAMPLER_VERSION docstring for
+        why conflating "never built" with "stale" would be wrong (it would
+        turn every legitimate "this design/config has no class pool"
+        situation into a hard failure it was never meant to be).
         """
         if self.design != "A1+B1+C1":
             return None
@@ -326,6 +368,19 @@ class OutlierResampler:
             search_dir = os.path.join(self.base_dir, "DM_FOR_PARTIAL_PRS", self.case_index)
             patterns = {c: os.path.join(search_dir, f"{c.lower()}_type_samples_partial_*.pkl")
                         for c in CLASS_LABELS}
+
+        any_pkl_exists = any(glob.glob(pat) for pat in patterns.values())
+        prov = self._pool_provenance(search_dir)
+        self.class_pool_provenance = prov
+        self.class_pool_stale = (
+            any_pkl_exists and (prov is None or prov.get("sampler_version") != SAMPLER_VERSION))
+        if self.class_pool_stale:
+            print(f"[Case-{self.case_index}] WARNING: class-pool provenance at "
+                  f"{search_dir!r} is missing or predates SAMPLER_VERSION="
+                  f"{SAMPLER_VERSION!r} -- treating as unavailable rather than "
+                  f"risking a stale (possibly band-invalid) candidate pool. "
+                  f"Run DesignMatrix.refresh_class_pools for this case first.")
+            return None
 
         per_class = {}
         for label, pat in patterns.items():
@@ -1075,6 +1130,28 @@ class DOptimalResampler(OutlierResampler):
         self.acquisition_alpha = float(acquisition_alpha)
         self.candidate_oversample = max(1, int(candidate_oversample))
 
+        # ── Stale/missing pool provenance is a HARD failure here (2026-08-19) ──
+        # Unlike the geometric modes (local/dm_global/hybrid/gap_fill), which
+        # have a defined uninformed-box-draw fallback for class_pool is None,
+        # D-optimal candidate SELECTION is meaningless without the class-A/B/C
+        # curve pools -- see the class docstring's "Every candidate is
+        # rejection-sampled..." paragraph. Silently falling back here is
+        # exactly what let Case 52/56 burn every one of 8 resampling passes
+        # against a 60.7%-band-invalid class-B pool with a 98.8-100% reject
+        # rate and select 0-34 points total. Fail loudly instead, naming the
+        # fix (DesignMatrix.refresh_class_pools), so a stale pool can never
+        # again be mistaken for "the case just has no candidates".
+        if self.design == "A1+B1+C1" and self.class_pool_stale:
+            search_dir = (self.base_dir if self.prs_type == "Full" else
+                          os.path.join(self.base_dir, "DM_FOR_PARTIAL_PRS", self.case_index))
+            raise RuntimeError(
+                f"[Case-{self.case_index}] DOptimalResampler refuses to start: "
+                f"class-pool provenance at {search_dir!r} is missing or predates "
+                f"SAMPLER_VERSION={SAMPLER_VERSION!r}. Call "
+                f"DesignMatrix.refresh_class_pools(case_index={self.case_index!r}, "
+                f"selected_params, base_dir=<study root>) once (pure numpy, no "
+                f"simulation) before constructing this resampler.")
+
     # ---- band-validity gate ------------------------------------------------ #
     def _reaction_indices(self, lay):
         return lay["sel_local"] if self.prs_type != "Full" else list(range(lay["active_len"]))
@@ -1240,7 +1317,8 @@ class DOptimalResampler(OutlierResampler):
     # ---- top-level entry point ---------------------------------------------- #
     def resample_d_optimal(self, outlier_prs_rows, X_ref_prs, X_train_prs,
                             build_basis, target_weights=None,
-                            local_fraction=0.5, ridge_alpha=0.0):
+                            local_fraction=0.5, ridge_alpha=0.0,
+                            oversample_boost=1):
         """D-optimal counterpart to resample_hybrid: band-valid candidates,
         greedily selected to maximize design information gain while
         favouring the region near the failing outlier(s).
@@ -1288,8 +1366,28 @@ class DOptimalResampler(OutlierResampler):
             return outlier_prs_rows, full_outliers, self.selection_mask_row(), row_class, info
         n_budget = max(0, min(int(self.N_new), HARD_CAP_DEFAULT) - len(full_outliers))
 
-        prs_cand, full_cand = self.generate_candidates(
-            outlier_prs_rows, X_ref_prs, n_budget, local_fraction=local_fraction)
+        # oversample_boost (2026-08-19): stall-recovery knob. run_script.py's
+        # retrain_around_outlier widens this (>1) on a pass that comes back
+        # with n_selected==0 or an identical selection to the previous pass
+        # (see its stall-detection block) -- more raw candidates generated
+        # before the band-validity gate gives a starved case a second chance
+        # without permanently mutating self.candidate_oversample (which
+        # would silently change every OTHER case sharing this resampler
+        # instance's defaults). 1 (default) reproduces the original behaviour
+        # exactly.
+        boost = max(1, int(oversample_boost))
+        n_gen_for_reject_rate = self.candidate_oversample * boost * max(n_budget, 1)
+        if boost > 1:
+            _orig_oversample = self.candidate_oversample
+            self.candidate_oversample = self.candidate_oversample * boost
+            try:
+                prs_cand, full_cand = self.generate_candidates(
+                    outlier_prs_rows, X_ref_prs, n_budget, local_fraction=local_fraction)
+            finally:
+                self.candidate_oversample = _orig_oversample
+        else:
+            prs_cand, full_cand = self.generate_candidates(
+                outlier_prs_rows, X_ref_prs, n_budget, local_fraction=local_fraction)
 
         B_train = build_basis(np.asarray(X_train_prs, dtype=float))
         picked = self.select_d_optimal(
@@ -1305,10 +1403,19 @@ class DOptimalResampler(OutlierResampler):
         row_class = ["OUT"] * len(full_outliers) + ["DOPT"] * len(full_new)
 
         info = {
-            "n_candidates_generated": int(self.candidate_oversample * max(n_budget, 1)),
+            "n_candidates_generated": int(n_gen_for_reject_rate),
             "n_candidates_band_valid": int(len(prs_cand)),
             "n_selected": int(len(full_new)),
             "n_budget": int(n_budget),
-            "reject_rate": (1.0 - len(prs_cand) / max(1, self.candidate_oversample * max(n_budget, 1))),
+            "reject_rate": (1.0 - len(prs_cand) / max(1, n_gen_for_reject_rate)),
+            "oversample_boost": boost,
+            # sorted tuple of picked candidate rows (rounded, for a cheap
+            # exact-repeat check) -- run_script.py's stall detector compares
+            # this across consecutive passes to catch the "same handful of
+            # points re-picked every pass" pathology (Case 56, pre-fix: the
+            # same 34 points selected on 7 straight passes), which a bare
+            # n_selected>0 check alone would not catch.
+            "selected_signature": tuple(sorted(
+                tuple(np.round(row, 6)) for row in full_new)) if len(full_new) else (),
         }
         return prs_rows, full_rows, self.selection_mask_row(), row_class, info
