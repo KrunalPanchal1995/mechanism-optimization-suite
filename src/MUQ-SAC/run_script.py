@@ -18,7 +18,7 @@ from collections import OrderedDict
 from scipy.linalg import block_diag
 from scipy import optimize as spopt
 mpl.rc('figure', max_open_warning = 0)
-import os, sys, re, threading, subprocess, time, traceback, shutil
+import os, sys, re, threading, subprocess, time, traceback, shutil, glob
 from sklearn.model_selection import train_test_split
 sys.path.append('/parallel_yaml_writer.so')
 from scipy.interpolate import Akima1DInterpolator
@@ -156,6 +156,26 @@ design = "Design_of_PRS"
 countRxn = "total_reactions"
 fT = "fileType"
 add = "addendum"
+
+# GSA reaction prefilter (opt-in, default OFF -- merged from
+# FINALIZED_MECH_OPT_SUITE). No-op unless target.opt has a truthy
+# `GSA_Prefilter` block (and that block isn't itself `enabled: false` --
+# see rmip.simulation.gsa_reaction_prefilter.apply_gsa_prefilter). The
+# `rmip` import is lazy (only inside the enabled branch) so the cost of
+# that import is paid only when a target.opt actually opts in.
+def _maybe_apply_gsa_prefilter(optInputs, unsrt_data):
+	gsa_cfg = optInputs.get("GSA_Prefilter") or {}
+	if not gsa_cfg:
+		return unsrt_data
+	# Only reached when a target.opt actually opts in -- see note above.
+	import sys as _sys
+	from pathlib import Path as _Path
+	_src_root = str(_Path(__file__).resolve().parent.parent)
+	if _src_root not in _sys.path:
+		_sys.path.insert(0, _src_root)
+	from rmip.simulation.gsa_reaction_prefilter import apply_gsa_prefilter
+	return apply_gsa_prefilter(unsrt_data, gsa_cfg)
+
 
 ################################################
 # Open the input file and check for arguements #
@@ -465,6 +485,9 @@ else:
 	with open('unsrt.pkl', 'rb') as file_:
 		unsrt_data = pickle.load(file_)
 	item("Uncertainty analysis already finished (loaded from unsrt.pkl)", "ok")
+
+# GSA reaction prefilter (opt-in, default OFF -- see _maybe_apply_gsa_prefilter)
+unsrt_data = _maybe_apply_gsa_prefilter(optInputs, unsrt_data)
 
 ###########################################################
 #### Printing the reactions and their index in the file ###
@@ -950,7 +973,20 @@ else:
 	
 	SSM = simulator.SM(target_list,optInputs,unsrt_data,design_matrix,tag="Full")
 
-	if "Perturbed_Mech" not in os.listdir():
+	# Bug 4 fix (merged from FINALIZED_MECH_OPT_SUITE): directory existing is
+	# not proof all YAML files were written -- files are generated in chunks
+	# of 500, so an interrupted run can leave a directory with only some
+	# mechanism_*.yaml files. Verify file count against design_matrix before
+	# trusting the restart path; otherwise wipe and regenerate.
+	_perturbed_mech_exists = "Perturbed_Mech" in os.listdir()
+	_existing_mech_count = len(glob.glob(os.path.join("Perturbed_Mech", "mechanism_*.yaml"))) if _perturbed_mech_exists else 0
+	if _perturbed_mech_exists and _existing_mech_count != len(design_matrix):
+		print(f"\nIncomplete Perturbed_Mech directory found "
+		      f"({_existing_mech_count}/{len(design_matrix)} files) -- regenerating\n")
+		shutil.rmtree("Perturbed_Mech")
+		_perturbed_mech_exists = False
+
+	if not _perturbed_mech_exists:
 		os.mkdir("Perturbed_Mech")
 		print("\nPerturbing the Mechanism files\n")
 		
@@ -1053,6 +1089,15 @@ for case in case_dir:
 	os.chdir("Data/Simulations")
 	if "sim_data_case-"+str(case)+".lst" in os.listdir():
 		lines = [ln for ln in open("sim_data_case-"+str(case)+".lst").readlines() if ln.strip()]
+	else:
+		lines = []
+	if lines:
+		# 2026-08-26 empty-lst gate: trust the cached sim_data_case-N.lst
+		# only when it has >=1 non-empty row. An EMPTY .lst left behind by
+		# a previous failed run used to short-circuit regeneration
+		# permanently (this branch never called
+		# generate_target_value_tables again), starving the case of
+		# responses. Now it falls through to the regenerate branch below.
 		idx = np.array([int(ln.split("\t")[0]) for ln in lines])
 		ETA = [float(ln.split("\t")[1]) for ln in lines]
 		temp_sim_opt[str(case)] = ETA

@@ -13,6 +13,11 @@ import sys
 import traceback
 from pathlib import Path
 
+# M22: the per-case solver interpreter was hardcoded to "python3.9". Keep that
+# as the default (the pipeline's Cantera/solver deps live there) but let it be
+# overridden without editing source, for machines where the interpreter differs.
+_PY = os.environ.get("MUQSAC_PYTHON", "python3.9")
+
 class RunCmd(threading.Thread):
 	def __init__(self, cmd, timeout):
 		threading.Thread.__init__(self)
@@ -77,6 +82,22 @@ def cleanup_files(workdir):
                     except Exception as e:
                         log.write(f"ERROR deleting {file}: {e}\n")
 
+def _run_script_needs_soln2ck(solver):
+	"""Whether the per-case `run` script make_input_file.py generated for this
+	solver contains a `soln2ck_2.py` CHEMKIN-round-trip line.
+
+	Must stay in lock-step with make_input_file.create_input_file's `s_run`
+	templates: only the CHEMKIN_PRO and zerork branches emit `soln2ck_2.py`;
+	the `solver: cantera` branch runs cantera_.py directly and never does, and
+	the FlameMaster/else branch uses soln2ck_FM.py (a different command). Step 5
+	of run_sim uses this so a cantera retry does not fail looking for a
+	soln2ck_2.py line that by design was never written -- the bug that used to
+	mask the real first-attempt failure (bug.md 2026-07-17).
+	"""
+	s = str(solver or "").strip()
+	return ("CHEMKIN_PRO" in s) or ("zerork" in s)
+
+
 def run_sim(index, case, input_, caseID, path, total):
 	eta = "N/A"
 	ETA = "N/A"
@@ -98,6 +119,23 @@ def run_sim(index, case, input_, caseID, path, total):
 			os.chdir("..")
 			workdir = os.getcwd()
 			loc_path = Path(loc)
+			# 2026-08-26 idempotency fix: a retry must never destroy a
+			# previously good result. If the expected output file already
+			# exists and is non-empty, reuse it (parse + return) instead of
+			# wiping the folder with rmtree and re-simulating -- so a failed
+			# re-run can no longer destroy a good tau.out.
+			_have_valid = os.path.isfile(path) and os.path.getsize(path) > 0
+			if _have_valid:
+				with open(path, "r") as f:
+					_existing = f.readlines()
+				if len(_existing) >= 2:
+					_line = _existing[1].split()
+					if len(_line) == 2:
+						eta = np.log(float(_line[1]) * 10)
+						ETA = float(_line[1])
+						string = path
+						return (index, eta, ETA, string, total)
+				print(f"[WARN] {path} exists but is malformed -- re-simulating.")
 			shutil.rmtree(loc_path, ignore_errors=True)
 
 			# Recreate the directory
@@ -146,12 +184,22 @@ def run_sim(index, case, input_, caseID, path, total):
 			mech_path = f"{Perturbed_location}/mechanism_{dir_name}.yaml"
 			#print(f"[INFO] Mechanism file path: {mech_path}")
 
+			# Bug 18 (AMMONIA_CAMPAIGN_2026-07-22.md, bug.md): this used to
+			# hardcode solver="CHEMKIN_PRO", bypassing create_input_file's own
+			# `solver=None -> target.add["solver"]` fallback (make_input_file.py
+			# :329-330) -- so every retry (this is the retry path; the first
+			# attempt at getNominalDirectoryList/etc. never passes a solver
+			# kwarg and correctly honors target.add["solver"]) silently
+			# switched to Chemkin-Pro even when the target explicitly declared
+			# `solver: cantera`, invoking ANSYS Chemkin-Pro and failing rc=41
+			# instead of genuinely retrying with the declared solver. The
+			# sibling Sensitivity_Analysis/data_management.py never passed a
+			# solver kwarg at all -- that's the correct reference behavior.
 			instring, a, b, c = MakeFile.create_input_file(
 				caseID,
 				input_,
 				case,
 				mech_file=mech_path,
-				solver="CHEMKIN_PRO"
 			)
 
 			if not instring:
@@ -194,36 +242,56 @@ def run_sim(index, case, input_, caseID, path, total):
 			env = os.environ.copy()
 			env["NUMEXPR_MAX_THREADS"] = "1"
 			
-			# Execute the soln2ck command from the run script
-			run_script = os.path.join(workdir, "run")   # replace "run" with the actual filename
+			# Execute the soln2ck command from the run script.
+			#
+			# The 'run' script's contents depend on which solver
+			# make_input_file.py used to build it: only the CHEMKIN_PRO and
+			# zerork templates contain a soln2ck_2.py CHEMKIN-round-trip line;
+			# the `solver: cantera` template runs cantera_.py directly and never
+			# writes a soln2ck_2.py line by design. Branch on the case's actual
+			# solver so a cantera retry does NOT fail looking for a soln2ck_2.py
+			# line that was never written -- that spurious
+			# RuntimeError("Could not find the soln2ck_2.py command ...") used
+			# to mask whatever really caused the first-attempt failure
+			# (bug.md 2026-07-17 soln2ck retry-mask defect).
+			solver = str(case.add.get("solver", "")).strip()
+			needs_soln2ck = _run_script_needs_soln2ck(solver)
 
-			#print(run_script)
-			with open(run_script, "r") as f:
-				for line in f:
-					if "soln2ck_2.py" in line:
-						soln2ck_cmd = line.strip()
-						break
-				else:
-					raise RuntimeError("Could not find the soln2ck_2.py command in the run script.")
+			if needs_soln2ck:
+				run_script = os.path.join(workdir, "run")
+				soln2ck_cmd = None
+				with open(run_script, "r") as f:
+					for line in f:
+						if "soln2ck_2.py" in line:
+							soln2ck_cmd = line.strip()
+							break
+				if soln2ck_cmd is None:
+					raise RuntimeError(
+						f"solver={solver!r} run script at {run_script} is missing "
+						"its expected soln2ck_2.py command."
+					)
 
-			#print(f"[INFO] Executing: {soln2ck_cmd}")
+				print(f"[INFO] Executing: {soln2ck_cmd}")
 
-			with open(log_file,"a") as f:
-			
-				subprocess.run(
-				    soln2ck_cmd,
-				    cwd=workdir,
-				    shell=True,
-				    check=True,
-				    env=env,
-				    stdout=f,
-				    stderr=subprocess.STDOUT,
-				)
+				with open(log_file,"a") as f:
+
+					subprocess.run(
+					    soln2ck_cmd,
+					    cwd=workdir,
+					    shell=True,
+					    check=True,
+					    env=env,
+					    stdout=f,
+					    stderr=subprocess.STDOUT,
+					)
+			else:
+				print(f"[INFO] solver={solver!r}: no soln2ck round-trip needed; "
+				      "running cantera directly.")
 			
 			
 			with open(solve_out, "w") as f:
 				result = subprocess.call(
-					["python3.9", run_cantera],
+					[_PY, run_cantera],
 					stdout=f,
 					stderr=subprocess.STDOUT,
 					env=env
@@ -231,8 +299,13 @@ def run_sim(index, case, input_, caseID, path, total):
 
 			#print(f"[INFO] Subprocess return code: {result}")
 
+			# M22: on a non-zero solver exit, do NOT fall through to Step 6 and
+			# parse tau.out -- that file may be absent or stale from a prior run,
+			# which would silently return a wrong ETA. Report N/A for this case.
 			if result != 0:
-				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}")
+				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}; "
+				      "skipping tau.out parse and reporting N/A for this case.")
+				return (index, eta, ETA, string, total)
 
 		except Exception as e:
 			print("[ERROR] Failed while executing cantera_1.py")
@@ -365,26 +438,6 @@ def extract_reaction_coeff(mech):
 	
 	return pre_exp_factor	
 		
-#extract uncertainity data for each reaction from user created uncertainty file. It should be a two column file with first column containing index and second one with uncertainties
-def extract_index_and_uncertainty(uns):
-	data = uns.readlines()
-	uncertainty_a = {}
-	uncertainty_n = {}
-	uncertainty_e = {}
-	index = []
-	for i in data:
-		if "#" in i:
-			i = i[:i.index('#')]
-		seg = i.split()
-		if len(seg) == 4:
-			uncertainty_a[seg[0]] = float(seg[1]);
-			uncertainty_n[seg[0]] = float(seg[2]);
-			uncertainty_e[seg[0]] = float(seg[3]);
-			index.append(seg[0])
-		else:
-			continue
-	return uncertainty_a, uncertainty_n, uncertainty_e, index
-
 def select_case_rows(locations, case):
 	"""
 	Select every simulation-output location belonging to `case`, and the
@@ -442,6 +495,26 @@ def select_case_rows(locations, case):
 	return rows
 
 
+#extract uncertainity data for each reaction from user created uncertainty file. It should be a two column file with first column containing index and second one with uncertainties
+def extract_index_and_uncertainty(uns):
+	data = uns.readlines()
+	uncertainty_a = {}
+	uncertainty_n = {}
+	uncertainty_e = {}
+	index = []
+	for i in data:
+		if "#" in i:
+			i = i[:i.index('#')]
+		seg = i.split()
+		if len(seg) == 4:
+			uncertainty_a[seg[0]] = float(seg[1]);
+			uncertainty_n[seg[0]] = float(seg[2]);
+			uncertainty_e[seg[0]] = float(seg[3]);
+			index.append(seg[0])
+		else:
+			continue
+	return uncertainty_a, uncertainty_n, uncertainty_e, index
+
 #Once the simulations are completed, this function goes through all the locations where FlameMaster simulation is performed and read the output value based on the type of target.
 #and print as a text file containg four columns. First three contain location information and last column contain  target value.
 def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
@@ -452,6 +525,10 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 			list_fuel.append(fuel[i])
 		fuel = list_fuel[0]
 
+	# BUG FIX: see select_case_rows()'s docstring -- the previous per-component
+	# `data_loc.append(...)` loop double-counted (and mis-indexed) every
+	# location under a nested case-N directory, i.e. every location produced
+	# by adaptive outlier retraining (Opt/Outlier_Resample/case-N/pass-P/case-N/...).
 	rows = select_case_rows(locations, case)
 	data_loc = [loc for loc, _ in rows]
 
@@ -574,33 +651,48 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 	failed_sim = ""
 	ETA = []
 	eta = []
-	re_run_sim_dict = {}
-	count = 0
-	for row_index, (i, _start) in enumerate(rows):
-		eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",row_index,input_=optInputs,caseID = case)
-		if "N/A" in str(eta_):
-			re_run_sim_dict[count] = file_path
-			count+=1
-	
-	re_run_loc = []
-	if re_run_sim_dict != {}:
-		for i in re_run_sim_dict:
-			re_run_loc.append(re_run_sim_dict[i])
-	
-	if len(re_run_loc)!=0:
+	# ── Bounded retry loop (2026-08-26 empty-folder fix) ──────────────────
+	# Previously this was a single one-shot retry with NO verification: a
+	# sample whose output/ folder was missing, EMPTY, or failed was re-run
+	# once, and if that attempt failed too the sample was silently dropped
+	# to failed_sim below. Now the detect -> re-run -> re-extract cycle
+	# repeats up to max_retries (3) times, and only then lands in
+	# failed_sim -- the "regenerate the required files when the folder is
+	# empty" behaviour: a transient failure (e.g. an Ansys license checkout
+	# hiccup under heavy parallelism) gets up to 3 fresh attempts before a
+	# case row is ever reported missing.
+	max_retries = 3
+	for attempt in range(1, max_retries + 1):
+		re_run_loc = []
+		for row_index, (i, _start) in enumerate(rows):
+			eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",row_index,input_=optInputs,caseID = case)
+			if "N/A" in str(eta_):
+				re_run_loc.append(file_path)
+
+		if len(re_run_loc) == 0:
+			break
 		print("#############______________________################\n")
-		print(f"\t\tFor Case-{case}:\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not returned expected results\n\t\tRe-running those simulations........\n\n\n")
+		print(f"\t\tFor Case-{case} (attempt {attempt}/{max_retries}):\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not return expected results\n\t\tRe-running those simulations........\n\n\n")
 		W = Worker(input_["Counts"]["parallel_threads"])
 		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(re_run_loc,t_list[case],optInputs,case)
 		del W
-		print(f"\t\tSimulations ended successfully\n\n#############______________________################\n")
-		#raise AssertionError("Stop!")
+		print(f"\t\tRe-run attempt {attempt} ended\n\n#############______________________################\n")
 	for row_index, (i, start) in enumerate(rows):
 		pathList = i.split("/")
 		file_loc = open("./eta_file_location.txt","+a")
 
 		#print(i)
 		eta_,ETA_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",row_index,input_=optInputs,caseID = case)
+		# H2/O2 extreme-condition sweep fix: extract_output() can legitimately
+		# return file_path=None for a case that still fails after the retry
+		# above (e.g. a genuinely non-physical/non-convergent condition at
+		# the deliberately extreme edges of a sweep, not a transient error).
+		# file_loc.write(file_path+"\n") then raised TypeError on the `+`,
+		# aborting post-processing for the WHOLE batch and losing every
+		# already-successful case's results. Write a placeholder instead so
+		# one bad condition can't take down hundreds of good ones.
+		if file_path is None:
+			file_path = "N/A (extract_output returned no file_path)"
 		if "N/A" in str(eta_):
 			#print(eta)
 			#print(file_path)
@@ -610,8 +702,8 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 			#print(eta)
 			failed_sim += "{}\t{}\n".format(folderName , eta_)
 			file_loc.close()
-			
-		else:	
+
+		else:
 			#print(eta)
 			#print(file_path)
 			file_loc.write(file_path+"\n")
@@ -650,11 +742,59 @@ def extract_direct_simulation_values(case,loc,target_list,fuel):
 
 
 #function extracts output from the given text file based on the called location where it currently is. Called in the previous function.		
+def _log_missing_solver_output(path, filename):
+	"""(Round-2 audit fix, B8 -- WORKBENCH_AUDIT_2026-08-10.md) Print a
+	diagnostic naming the case directory and, if present, the tail of the
+	adjacent solver log (the `solve` file each per-case run/ directory
+	captures its stdout+stderr into, one level above the `output/`
+	directory extract_output is passed) -- instead of the bare
+	FileNotFoundError this used to be, which gave zero indication of
+	*why* the run failed (solver non-convergence vs. a crashed
+	generated script vs. a missing binary all look identical as a plain
+	"file not found"). Confirmed real cause in a live FFCM1 campaign:
+	an unquoted fuel name in the generated cantera_.py
+	(make_input_file2_0.py's `set_equivalence_ratio` template) raised
+	`NameError: name 'H2' is not defined` before any simulation ran --
+	invisible without the log tail this prints.
+	"""
+	case_dir = os.path.dirname(os.path.dirname(os.path.join(path, "")))
+	log_path = os.path.join(case_dir, "solve")
+	print(f"[extract_output] WARNING: {filename} missing in {path!r} "
+	      f"(case dir: {case_dir!r}) -- treating this case as failed "
+	      f"(eta=N/A) rather than aborting the run.")
+	if os.path.isfile(log_path):
+		try:
+			tail = open(log_path).readlines()[-10:]
+			print(f"[extract_output]   tail of {log_path}:")
+			for line in tail:
+				print(f"[extract_output]     {line.rstrip()}")
+		except OSError as exc:
+			print(f"[extract_output]   (could not read {log_path}: {exc})")
+
+
 def extract_output(case,fuel,path,index,input_=None,caseID=None):
 	eta = string = ETA = None
-	#print(case.target)
-	if not os.path.exists(path):
-		os.makedirs(path,exist_ok=True)
+	# 2026-08-26 empty-folder fix. A missing output/ folder used to be
+	# silently CREATED here (os.makedirs), turning "never simulated" into
+	# an empty folder that the resume machinery (simulation_manager2_0.
+	# getDirectoryList) then mistook for "simulation complete". Now:
+	#  - folder missing -> N/A (explicit); run_sim (re)creates it;
+	#  - folder empty   -> N/A (explicit): the terminal state of a failed
+	#    simulation (license failure before tau.out was written, an
+	#    interrupted ./run, or the run script's find -delete cleanup).
+	# The bounded retry loop in generate_target_value_tables re-runs both,
+	# so neither can silently pass a case row as "done" any more.
+	_outfile_by_target = {"RCM": "RCM.out", "JSR": "jsr.out", "Tig": "tau.out",
+	                      "Fls": "Su.out", "PFR": "pfr.out"}
+	_outname = _outfile_by_target.get(case.target.strip(), "tau.out")
+	if not os.path.isdir(path):
+		eta = f"N/A (output folder missing: {path})"
+		ETA = eta
+		return eta, ETA, path + _outname
+	if not os.listdir(path):
+		eta = f"N/A (output folder empty: {path})"
+		ETA = eta
+		return eta, ETA, path + _outname
 	#print(path)
 	if case.target.strip() == "RCM":
 		if "cantera" in case.add["solver"]:
@@ -715,12 +855,32 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 				else:
 					eta = np.log(100*10000)
 					ETA = 100
-				
+
 			else:
 				eta = "N/A"
 				ETA = eta
 				string = path+"jsr.out"
-	
+
+		elif "zerork" in case.add["solver"]:
+			# make_input_file.py's zerork JSR branch writes jsr.out in the
+			# exact same "#T(K)\tmole fraction\n{T}\t{MF}" shape the cantera
+			# branch above does (see the Tig zerork branch's comment for why
+			# this explicit branch matters -- without it "zerork" would fall
+			# through with no branch at all here, same silent-fallback risk).
+			string = path + "jsr.out"
+			if "jsr.out" in os.listdir(path):
+				out_file = open(path+"jsr.out",'r').readlines()
+				line = out_file[1].split()
+				if len(line) == 2:
+					eta = np.log(float(line[1])*10)
+					ETA = float(line[1])	#mole fraction
+				else:
+					eta = np.log(100*10000)
+					ETA = 100
+			else:
+				eta = "N/A"
+				ETA = eta
+
 	elif case.target.strip() == "Tig":
 		string = path +"tau.out"
 		if "cantera" in case.add["solver"]:
@@ -766,133 +926,158 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 				eta = "N/A"
 				ETA = eta
 				string = path+"tau.out"
+
+		elif "zerork" in case.add["solver"]:
+			# zerork_bridge.py / make_input_file.py's zerork Tig branch
+			# writes tau.out in the exact same "#T(K)\ttau(us)\n{T}\t{tau}"
+			# shape the cantera branch above does -- without this explicit
+			# branch, "zerork" falls through to the bare `else:` below
+			# (labeled/tuned for FlameMaster's different tau.out layout:
+			# 3 tab-fields on line 0, not 2 on line 1), which would
+			# silently read the wrong line and fall back to a bogus
+			# eta=np.log(100*10000) default instead of erroring.
+			string = path + "tau.out"
+			if "tau.out" in os.listdir(path):
+				out_file = open(path+"tau.out",'r').readlines()
+				line = out_file[1].split()
+				if len(line) == 2:
+					eta = np.log(float(line[1])*10)
+					ETA = float(line[1])	#us/micro seconds
+				else:
+					eta = np.log(100*10000)
+					ETA = 100*10000
+			else:
+				eta = "N/A"
+				ETA = eta
 		
 		
 		else:
 			#print("Tig is the target and FlameMaster is the solver")
-			
-			out_file = open(path+"tau.out",'r').readlines()
-			string = path +"tau.out"
-			line = out_file[0].split("	")
-			#print(line)
-			if len(line) == 3:
-				#eta = np.log(float(line[2])*1000)
-				#print(float(line[1]))
-				eta = np.log(float(line[1])*1000*10)
-				ETA = float(line[1])*1000#us /micro seconds
+			string = path + "tau.out"
+			# (Round-2 audit fix, B8) This was the only branch in this
+			# function that opened its output file without first checking
+			# `"tau.out" in os.listdir(path)` the way every sibling branch
+			# above does -- a missing file (solver crash/non-convergence)
+			# raised a bare, undiagnosed FileNotFoundError that aborted the
+			# entire multi-hour optimization run over one bad case, instead
+			# of degrading to the same "N/A" sentinel every other branch
+			# already uses.
+			if "tau.out" in os.listdir(path):
+				out_file = open(path+"tau.out",'r').readlines()
+				line = out_file[0].split("	")
+				#print(line)
+				if len(line) == 3:
+					#eta = np.log(float(line[2])*1000)
+					#print(float(line[1]))
+					eta = np.log(float(line[1])*1000*10)
+					ETA = float(line[1])*1000#us /micro seconds
+				else:
+					eta = np.log(100*10000)
+					ETA = 100*10000
 			else:
-				eta = np.log(100*10000)
-				ETA = 100*10000
+				_log_missing_solver_output(path, "tau.out")
+				eta = "N/A"
+				ETA = eta
 			#return eta,string
 	elif case.target.strip() == "Fls":
 		if "cantera" in case.add["solver"]:
-			out_file = open(path+"Su.out",'r').readlines()
-			string = path +"Su.out"
-			line = out_file[1].split()
-			#print(line)
-			if len(line) == 2:
-				eta = np.log(float(line[1]))
-				ETA = float(line[1])	#cm/seconds
+			string = path + "Su.out"
+			# (Round-2 audit fix, B8) Same missing guard as the Tig branch
+			# above -- see that comment. This is the exact site that
+			# crashed on the real FFCM1 campaign's SA/nominal/case-7:
+			# make_input_file2_0.py's generated cantera_.py had an
+			# unquoted fuel name (NameError before any simulation ran),
+			# so Su.out was never written, and this open() raised a bare
+			# FileNotFoundError with no indication of the real cause.
+			if "Su.out" in os.listdir(path):
+				out_file = open(path+"Su.out",'r').readlines()
+				line = out_file[1].split()
+				#print(line)
+				if len(line) == 2:
+					eta = np.log(float(line[1]))
+					ETA = float(line[1])	#cm/seconds
+				else:
+					eta = np.log(200)
+					ETA = 200
 			else:
-				eta = np.log(200)
-				ETA = 200
+				_log_missing_solver_output(path, "Su.out")
+				eta = "N/A"
+				ETA = eta
 		else:
-			#start = os.getcwd()
-			#print(path)
-			os.chdir(path)
-			start = path
-			outfile =""
-			flist = os.listdir()
-			for i in flist:
-				if fuel in i:
-					if i.endswith("{}".format(int(case.temperature))):
-						outfile =open(i,'r').readlines()
-						string = path+i
-						for line in outfile:
-							if "burningVelocity" in line:
-								#print(line.split()[2])
-								#eta = np.log(float(line.split()[2]))
-								eta = float(line.split()[2])
-								#os.chdir("..")
-								#return eta,string
-					else:
-						if i.endswith("noC"):
-							#os.remove(i)
-							continue			
-			if outfile == "":
-				#print("{sim_index} in {case_index} is not converged. Changing the start profile and re-calculating the flame speed as outfile is {outfile}".format(sim_index = index, case_index = case.case_index,outfile = outfile))
-				#print("\n Current location is {}".format(os.getcwd()))
-				start_profiles = open("../../eta_file_location.txt","r").readlines()			
-				count = 1
+			# Task 5B: bounded, restart-safe FlameMaster extraction.
+			# CWD is restored via try/finally regardless of any exception.
+			saved_cwd = os.getcwd()
+			try:
 				os.chdir(path)
-				os.chdir("..")
-				start = os.getcwd() 
-				while outfile == "":
-					print(start_profiles)
-					for start_profile in start_profiles:
-						os.chdir(start)
-						print("{}: Using profile location of {}".format(count,start_profile))
-						print(os.getcwd())
-						#print(os.listdir())
-						FM_input = open("FlameMaster.input","r").readlines()
-						temp = open("New.txt","+a")
-						for line in FM_input:
-							if "StartProfilesFile" in line.split():
-								string = "StartProfilesFile is "+start_profile
-								temp.write(line.replace(line,string))
-							else:
-								temp.write(line)
-						temp.close()
-						print("\n \t Creating FlameMaster input file with new start profile \n")
-						#print(os.listdir())
-						os.remove("FlameMaster.input")
-						os.rename("New.txt","FlameMaster.input")
-						#run FlameMaster locally
-						#print(os.listdir())
-						kill = int(180)
-						print("\n \t Running the FlameMaster locally...\n \t Kill Time out of {} sec".format(kill))
-						RunCmd(["./run"],kill).Run()
-						 
-						count +=1
-						os.chdir("output")
-						flist = os.listdir()
-						for i in flist:
-							if fuel in i:
-								if i.endswith("{}".format(int(case.temperature))):
-									outfile =open(i,'r').readlines()
-									string = path+i
-									for line in outfile:
-										if "burningVelocity" in line:
-											#print(line.split()[2])
-											#eta = np.log(float(line.split()[2]))
-											eta = float(line.split()[2])
-											string = path+i
-											os.chdir(start)
-											#return eta,string	
-								else:
-									if i.endswith("noC"):
-										#os.remove(i)
-										print("Case not converged yet!!!")
-										continue
-									else:
-										continue	
-				'''
-				for i in flist: 
-					if i.endswith("noC"):
-						outfile =open(i,'r').readlines()
-						for line in outfile:
+				outfile = ""
+				eta = float("nan")
+
+				# First pass: output file may already exist (restart-safe skip)
+				for fname in os.listdir():
+					if fuel in fname and fname.endswith("{}".format(int(case.temperature))):
+						lines = open(fname, 'r').readlines()
+						for line in lines:
 							if "burningVelocity" in line:
-								print(line.split()[2])
-								eta = line.split()[2]
-								os.chdir(start)
-								return eta
-					'''
-		
-			#exit() 
-		#for i in outfile:
-		#	if "burningVelocity" in i:
-		#		eta = i.split()[2]
-		#return eta,string
+								eta = float(line.split()[2])
+								string = path + fname
+								outfile = fname
+								break
+					if outfile:
+						break
+
+				# Second pass: try alternate start profiles (bounded — at most N attempts)
+				if not outfile:
+					case_dir = os.path.normpath(os.path.join(path, ".."))
+					eta_file  = os.path.normpath(os.path.join(path, "..", "..", "eta_file_location.txt"))
+					try:
+						with open(eta_file, "r") as fh:
+							start_profiles = [l.strip() for l in fh if l.strip()]
+					except FileNotFoundError:
+						start_profiles = []
+
+					for count, start_profile in enumerate(start_profiles, 1):
+						print("{}: Using profile {}".format(count, start_profile))
+						os.chdir(case_dir)
+
+						fm_path  = os.path.join(case_dir, "FlameMaster.input")
+						tmp_path = os.path.join(case_dir, "_fm_tmp.input")
+						with open(fm_path, "r") as fh:
+							fm_lines = fh.readlines()
+						with open(tmp_path, "w") as fh:
+							for line in fm_lines:
+								if "StartProfilesFile" in line.split():
+									fh.write("StartProfilesFile is {}\n".format(start_profile))
+								else:
+									fh.write(line)
+						os.replace(tmp_path, fm_path)  # atomic rename
+
+						print("\t Running FlameMaster (timeout 180 s)...")
+						RunCmd(["./run"], 180).Run()
+
+						out_dir = os.path.join(case_dir, "output")
+						if not os.path.isdir(out_dir):
+							continue
+						for fname in os.listdir(out_dir):
+							if fuel in fname and fname.endswith("{}".format(int(case.temperature))):
+								lines = open(os.path.join(out_dir, fname), 'r').readlines()
+								for line in lines:
+									if "burningVelocity" in line:
+										eta = float(line.split()[2])
+										string = os.path.join(out_dir, fname)
+										outfile = fname
+										break
+							if outfile:
+								break
+						if outfile:
+							print("Converged with profile: {}".format(start_profile))
+							break
+
+					if not outfile:
+						uid = getattr(case, "uniqueID", path)
+						print("WARNING: Fls case {} did not converge after {} profiles.".format(
+							uid, len(start_profiles)))
+			finally:
+				os.chdir(saved_cwd)
 	elif case.target.strip() == "Flf":
 		if "cantera" in case.add["solver"]:
 			out_file = open(path+"flf.out",'r').readlines()
@@ -962,7 +1147,40 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 					eta = float(line[1]) #ms
 				else:
 					eta = 100
-#			
+#
+
+	elif case.target.strip() == "PFR":
+		# H2/O2 extreme-condition sweep fix (H2/review/flag.md §1): this
+		# function previously had no branch at all for "PFR", so eta/ETA
+		# stayed None for every PFR case and no Nominal value was ever
+		# extracted into the pipeline's Plot/Dataset/PFR CSVs -- the study
+		# worked around this by reading each case's output/pfr_full.json
+		# directly. This branch closes that gap for the cantera solver
+		# (make_input_file.py's PFR/cantera template writes output/pfr.out
+		# in the exact same "#header\n{T}\t{value}" shape as Tig's
+		# tau.out), using the same eta=ln(10*ETA) encoding Tig uses so
+		# sim_runner.py's shared exp(eta)/10 cache decode recovers the
+		# correct exit mole fraction. CHEMKIN_PRO/FlameMaster PFR output
+		# formats were not inspected/verified in this pass -- left as
+		# "N/A" rather than guessed.
+		if "cantera" in case.add["solver"]:
+			string = path + "pfr.out"
+			if "pfr.out" in os.listdir(path):
+				out_file = open(path+"pfr.out",'r').readlines()
+				line = out_file[1].split()
+				if len(line) == 2:
+					eta = np.log(float(line[1])*10)
+					ETA = float(line[1])	# exit mole fraction of case.add["species"]
+				else:
+					eta = "N/A"
+					ETA = eta
+			else:
+				_log_missing_solver_output(path, "pfr.out")
+				eta = "N/A"
+				ETA = eta
+		else:
+			eta = "N/A"
+			ETA = eta
 	return eta,ETA,string	
 #Generate an optimized mechanism based on the optimized vector. 
 def generate_optimized_mechanism(mech_file_location, reaction_index, unsrt_data, opt_x):

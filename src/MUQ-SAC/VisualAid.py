@@ -1,8 +1,27 @@
+import ast
+import sys
 import numpy as np
 import pandas as pd
 import os
 import re
 import matplotlib.pyplot as plt
+
+# ── mso_io access (Target Workbench, below) ──────────────────────────────
+# MUQ-SAC is a standalone pipeline with its own sys.path conventions (its
+# siblings are imported by bare name, e.g. `import Uncertainty`), not part
+# of the rmip/mso_io package tree. Append (never insert at 0 -- this repo's
+# convention, see feedback_env_isolation) src/ so `mso_io.target_add_io`
+# resolves without disturbing MUQ-SAC's own bare-name imports.
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_src_dir = os.path.normpath(os.path.join(_this_dir, ".."))
+if _src_dir not in sys.path:
+    sys.path.append(_src_dir)
+try:
+    from mso_io.target_add_io import preview_targets as _preview_targets
+    _HAS_MSO_IO = True
+except ImportError:
+    _HAS_MSO_IO = False
+
 
 class TPhiPlotter:
     """3D plotting utilities for T–P–phi space."""
@@ -1809,3 +1828,2228 @@ class ActiveParameterSVDPlotter:
         fig.savefig(outpath.replace(".pdf", ".png"), bbox_inches="tight", dpi=150)
         plt.close(fig)
         return outpath
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MERGED from FINALIZED_MECH_OPT_SUITE (2026-08-26 union merge): target-set
+# workbench (TargetRow/TargetSet/TargetSetPlotter/TargetFinding/TargetChecker/
+# DummyPointGenerator/TargetPruner/NominalParityAnalyzer), H2SweepPlotter,
+# 3D-cube plotting helpers, and the postprocess() CLI. None of these names
+# collide with this file's own classes (verified at merge time).
+# ═══════════════════════════════════════════════════════════════════════════
+def _parse_composition(text):
+    """Parse the .target file's 'x-><id_map> = <frac_map>' (multi-species)
+    or 'x-><species> = <frac>' (single-species) composition syntax into a
+    plain {species: mole_fraction} dict. Mirrors
+    mso_io.target_add_io._fuel_multi_repr/_bath_gas_repr's encoding, in
+    reverse. Returns {} for missing/unparseable text rather than raising --
+    this is a display/check helper, not the authoritative parser (that's
+    combustion_target_class.combustion_target.__init__)."""
+    if not text or "x->" not in text or "=" not in text:
+        return {}
+    body = text.split("x->", 1)[1]
+    id_part, _, frac_part = body.partition("=")
+    id_part, frac_part = id_part.strip(), frac_part.strip()
+    try:
+        if id_part.startswith("{"):
+            id_map = ast.literal_eval(id_part)
+            frac_map = ast.literal_eval(frac_part) if frac_part.startswith("{") else {}
+            return {sp: float(frac_map.get(k, 0.0)) for k, sp in id_map.items()}
+        else:
+            return {id_part: float(frac_part)}
+    except (ValueError, SyntaxError, TypeError):
+        return {}
+
+
+class TargetRow:
+    """One parsed .target line, extending mso_io.target_add_io.TargetPreview
+    (display-only: dataset_id/target_type/T/P/phi/solver/runnable) with the
+    composition + observation fields TargetChecker/TargetSetPlotter need.
+    Built from a TargetPreview's own `.raw` line text -- never re-reads the
+    file, and never the authoritative parser (see combustion_target_class
+    for that; TargetChecker.check_parses runs it as the write-time gate)."""
+
+    def __init__(self, preview):
+        self.line_no = preview.line_no
+        self.raw = preview.raw
+        self.dataset_id = preview.dataset_id
+        self.target_type = preview.target_type
+        self.simulation = preview.simulation
+        self.temperature_K = preview.temperature_K
+        self.pressure_atm = preview.pressure_atm
+        self.phi_raw = preview.phi
+        self.solver = preview.solver
+        self.runnable = preview.runnable
+        self.runnable_reason = preview.runnable_reason
+
+        parts = self.raw.split("|")
+
+        def field(key):
+            for p in parts:
+                kv = p.split("--", 1)
+                if len(kv) == 2 and kv[0].strip() == key:
+                    return kv[1].strip()
+            return None
+
+        self.fuel = _parse_composition(field("Fuel"))
+        self.oxidizer = _parse_composition(field("Oxidizer"))
+        self.bath_gas = _parse_composition(field("Bath_gas"))
+
+        def to_float(text):
+            try:
+                return float(text)
+            except (TypeError, ValueError):
+                return None
+
+        self.observed = to_float(field("observed"))
+        self.deviation = to_float(field("deviation"))
+        weight_text = field("data_weight")
+        self.data_weight = to_float(weight_text)
+        self.obs_unit = field("obs_unit")
+
+        units_text = field("units")
+        try:
+            self.units = ast.literal_eval(units_text) if units_text else {}
+        except (ValueError, SyntaxError):
+            self.units = {}
+
+        self.is_dummy = False
+        self.dummy_source = ""
+
+    def composition_sum(self):
+        """Total mole fraction across fuel + oxidizer + bath gas -- should
+        sum to 1.0 for a physically valid mixture."""
+        return (sum(self.fuel.values()) + sum(self.oxidizer.values())
+                + sum(self.bath_gas.values()))
+
+    def as_dict(self):
+        return {
+            "line_no": self.line_no, "dataset_id": self.dataset_id,
+            "target_type": self.target_type, "simulation": self.simulation,
+            "temperature_K": self.temperature_K, "pressure_atm": self.pressure_atm,
+            "phi_raw": self.phi_raw, "solver": self.solver, "runnable": self.runnable,
+            "observed": self.observed, "deviation": self.deviation,
+            "data_weight": self.data_weight, "obs_unit": self.obs_unit,
+            "composition_sum": self.composition_sum(),
+            "is_dummy": self.is_dummy, "dummy_source": self.dummy_source,
+        }
+
+
+class TargetSet:
+    """Load a .target (+ paired .add) file into TargetRow objects. Purely
+    read-only -- the source files are never modified; curation output goes
+    through write_curated_set() in mso_io.target_add_io, to a new version."""
+
+    def __init__(self, target_path, add_path=None):
+        if not _HAS_MSO_IO:
+            raise ImportError(
+                "mso_io.target_add_io is required for TargetSet -- src/ "
+                "was not importable from this interpreter.")
+        self.target_path = target_path
+        self.add_path = add_path
+        self.rows = [TargetRow(p) for p in _preview_targets(target_path, add_path)]
+
+    def to_dataframe(self):
+        return pd.DataFrame([r.as_dict() for r in self.rows])
+
+    def by_line(self, line_no):
+        for r in self.rows:
+            if r.line_no == line_no:
+                return r
+        raise KeyError(f"no row with line_no={line_no}")
+
+    def dataset_ids(self):
+        seen = []
+        for r in self.rows:
+            if r.dataset_id not in seen:
+                seen.append(r.dataset_id)
+        return seen
+
+    def rows_for(self, dataset_id):
+        return [r for r in self.rows if r.dataset_id == dataset_id]
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __iter__(self):
+        return iter(self.rows)
+
+
+class TargetSetPlotter:
+    """Plots over a TargetSet -- T/P/phi scatter, ln(tau) vs 1000/T per
+    dataset (dummy/dropped points visually distinct), observed-vs-deviation,
+    per-dataset condition coverage. All methods return the saved path (or
+    None if save_path wasn't given) and always plt.close() their figure."""
+
+    def __init__(self, target_set):
+        self.ts = target_set
+
+    def plot_t_p_phi(self, save_path=None, show=False):
+        df = self.ts.to_dataframe()
+        fig = plt.figure(figsize=(7, 6))
+        ax = fig.add_subplot(111, projection="3d")
+        ids = df["dataset_id"].astype("category")
+        sc = ax.scatter(df["temperature_K"], df["pressure_atm"], ids.cat.codes,
+                         c=ids.cat.codes, cmap="tab20")
+        ax.set_xlabel("Temperature [K]")
+        ax.set_ylabel("Pressure [atm]")
+        ax.set_zlabel("Dataset")
+        ax.set_zticks(range(len(ids.cat.categories)))
+        ax.set_zticklabels(ids.cat.categories, fontsize=6)
+        ax.set_title("T-P-dataset space")
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return save_path
+
+    def plot_lntau_vs_invT(self, dataset_id, dummy_line_nos=(), dropped_line_nos=(),
+                            save_path=None, show=False):
+        rows = [r for r in self.ts.rows_for(dataset_id)
+                if r.temperature_K and r.observed]
+        if not rows:
+            raise ValueError(f"no plottable Tig rows for dataset_id={dataset_id!r}")
+        dummy_set = set(dummy_line_nos)
+        dropped_set = set(dropped_line_nos)
+        fig, ax = plt.subplots(figsize=(7, 5))
+        for r in sorted(rows, key=lambda r: r.temperature_K):
+            invT = 1000.0 / r.temperature_K
+            lntau = np.log(r.observed)
+            if r.line_no in dropped_set:
+                ax.scatter(invT, lntau, marker="x", color="#999999", s=40, zorder=2)
+            elif r.line_no in dummy_set or r.is_dummy:
+                ax.scatter(invT, lntau, marker="^", color="#d7301f", s=30, zorder=3)
+            else:
+                ax.scatter(invT, lntau, marker="o", color="#2c7fb8", s=30, zorder=4)
+        ax.set_xlabel("1000/T [1/K]")
+        ax.set_ylabel("ln(observed)")
+        ax.set_title(f"{dataset_id}: ln(tau) vs 1000/T")
+        handles = [
+            plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#2c7fb8", label="original", markersize=8),
+            plt.Line2D([0], [0], marker="^", color="w", markerfacecolor="#d7301f", label="dummy", markersize=8),
+            plt.Line2D([0], [0], marker="x", color="#999999", label="dropped", markersize=8),
+        ]
+        ax.legend(handles=handles, fontsize=8)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return save_path
+
+    def plot_observed_vs_deviation(self, save_path=None, show=False):
+        df = self.ts.to_dataframe().dropna(subset=["observed", "deviation"])
+        fig, ax = plt.subplots(figsize=(7, 5))
+        ax.scatter(df["observed"], df["deviation"], s=20, alpha=0.7)
+        ax.set_xlabel("observed")
+        ax.set_ylabel("deviation")
+        ax.set_title("Observed vs. deviation")
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return save_path
+
+    def plot_condition_coverage(self, save_path=None, show=False):
+        df = self.ts.to_dataframe()
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for ds, g in df.groupby("dataset_id"):
+            ax.scatter(g["temperature_K"], g["pressure_atm"], label=ds, s=25, alpha=0.75)
+        ax.set_xlabel("Temperature [K]")
+        ax.set_ylabel("Pressure [atm]")
+        ax.set_title("Per-dataset condition coverage")
+        ax.legend(fontsize=7, ncol=2)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return save_path
+
+
+class TargetFinding:
+    """One TargetChecker finding. severity is 'error' | 'warning' | 'info'."""
+
+    __slots__ = ("severity", "line_no", "dataset_id", "check", "message", "suggested_fix")
+
+    def __init__(self, severity, line_no, dataset_id, check, message, suggested_fix=None):
+        self.severity = severity
+        self.line_no = line_no
+        self.dataset_id = dataset_id
+        self.check = check
+        self.message = message
+        self.suggested_fix = suggested_fix
+
+    def as_dict(self):
+        return {"severity": self.severity, "line_no": self.line_no,
+                "dataset_id": self.dataset_id, "check": self.check,
+                "message": self.message, "suggested_fix": self.suggested_fix}
+
+    def __repr__(self):
+        loc = f"line {self.line_no}" if self.line_no else self.dataset_id
+        return f"[{self.severity}] {loc}: {self.message}"
+
+
+class TargetChecker:
+    """Runs a battery of sanity checks over a TargetSet. Nothing here is
+    written until every 'error'-severity finding from check_parses (the
+    authoritative gate) is resolved -- see write_curated_set's own gate."""
+
+    def __init__(self, target_set, add_data=None):
+        self.ts = target_set
+        self.add_data = add_data or {}
+
+    def run_all(self, composition_tol=0.02, deviation_ratio_tol=5.0):
+        findings = []
+        findings += self.check_parses()
+        findings += self.check_composition_sums(tol=composition_tol)
+        findings += self.check_units()
+        findings += self.check_deviation_outliers(ratio_tol=deviation_ratio_tol)
+        findings += self.check_duplicate_conditions()
+        findings += self.check_ntc_crossing()
+        return findings
+
+    def check_parses(self):
+        """Authoritative gate: instantiate combustion_target_class on every
+        row and surface its exception as an 'error' finding. Also reports,
+        as 'info', the phi combustion_target actually COMPUTES from
+        composition for any row whose raw Phi field wasn't 'N/A' and
+        disagrees with it -- __init__ always overwrites self.phi from
+        fuel/oxidizer composition, so the raw text field is cosmetic."""
+        import combustion_target_class
+        from copy import deepcopy
+        findings = []
+        for r in self.ts.rows:
+            try:
+                case = combustion_target_class.combustion_target(
+                    r.raw, deepcopy(self.add_data), r.line_no - 1)
+            except Exception as exc:
+                findings.append(TargetFinding(
+                    "error", r.line_no, r.dataset_id, "parses",
+                    f"combustion_target failed to parse this row: "
+                    f"{type(exc).__name__}: {exc}"))
+                continue
+            raw_phi = (r.phi_raw or "").strip()
+            if raw_phi and raw_phi != "N/A" and case.phi is not None:
+                try:
+                    if abs(float(raw_phi) - float(case.phi)) > 1e-3:
+                        findings.append(TargetFinding(
+                            "info", r.line_no, r.dataset_id, "phi_backfill",
+                            f"stated Phi={raw_phi} but composition computes "
+                            f"phi={case.phi:.4g} (the pipeline always uses "
+                            f"the computed value)",
+                            suggested_fix=f"Phi -- {case.phi:.6g}"))
+                except ValueError:
+                    pass
+        return findings
+
+    def check_composition_sums(self, tol=0.02):
+        findings = []
+        for r in self.ts.rows:
+            total = r.composition_sum()
+            if total <= 0:
+                continue  # no composition parsed at all -- check_parses covers it
+            if abs(total - 1.0) > tol:
+                findings.append(TargetFinding(
+                    "warning", r.line_no, r.dataset_id, "composition_sum",
+                    f"fuel+oxidizer+bath mole fractions sum to {total:.4f}, "
+                    f"not 1.0 (tol={tol})"))
+        return findings
+
+    def check_units(self):
+        findings = []
+        for r in self.ts.rows:
+            if r.temperature_K is not None and not (150.0 <= r.temperature_K <= 4000.0):
+                findings.append(TargetFinding(
+                    "warning", r.line_no, r.dataset_id, "units",
+                    f"T={r.temperature_K} K is outside a physically plausible "
+                    f"combustion range [150, 4000] K"))
+            if r.pressure_atm is not None and not (0.0 < r.pressure_atm <= 1000.0):
+                findings.append(TargetFinding(
+                    "warning", r.line_no, r.dataset_id, "units",
+                    f"P={r.pressure_atm} atm is outside a physically plausible "
+                    f"range (0, 1000] atm"))
+        return findings
+
+    def check_deviation_outliers(self, ratio_tol=5.0):
+        findings = []
+        ratios = []
+        for r in self.ts.rows:
+            if r.deviation == 0:
+                findings.append(TargetFinding(
+                    "warning", r.line_no, r.dataset_id, "deviation",
+                    "deviation is exactly 0 -- this row will dominate "
+                    "any weighted-least-squares objective"))
+                continue
+            if r.deviation is None or r.observed in (None, 0):
+                continue
+            ratios.append((r, abs(r.deviation / r.observed)))
+        if not ratios:
+            return findings
+        vals = np.array([v for _, v in ratios])
+        median = float(np.median(vals))
+        if median <= 0:
+            return findings
+        for r, v in ratios:
+            if v > ratio_tol * median:
+                findings.append(TargetFinding(
+                    "warning", r.line_no, r.dataset_id, "deviation",
+                    f"deviation/observed ratio {v:.3g} is {v / median:.1f}x "
+                    f"the dataset's median ratio ({median:.3g})"))
+        return findings
+
+    def check_duplicate_conditions(self, t_round=1, p_round=2):
+        findings = []
+        seen = {}
+        for r in self.ts.rows:
+            if r.temperature_K is None or r.pressure_atm is None:
+                continue
+            key = (r.dataset_id, r.target_type,
+                   round(r.temperature_K, t_round), round(r.pressure_atm, p_round))
+            seen.setdefault(key, []).append(r)
+        for key, rows in seen.items():
+            if len(rows) > 1:
+                line_nos = [r.line_no for r in rows]
+                for r in rows:
+                    findings.append(TargetFinding(
+                        "warning", r.line_no, r.dataset_id, "duplicate_condition",
+                        f"{len(rows)} rows share (target_type, T, P)={key[1:]} "
+                        f"(lines {line_nos}) -- their data_weight is being "
+                        f"counted {len(rows)}x in the objective"))
+        return findings
+
+    def check_ntc_crossing(self, min_points=5):
+        """NTC-crossing datasets, via the same fuel-agnostic detector
+        DummyPointGenerator uses (Dummy_data_generation.detect_ntc_region).
+        Informational only -- an NTC crossing is a real physical feature,
+        not a defect, but is useful context before generating dummy points
+        or pruning (dropping points inside the NTC well can hide it)."""
+        import Dummy_data_generation as ddg
+        findings = []
+        for ds in self.ts.dataset_ids():
+            rows = [r for r in self.ts.rows_for(ds)
+                    if r.target_type == "Tig" and r.temperature_K and r.observed]
+            if len(rows) < min_points:
+                continue
+            T = np.array([r.temperature_K for r in rows])
+            tau = np.array([r.observed for r in rows])
+            try:
+                info = ddg.detect_ntc_region(T, tau)
+            except Exception:
+                continue
+            findings.append(TargetFinding(
+                "info", None, ds, "ntc_crossing",
+                f"dataset crosses an NTC region: {info['ntc_start']:.0f}K - "
+                f"{info['ntc_end']:.0f}K"))
+        return findings
+
+
+class DummyPointGenerator:
+    """NTC-aware dense dummy-point generation for ONE dataset, reusing
+    Dummy_data_generation.py's fuel-agnostic curve-fitting primitives
+    (fit_smoothed_logtau_spline, detect_ntc_region, build_equal_zone_grid) --
+    the same machinery DATASET/METHYL_BUTANOATE_2026/MB_LTC_DUMMY.target was
+    built with, generalized to any single dataset instead of that file's
+    hardcoded Ethyl/Butanoate pair."""
+
+    def __init__(self, target_set, dataset_id):
+        self.ts = target_set
+        self.dataset_id = dataset_id
+        rows = [r for r in target_set.rows_for(dataset_id)
+                if r.target_type == "Tig" and r.temperature_K and r.observed]
+        if len(rows) < 4:
+            raise ValueError(
+                f"dataset_id={dataset_id!r} has {len(rows)} usable Tig rows "
+                f"(need >= 4 to fit a spline)")
+        self.rows = sorted(rows, key=lambda r: r.temperature_K)
+        self.template_row = self.rows[0]
+
+    def generate(self, points_per_zone=15, smoothing_s=0.05,
+                 manual_ntc_bounds=None):
+        """Returns a DataFrame of new dummy rows (dataset_ID, Temperature_K,
+        observed, obs_unit, is_dummy, dummy_source, generated_zone) spanning
+        the dataset's own T range in three equal-count zones (before/inside/
+        after its NTC region). manual_ntc_bounds, if given, is (start_K,
+        end_K) overriding auto-detection (mirrors Dummy_data_generation.py's
+        USE_MANUAL_*_NTC_BOUNDS knobs)."""
+        import Dummy_data_generation as ddg
+
+        T = np.array([r.temperature_K for r in self.rows], dtype=float)
+        tau = np.array([r.observed for r in self.rows], dtype=float)
+
+        auto_info = ddg.detect_ntc_region(T, tau, smoothing_s=smoothing_s)
+        if manual_ntc_bounds is not None:
+            info = ddg.apply_manual_bounds(
+                auto_info, use_manual=True,
+                manual_start=manual_ntc_bounds[0], manual_end=manual_ntc_bounds[1],
+                label=self.dataset_id)
+        else:
+            info = ddg.apply_manual_bounds(auto_info, use_manual=False,
+                                            manual_start=0, manual_end=0,
+                                            label=self.dataset_id)
+
+        T_grid, zone_labels = ddg.build_equal_zone_grid(
+            info["t_min"], info["ntc_start"], info["ntc_end"], info["t_max"],
+            points_per_zone)
+        y_ln = ddg.evaluate_logtau_with_linear_boundary_extrapolation(
+            info["spline"], T_grid, T)
+        tau_dense = np.exp(y_ln)
+
+        out = pd.DataFrame({
+            "dataset_ID": f"dummy_{self.dataset_id}",
+            "Temperature_K": T_grid,
+            "observed": tau_dense,
+            "obs_unit": self.template_row.obs_unit or "us",
+            "is_dummy": True,
+            "dummy_source": (
+                f"DummyPointGenerator: smoothed ln(tau) spline of "
+                f"{self.dataset_id}; NTC bounds mode={info['boundary_mode']}"),
+            "generated_zone": zone_labels,
+        })
+        self._ntc_info = info
+        return out
+
+
+class TargetPruner:
+    """Which rows can be dropped without losing much: geometric coverage
+    (target_sampling.py's farthest-point diversity sampling over T/P/phi --
+    no extra data needed) and, optionally, information-content pruning via
+    a caller-supplied basis/sensitivity matrix (e.g. an existing
+    DesignMatrix.csv fit for this target set) using the same greedy
+    D-optimal det(Gram) scoring AdaptiveResampler.DOptimalResampler uses
+    for augmentation, run here in reverse (backward elimination)."""
+
+    def __init__(self, target_set):
+        self.ts = target_set
+
+    def coverage_prune(self, n_drop, seed=0):
+        """Returns (keep_line_nos, drop_line_nos, coverage_ratio) -- drop
+        n_drop rows while maximizing T/P/phi coverage of what remains."""
+        import target_sampling as ts_mod
+        df = self.ts.to_dataframe()
+        df = df.dropna(subset=["temperature_K", "pressure_atm"])
+        n = len(df)
+        if not (1 <= n_drop < n):
+            raise ValueError(f"n_drop must be in [1, {n - 1}], got {n_drop}")
+        phi_numeric = pd.to_numeric(df["phi_raw"], errors="coerce").fillna(0.0)
+        points = np.column_stack([
+            df["temperature_K"].to_numpy(dtype=float),
+            df["pressure_atm"].to_numpy(dtype=float),
+            phi_numeric.to_numpy(dtype=float),
+        ])
+        n_keep = n - n_drop
+        keep_local = ts_mod.farthest_point_sample(points, n_keep, seed=seed)
+        keep_set = set(keep_local)
+        line_nos = df["line_no"].tolist()
+        keep_line_nos = [line_nos[i] for i in keep_local]
+        drop_line_nos = [line_nos[i] for i in range(n) if i not in keep_set]
+        coverage = ts_mod.coverage_ratio(points, keep_local)
+        return keep_line_nos, drop_line_nos, coverage
+
+    def information_prune(self, basis_matrix, line_numbers, n_drop, ridge_alpha=0.0):
+        """Greedy D-optimal backward elimination: repeatedly remove the row
+        whose removal shrinks det(Gram) the LEAST, until n_drop rows are
+        dropped. basis_matrix rows must align 1:1 with line_numbers (e.g.
+        ResponseSurface.build_basis() output from a PRS already fit for
+        this target set -- there is no such matrix from the .target file
+        alone, since it has no reaction-sensitivity information).
+
+        Returns (keep_line_nos, drop_line_nos, log) where log is a list of
+        {line_no, det_ratio} in drop order (det_ratio close to 1.0 means
+        that row was nearly redundant; << 1.0 means dropping it cost real
+        information)."""
+        B = np.asarray(basis_matrix, dtype=float)
+        n = B.shape[0]
+        if len(line_numbers) != n:
+            raise ValueError("basis_matrix rows must align with line_numbers")
+        if not (1 <= n_drop < n):
+            raise ValueError(f"n_drop must be in [1, {n - 1}], got {n_drop}")
+
+        alive = list(range(n))
+        log = []
+        for _ in range(n_drop):
+            G = B[alive].T @ B[alive]
+            if ridge_alpha > 0:
+                G = G + ridge_alpha * np.eye(G.shape[0])
+            base_det = float(np.linalg.det(G))
+            best_i, best_ratio = None, -np.inf
+            for j, idx in enumerate(alive):
+                trial = [k for k in alive if k != idx]
+                Gt = B[trial].T @ B[trial]
+                if ridge_alpha > 0:
+                    Gt = Gt + ridge_alpha * np.eye(Gt.shape[0])
+                det_t = float(np.linalg.det(Gt))
+                ratio = det_t / base_det if base_det != 0 else 0.0
+                if ratio > best_ratio:
+                    best_ratio, best_i = ratio, idx
+            alive.remove(best_i)
+            log.append({"line_no": line_numbers[best_i], "det_ratio": best_ratio})
+
+        dropped = {e["line_no"] for e in log}
+        keep_line_nos = [line_numbers[i] for i in range(n) if line_numbers[i] not in dropped]
+        drop_line_nos = [e["line_no"] for e in log]
+        return keep_line_nos, drop_line_nos, log
+
+
+class NominalParityAnalyzer:
+    """Model-vs-experiment parity for the nominal (unperturbed) mechanism
+    over a target set, plus a per-row leverage score. Deliberately does NOT
+    run the nominal simulation itself (that's MUQ-SAC/run_nominal_sim.py's
+    job, via nominal_sim_gui.py's subprocess pipeline, per this repo's
+    env-isolation convention) -- callers pass in results already produced by
+    that pipeline, keyed by line_no."""
+
+    def __init__(self, target_set, nominal_results):
+        """nominal_results : dict[int, float] -- line_no -> nominal model
+        prediction, in the same units as TargetRow.observed."""
+        self.ts = target_set
+        self.nominal_results = nominal_results
+
+    def parity_table(self):
+        rows = []
+        for r in self.ts.rows:
+            model = self.nominal_results.get(r.line_no)
+            if model is None or r.observed is None:
+                continue
+            sigma = abs(r.deviation) if r.deviation else None
+            leverage = (model - r.observed) / sigma if sigma else None
+            rows.append({
+                "line_no": r.line_no, "dataset_id": r.dataset_id,
+                "observed": r.observed, "model": model,
+                "residual": model - r.observed, "leverage_sigma": leverage,
+            })
+        return pd.DataFrame(rows)
+
+    def flag_leverage(self, n_sigma=3.0):
+        """Rows the nominal mechanism already misses by more than n_sigma
+        deviations -- these dominate the MSO objective before any
+        optimization pass even starts."""
+        df = self.parity_table().dropna(subset=["leverage_sigma"])
+        return df[df["leverage_sigma"].abs() > n_sigma]
+
+    def plot_parity(self, save_path=None, show=False):
+        df = self.parity_table().dropna(subset=["model", "observed"])
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.scatter(df["observed"], df["model"], s=25, alpha=0.7)
+        lo = min(df["observed"].min(), df["model"].min())
+        hi = max(df["observed"].max(), df["model"].max())
+        ax.plot([lo, hi], [lo, hi], "k--", lw=1, label="1:1")
+        ax.set_xlabel("Observed")
+        ax.set_ylabel("Nominal model")
+        ax.set_title("Nominal-model parity")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return save_path
+
+
+# =============================================================================
+# postprocess() -- "process the results" flag entry point
+# =============================================================================
+# Everything above this line is the existing plotter/analysis class library
+# (untouched -- run_script.py imports TPhiPlotter/ArrheniusPlotter at import
+# time and PostOptPlotter mid-run; neither import path changes). What follows
+# is new: a standalone way to point this file at an existing (or
+# still-running) src/MUQ-SAC/run_script.py run directory and regenerate its
+# plots + tables without re-running the optimization, via
+# ``mso_io.postprocess_base``'s shared CLI contract (also used by
+# Sensitivity_Analysis/VisualAid.py, forward_uq/uq_plots.py, graph_sa/plots.py,
+# mso_compare/run_plots.py, automation/prs_report.py, rmip/postprocess.py).
+#
+# Reconstructs exactly what run_script.py itself already computes right
+# before it calls PostOptPlotter (see the "Per-reaction optimisation +
+# posterior plots" block, immediately after the ``solution_zeta.save`` /
+# ``posterior_cov.pkl`` load) -- from the same three files that block reads,
+# so a postprocess() run and the in-line run_script.py plot are the same
+# curves. Deliberately does NOT modify PostOptPlotter (or any other class
+# above) to do this -- it calls the curve-building methods PostOptPlotter
+# already has, the same way any external caller would.
+
+import pickle  # noqa: E402  (kept with the rest of the file's flat imports)
+
+_this_dir_pp = os.path.dirname(os.path.abspath(__file__))
+_src_dir_pp = os.path.normpath(os.path.join(_this_dir_pp, ".."))
+if _src_dir_pp not in sys.path:
+    sys.path.append(_src_dir_pp)
+try:
+    from mso_io.postprocess_base import (  # noqa: E402
+        PostProcessResult, add_postprocess_args, default_out_dir, discover,
+        formats_from_args, write_manifest, write_table,
+    )
+except ImportError:  # pragma: no cover - postprocess_base predates this repo layout
+    PostProcessResult = None
+
+try:
+    from scipy.interpolate import make_interp_spline as _make_interp_spline
+except ImportError:  # pragma: no cover
+    _make_interp_spline = None
+
+try:
+    from scipy.interpolate import UnivariateSpline as _UnivariateSpline
+except ImportError:  # pragma: no cover
+    _UnivariateSpline = None
+
+try:
+    from scipy.interpolate import PchipInterpolator as _PchipInterpolator
+except ImportError:  # pragma: no cover
+    _PchipInterpolator = None
+
+
+def _spline_xy(x, y, n=200, k=3, logy=False, logx=False, denoise=False, shape_preserving=False):
+    """Smooth (x,y) onto a dense spline for a line-only (no marker) plot --
+    used throughout H2SweepPlotter per the journal-figure convention that a
+    deterministic simulation sweep is shown as a smooth curve, not a raw
+    polyline through sparse grid points. Falls back to the raw (sorted,
+    de-duplicated) points if there aren't enough of them (<4) to fit a
+    cubic spline, or if scipy is unavailable -- never raises.
+
+    shape_preserving=True uses a monotone cubic Hermite spline (PCHIP)
+    instead of a plain interpolating cubic spline -- needed for a sharply
+    peaked-then-decaying physical quantity (e.g. laminar flame speed vs.
+    phi) sampled at sparse, unevenly-spaced points, where an ordinary
+    cubic spline overshoots into unphysical negative values in the long
+    flat tail between distant points. PCHIP never overshoots the data's
+    own range.
+
+    denoise=True uses a smoothing (least-squares) spline instead of an
+    exact interpolating one -- needed for quantities like the Jacobian
+    stiffness ratio, which is genuinely point-to-point noisy (near-
+    degenerate eigenvalue selection), where an *interpolating* cubic
+    spline through every noisy point just overshoots wildly between them
+    (Runge phenomenon) instead of showing the actual trend.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    good = np.isfinite(x) & np.isfinite(y)
+    if logy:
+        good &= (y > 0)
+    if logx:
+        good &= (x > 0)
+    x, y = x[good], y[good]
+    if len(x) < 2:
+        return x, y
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    keep = np.concatenate(([True], np.diff(x) > 1e-12 * max(1.0, np.abs(x).max())))
+    x, y = x[keep], y[keep]
+    if len(x) < 3 or _make_interp_spline is None:
+        return x, y
+    xs_fit = np.log10(x) if logx else x
+    ys_fit = np.log(y) if logy else y
+    kk = min(k, len(x) - 1)
+    try:
+        if shape_preserving and _PchipInterpolator is not None:
+            spl = _PchipInterpolator(xs_fit, ys_fit)
+        elif denoise and _UnivariateSpline is not None and len(x) >= 6:
+            # Smoothing factor scaled to the data's own variance (standard
+            # scipy convention: s ~ m * var(y) for m points is a reasonable
+            # amount of smoothing, tuned down since we still want the
+            # broad trend, not a near-flat line).
+            s = len(ys_fit) * np.var(ys_fit) * 0.5
+            spl = _UnivariateSpline(xs_fit, ys_fit, k=min(3, kk), s=s)
+        elif _make_interp_spline is not None:
+            spl = _make_interp_spline(xs_fit, ys_fit, k=kk)
+        else:
+            return x, y
+    except Exception:
+        return x, y
+    xs_dense = np.linspace(xs_fit.min(), xs_fit.max(), n)
+    ys_dense = spl(xs_dense)
+    x_out = 10 ** xs_dense if logx else xs_dense
+    y_out = np.exp(ys_dense) if logy else ys_dense
+    return x_out, y_out
+
+
+def _cluster_continuous_branches(points, T_gap_max, logP_gap_max):
+    """Greedy nearest-head clustering of (T, P) boundary-crossing points
+    into continuous branches, by proximity in (T, log10 P). The raw
+    per-T "which transition came first" index from
+    explosion_limit_map.py's boundary trace is NOT a continuity label (a
+    low-P branch at low T and an unrelated low-P branch reappearing at
+    high T can share the same per-T index) -- this reconstructs actual
+    continuous curves, which is what makes the classical S/Z explosion-
+    limit shape visible as smooth connected lines instead of a
+    disconnected jumble.
+    """
+    pts = sorted(points, key=lambda p: p[0])
+    heads = []  # each: [last_T, last_logP, point_list]
+    for T, P in pts:
+        logP = np.log10(P) if P > 0 else -12.0
+        best, best_d = None, None
+        for h in heads:
+            hT, hlogP, _ = h
+            if (T - hT) <= T_gap_max and abs(logP - hlogP) <= logP_gap_max:
+                d = abs(logP - hlogP)
+                if best is None or d < best_d:
+                    best, best_d = h, d
+        if best is None:
+            heads.append([T, logP, [(T, P)]])
+        else:
+            best[2].append((T, P))
+            best[0], best[1] = T, logP
+    return [h[2] for h in heads]
+
+
+def _cube_verts_edges_faces(xr, yr, zr):
+    """8 vertices / 12 edges / 6 faces of an axis-aligned box spanning
+    xr=(x0,x1), yr=(y0,y1), zr=(z0,z1) -- shared geometry for the
+    wireframe-cube and solid-cube 3D helpers below."""
+    x0, x1 = xr
+    y0, y1 = yr
+    z0, z1 = zr
+    verts = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+             (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0),
+             (4, 5), (5, 6), (6, 7), (7, 4),
+             (0, 4), (1, 5), (2, 6), (3, 7)]
+    faces_idx = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+                 [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    return verts, edges, faces_idx
+
+
+def _draw_wireframe_cube(ax, xr, yr, zr, **kwargs):
+    """Draw the 12-edge wireframe of an axis-aligned box on a 3D axes --
+    used to give a 3D scatter of boundary points an explicit bounding
+    envelope (the full explored (T, phi, P) domain) to sit inside."""
+    verts, edges, _ = _cube_verts_edges_faces(xr, yr, zr)
+    for i, j in edges:
+        xs = [verts[i][0], verts[j][0]]
+        ys = [verts[i][1], verts[j][1]]
+        zs = [verts[i][2], verts[j][2]]
+        ax.plot(xs, ys, zs, **kwargs)
+
+
+def _draw_solid_cube(ax, xr, yr, zr, facecolor, alpha, edgecolor, lw):
+    """Draw a small, semi-transparent, solid-faced box on a 3D axes -- used
+    for the reference paper's training region so it reads as a distinct,
+    easily identifiable sub-volume nested inside the full domain."""
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    verts, _, faces_idx = _cube_verts_edges_faces(xr, yr, zr)
+    faces = [[verts[i] for i in f] for f in faces_idx]
+    poly = Poly3DCollection(faces, facecolor=facecolor, alpha=alpha,
+                             edgecolor=edgecolor, linewidths=lw)
+    ax.add_collection3d(poly)
+
+
+#: Short author-year citation for the PC-NODE reference paper (Kumar, Kumar
+#: & Pal, Combustion Theory and Modelling 29(3), 2025) -- used everywhere a
+#: figure needs to name that paper's training region, instead of the
+#: generic "reference paper" (H2/paper/main.tex's \citep{kumar2025pcnode}
+#: is the full citation at first use in the text).
+PAPER_CITATION = "Kumar et al. (2025)"
+
+
+def _draw_highlight_box_2d(ax, x_range, y_range_frac, color="crimson", lw=2.2, label=None):
+    """A bold dashed-outline rectangle (2D axes-fraction y-range, e.g. from
+    a log-scale axhline/axvspan-style computation) -- used in place of a
+    flat-filled axvspan for highlighting the reference paper's training
+    box, which reads as a much crisper, more identifiable outline than a
+    translucent fill (especially layered over a busy curve/heatmap)."""
+    from matplotlib.patches import Rectangle
+    x0, x1 = x_range
+    rect = Rectangle((x0, y_range_frac[0]), x1 - x0, y_range_frac[1] - y_range_frac[0],
+                      transform=ax.get_xaxis_transform(), fill=False,
+                      edgecolor=color, linewidth=lw, linestyle=(0, (5, 2)), zorder=8,
+                      label=label)
+    ax.add_patch(rect)
+    return rect
+
+
+class H2SweepPlotter:
+    """Plotting for the H2/O2 extreme-condition sweep (see H2/README.md and
+    H2/paper/main.tex). Consumes the CSVs written by the pipeline-driven
+    nominal-sim runs (``H2/SIM_RUNS/<label>/Plot/Dataset/*/*.csv`` and each
+    case's ``time_history.csv``) and by the standalone drivers
+    (``H2/results/*.csv``), and produces a small, deliberately CLUBBED set
+    of multi-panel figures rather than one figure per condition -- per the
+    user's explicit instruction to minimize plot count by grouping similar
+    conditions together.
+
+    Conventions match the rest of this file: matplotlib.pyplot only,
+    ``fig.savefig(path, dpi=200 or 150, bbox_inches="tight")`` then
+    ``plt.close(fig)``, and (where the mso_io postprocess contract applies)
+    a CSV sidecar via ``save_figure``/``write_table`` from
+    ``mso_io.postprocess_base`` when available.
+    """
+
+    def __init__(self, h2_dir):
+        self.h2_dir = h2_dir
+        self.results_dir = os.path.join(h2_dir, "results")
+        self.sim_runs_dir = os.path.join(h2_dir, "SIM_RUNS")
+        self.plots_dir = os.path.join(h2_dir, "plots")
+        os.makedirs(self.plots_dir, exist_ok=True)
+
+    # -- small IO helpers -----------------------------------------------
+    def _read_csv(self, name):
+        path = os.path.join(self.results_dir, name)
+        if not os.path.exists(path):
+            return None
+        return pd.read_csv(path)
+
+    def _save(self, fig, name):
+        path = os.path.join(self.plots_dir, f"{name}.png")
+        fig.savefig(path, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        return path
+
+    # -- 1) crossover locus + paper's training box -----------------------
+    def plot_crossover_locus(self):
+        """The single most load-bearing figure in H2/paper/: the analytic
+        2nd-explosion-limit (crossover) locus in the P-T plane, with
+        Kumar et al. (2025)'s training envelope (T in [1000,1200] K,
+        P=1 atm) overlaid, showing it terminates almost exactly ON the
+        crossover curve rather than safely inside either regime.
+        Spline-smoothed, line-only (no marker symbols). The training box
+        is a bold dashed outline (not a flat grey fill) so it stays
+        crisply identifiable against the crossing curves."""
+        df = self._read_csv("explosion_limit_crossover_locus.csv")
+        if df is None:
+            return None
+        fig, ax = plt.subplots(figsize=(7, 5.5))
+        for dil, grp in df[df["phi"] == 1.0].groupby("diluent"):
+            grp = grp.sort_values("P_atm")
+            xs, ys = _spline_xy(grp["T_crossover_K"], grp["P_atm"], logy=True)
+            ax.plot(xs, ys, lw=2.0, label=rf"{dil} dilution ($\phi$=1)")
+        ax.set_yscale("log")
+        # axes-fraction y-range for "0.01 to 1 atm" on this log axis, so
+        # the highlight box actually spans up to the 1 atm line rather
+        # than being squashed into a sliver at the bottom.
+        y_lo, y_hi = 0.01, 100.0
+        frac_1atm = (np.log10(1.0) - np.log10(y_lo)) / (np.log10(y_hi) - np.log10(y_lo))
+        ax.set_ylim(y_lo, y_hi)
+        _draw_highlight_box_2d(ax, (1000, 1200), (0, frac_1atm), color="crimson", lw=2.2,
+                               label=f"{PAPER_CITATION} training box")
+        ax.axhline(1.0, color="k", lw=0.8, ls=":")
+        ax.annotate(f"{PAPER_CITATION}\ntraining box\n(1000-1200 K, 1 atm)",
+                    xy=(1200, 1.0), xytext=(1420, 6.0),
+                    fontsize=8, color="crimson", ha="left", va="center",
+                    arrowprops=dict(arrowstyle="->", color="crimson", lw=1.2))
+        ax.set_xlabel("Crossover temperature $T$ [K]")
+        ax.set_ylabel("Pressure [atm]")
+        ax.set_title(r"H$_2$/O$_2$ 2nd explosion-limit (chain-branching crossover) locus")
+        ax.legend(fontsize=8, loc="lower right")
+        ax.grid(alpha=0.3)
+        return self._save(fig, "01_crossover_locus")
+
+    # -- 1b) key-temperature comparison (explicit "compare at each key T") --
+    def plot_key_temperature_comparison(self):
+        """At each of this study's own key temperature design levels
+        (1000/1900/2800 K), at Kumar et al. (2025)'s own P=1 atm: is the
+        mixture ignitable (10 s bound), is the point inside their training
+        box, and how stiff is the chemistry there -- across all three key
+        phi values. Bar chart by construction (three discrete temperatures
+        on the x-axis, not a continuous sweep), so no line-plot symbol
+        rule applies here."""
+        df = self._read_csv("key_temperature_comparison.csv")
+        if df is None:
+            return None
+        fig, ax = plt.subplots(figsize=(8.5, 5.2))
+        T_keys = sorted(df["T_key_K"].unique())
+        phis = sorted(df["phi"].unique())
+        width = 0.8 / max(len(phis), 1)
+        colors = {0.3: "tab:green", 1.0: "tab:red", 6.0: "tab:purple"}
+        max_y = 0.0
+        for i, phi in enumerate(phis):
+            sub = df[df["phi"] == phi].set_index("T_key_K").loc[T_keys]
+            x = np.arange(len(T_keys)) + (i - (len(phis) - 1) / 2) * width
+            ax.bar(x, sub["stiffness_ratio_nearest"], width=width * 0.9,
+                   color=colors.get(phi, "gray"), label=rf"$\phi$={phi:g}")
+            for xi, (_, row) in zip(x, sub.iterrows()):
+                ign_txt = "ignites" if row["ignites_within_10s"] else "no ignition"
+                box_txt = "in training box" if row["in_paper_training_box"] else "outside training box"
+                yv = row["stiffness_ratio_nearest"]
+                if np.isfinite(yv) and yv > 0:
+                    max_y = max(max_y, yv)
+                    ax.text(xi, yv * 1.3, f"{ign_txt}\n{box_txt}", ha="center",
+                            va="bottom", fontsize=6, rotation=90)
+        ax.set_yscale("log")
+        if max_y > 0:
+            ax.set_ylim(top=max_y * 200)
+        ax.set_xticks(range(len(T_keys)))
+        ax.set_xticklabels([f"{t:g} K" for t in T_keys])
+        ax.set_xlabel("Key temperature (this study's design levels)")
+        ax.set_ylabel(r"Jacobian stiffness ratio $|\lambda_{max}|/|\lambda_{min}|$")
+        ax.set_title(f"Ignitability and stiffness at each key temperature, "
+                     f"P={df['P_atm'].iloc[0]:g} atm (10 s ignition-time bound)\n"
+                     f"vs. {PAPER_CITATION} training box")
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3, axis="y")
+        fig.tight_layout()
+        return self._save(fig, "01b_key_temperature_comparison")
+
+    # -- 2) numeric ignitability map, per key phi, traced S/Z-shaped boundary
+    def plot_ignitability_map(self):
+        """Per-phi explosion-limit boundary in the P-T plane, TRACED by
+        bisection (H2/standalone/explosion_limit_map.py) rather than shown
+        as a scatter of individually-classified grid points -- this is what
+        actually reveals the classical S/Z-shaped explosion-limit curve.
+        Ignite/no-ignite regions are shaded as a filled background from the
+        coarse classification grid; the traced boundary itself is
+        continuity-clustered into branches and spline-smoothed on top, line
+        only, no markers. The legend explicitly names the 10 s ignition-
+        time bound used as the criterion."""
+        out = []
+        for phi in [0.3, 1.0, 6.0]:
+            tag = f"{phi:g}".replace(".", "p")
+            grid = self._read_csv(f"explosion_limit_numeric_map_phi{tag}.csv")
+            bnd = self._read_csv(f"explosion_limit_boundary_phi{tag}.csv")
+            if grid is None or grid.empty:
+                continue
+            fig, ax = plt.subplots(figsize=(7, 5.5))
+            piv = grid.pivot_table(index="P_atm", columns="T0", values="ignites")
+            Tv = piv.columns.values.astype(float)
+            Pv = piv.index.values.astype(float)
+            Z = piv.values.astype(float)
+            ax.pcolormesh(Tv, Pv, Z, cmap="RdBu_r", vmin=0, vmax=1,
+                          alpha=0.35, shading="nearest")
+            ax.set_yscale("log")
+            if bnd is not None and not bnd.empty:
+                pts = list(zip(bnd["T0"], bnd["P_boundary_atm"]))
+                n_T = max(len(grid["T0"].unique()), 1)
+                T_span = grid["T0"].max() - grid["T0"].min()
+                branches = _cluster_continuous_branches(
+                    pts, T_gap_max=max(T_span / n_T * 2.5, 60.0), logP_gap_max=1.0)
+                first = True
+                for br in sorted(branches, key=len, reverse=True):
+                    if len(br) < 2:
+                        continue
+                    Tb = [p[0] for p in br]
+                    Pb = [p[1] for p in br]
+                    xs, ys = _spline_xy(Tb, Pb, logy=True)
+                    ax.plot(xs, ys, lw=2.2, color="k",
+                            label=("traced ignition boundary" if first else None))
+                    first = False
+            else:
+                ax.text(0.5, 0.5, "no ignition within the 10 s bound\nanywhere in "
+                        "this $T$-$P$ envelope", transform=ax.transAxes, ha="center",
+                        va="center", fontsize=10, color="tab:blue")
+            ax.set_ylim(Pv.min(), Pv.max())
+            ax.set_xlabel("Initial temperature $T_0$ [K]")
+            ax.set_ylabel("Pressure [atm]")
+            ax.set_title(rf"Numeric ignitability map, $\phi$={phi:g}, "
+                         r"stoich.-scaled H$_2$/N$_2$ (gas-phase only)")
+            handles = [
+                plt.Rectangle((0, 0), 1, 1, color="tab:red", alpha=0.35),
+                plt.Rectangle((0, 0), 1, 1, color="tab:blue", alpha=0.35),
+                plt.Line2D([0], [0], color="k", lw=2.2),
+            ]
+            labels = ["ignites within 10 s", "no ignition within 10 s", "traced boundary (10 s bound)"]
+            ax.legend(handles, labels, fontsize=8, loc="lower right")
+            ax.grid(alpha=0.25, which="both")
+            out.append(self._save(fig, f"02_ignitability_map_phi{tag}"))
+        return out
+
+    # -- 2b) 3D (T, P, phi) ignitability boundary surface --------------------
+    def plot_ignitability_3d(self):
+        """Journal-ready 3D flammability-limit figure. EVERY ignitable grid
+        point (not just the traced boundary) is scattered, filling out the
+        actual ignitable VOLUME inside a wireframe cube spanning this
+        study's full explored (T, phi, P) envelope -- swept over a DENSE
+        phi range, 0.3 to 6.0 in steps of 0.3 (20 levels, H2/standalone/
+        explosion_limit_map.py's build_numeric_volume_dense()), colored
+        continuously by phi (a 20-color discrete legend would be
+        unreadable, so a colorbar instead). Kumar et al. (2025)'s training
+        region is highlighted with a bold lime wireframe box (a
+        translucent 6-face solid cuboid here reads as a muddy smudge once
+        its faces overlap in a 3D projection -- an outline is far more
+        identifiable) plus a single flat highlighted panel at their fixed
+        P=1 atm (a real, if thin, slice of the cube, not a 3D box, since
+        the training run itself never varied P); their own actual 30
+        discrete training conditions -- their own reported grid, phi=0.5
+        to 1.5 in steps of 0.2 (6 levels) x T=1000 to 1200 K in steps of
+        50 (5 levels), at their fixed P=1 atm -- are overlaid as bold
+        white-on-black markers (chosen for contrast against the full
+        purple-to-yellow phi colormap the background points span), at
+        their own reported resolution (not resampled) -- a second,
+        independent way to see exactly what they covered. Uses the same
+        50%-dilution convention as the pipeline's own IDT sweep throughout
+        (H2/review/flag.md), so phi=6 correctly shows its real ignitable
+        volume."""
+        df = self._read_csv("explosion_limit_numeric_volume_dense.csv")
+        if df is None or df.empty:
+            return None
+        ign = df[df["ignites"] == True].copy()  # noqa: E712
+        if ign.empty:
+            return None
+
+        T_lo, T_hi = float(df["T0"].min()), float(df["T0"].max())
+        P_lo, P_hi = float(df["P_atm"].min()), float(df["P_atm"].max())
+        phi_lo, phi_hi = float(df["phi"].min()), float(df["phi"].max())
+        logP_lo, logP_hi = np.log10(P_lo), np.log10(P_hi)
+
+        # Kumar et al. (2025)'s training region -- their own actual grid,
+        # at their own 0.2-phi-increment resolution, their own 5 T levels,
+        # and their own fixed P=1 atm.
+        paper_T = (1000.0, 1200.0)
+        paper_phi = (0.5, 1.5)
+        paper_logP = np.log10(1.0)
+        paper_T_levels = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
+        paper_phi_levels = [0.5, 0.7, 0.9, 1.1, 1.3, 1.5]
+
+        fig = plt.figure(figsize=(10.5, 8.6))
+        ax = fig.add_subplot(111, projection="3d")
+
+        cmap = plt.get_cmap("plasma")
+        norm = plt.Normalize(vmin=phi_lo, vmax=phi_hi)
+        sc = ax.scatter(ign["T0"], ign["phi"], np.log10(ign["P_atm"]),
+                         c=ign["phi"], cmap=cmap, norm=norm,
+                         s=14, alpha=0.35, linewidth=0, depthshade=True)
+
+        # Full explored envelope, as a bounding wireframe cube.
+        _draw_wireframe_cube(ax, (T_lo, T_hi), (phi_lo, phi_hi), (logP_lo, logP_hi),
+                             color="dimgray", lw=0.8, alpha=0.45, linestyle="--")
+
+        # Kumar et al. (2025)'s training region: a bold, high-contrast
+        # wireframe outline (not a translucent solid -- overlapping
+        # semi-transparent faces on a small box read as a dark smudge, not
+        # a crisp box) plus a single flat highlighted panel at their exact
+        # P=1 atm, since they never actually varied P.
+        _draw_wireframe_cube(ax, paper_T, paper_phi, (paper_logP - 0.05, paper_logP + 0.05),
+                             color="lime", lw=2.6, alpha=0.95, linestyle="-")
+        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+        floor = [[(paper_T[0], paper_phi[0], paper_logP), (paper_T[1], paper_phi[0], paper_logP),
+                  (paper_T[1], paper_phi[1], paper_logP), (paper_T[0], paper_phi[1], paper_logP)]]
+        ax.add_collection3d(Poly3DCollection(floor, facecolor="lime", alpha=0.25,
+                                              edgecolor="none"))
+
+        # Their own actual 30 discrete training conditions -- bold
+        # white-fill/black-edge markers, chosen for contrast against every
+        # color the background phi-colormap can take (dark purple through
+        # bright yellow).
+        Tg, Pg = np.meshgrid(paper_T_levels, paper_phi_levels)
+        ax.scatter(Tg.ravel(), Pg.ravel(), np.full(Tg.size, paper_logP),
+                   c="white", edgecolor="black", marker="o", s=55, linewidth=1.3,
+                   depthshade=False, zorder=10)
+
+        ax.set_xlabel("Temperature $T$ [K]")
+        ax.set_ylabel(r"Equivalence ratio $\phi$")
+        ax.set_zlabel("Pressure [atm]")
+        zt = np.arange(np.floor(logP_lo), np.ceil(logP_hi) + 1)
+        ax.set_zticks(zt)
+        ax.set_zticklabels([f"{10.0 ** z:g}" for z in zt])
+        ax.set_title(r"Ignitable volume across $T$, $\phi$ (0.3 to 6.0, step 0.3), $P$"
+                     f"\n(10 s ignition-time bound) vs. {PAPER_CITATION} training region")
+        ax.view_init(elev=18, azim=-60)
+
+        cbar = fig.colorbar(sc, ax=ax, pad=0.1, shrink=0.65)
+        cbar.set_label(r"Equivalence ratio $\phi$ (ignitable points)")
+
+        box_proxy = plt.Line2D([0], [0], color="lime", lw=2.6)
+        paper_pts_proxy = plt.Line2D([0], [0], color="black", marker="o", markerfacecolor="white",
+                                      linestyle="none", markersize=8, markeredgewidth=1.3)
+        ax.legend([box_proxy, paper_pts_proxy],
+                  [f"{PAPER_CITATION} training region (explored)",
+                   f"{PAPER_CITATION}'s 30 training conditions ($\\phi$=0.5:0.2:1.5, P=1 atm)"],
+                  fontsize=7.5, loc="upper left", bbox_to_anchor=(-0.02, 0.98))
+        fig.tight_layout()
+        return self._save(fig, "02b_ignitability_3d_map")
+
+    # -- 2c) chemical stiffness, heatmap-scattered over the SAME (T,P,phi) --
+    #        grid as the ignitable-volume figure above
+    def plot_stiffness_3d(self):
+        """Companion to plot_ignitability_3d: chemical (Jacobian) stiffness
+        shown as a 3D heatmap scatter over EXACTLY the same dense
+        (T0, P, phi) grid -- phi=0.3 to 6.0 in steps of 0.3, same T_GRID,
+        same P_COARSE_ATM -- as the ignitable-volume figure (H2/standalone/
+        explosion_limit_map.py's build_stiffness_volume_dense(), point-for-
+        point matched to build_numeric_volume_dense()), per instruction.
+        Every grid point is plotted (not just the ignitable ones -- stiffness
+        is a property of the chemical state regardless of whether that
+        state happens to satisfy the ignition criterion), colored
+        continuously by log10(stiffness ratio) via a colorbar. Kumar et al.
+        (2025)'s training region is highlighted the same way as in
+        plot_ignitability_3d (bold lime wireframe + flat panel at their
+        fixed P=1 atm, plus their own 30 training conditions as bold
+        white-on-black markers) so the two figures read as a matched pair."""
+        df = self._read_csv("stiffness_volume_dense.csv")
+        if df is None or df.empty:
+            return None
+        df = df[np.isfinite(df["stiffness_ratio"]) & (df["stiffness_ratio"] > 0)].copy()
+        if df.empty:
+            return None
+        df["log_stiff"] = np.log10(df["stiffness_ratio"])
+
+        T_lo, T_hi = float(df["T0"].min()), float(df["T0"].max())
+        P_lo, P_hi = float(df["P_atm"].min()), float(df["P_atm"].max())
+        phi_lo, phi_hi = float(df["phi"].min()), float(df["phi"].max())
+        logP_lo, logP_hi = np.log10(P_lo), np.log10(P_hi)
+
+        paper_T = (1000.0, 1200.0)
+        paper_phi = (0.5, 1.5)
+        paper_logP = np.log10(1.0)
+        paper_T_levels = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
+        paper_phi_levels = [0.5, 0.7, 0.9, 1.1, 1.3, 1.5]
+
+        fig = plt.figure(figsize=(10.5, 8.6))
+        ax = fig.add_subplot(111, projection="3d")
+
+        # Diverging blue-white-red, not the plasma/magma sequential ramp
+        # plot_ignitability_3d uses for phi -- the two 3D maps used to be
+        # indistinguishable at a glance (both dark-purple-to-yellow); this
+        # gives stiffness its own, unambiguous visual language.
+        cmap = plt.get_cmap("coolwarm")
+        norm = plt.Normalize(vmin=df["log_stiff"].quantile(0.02), vmax=df["log_stiff"].quantile(0.98))
+        sc = ax.scatter(df["T0"], df["phi"], np.log10(df["P_atm"]),
+                         c=df["log_stiff"], cmap=cmap, norm=norm,
+                         s=10, alpha=0.25, linewidth=0, depthshade=True)
+
+        _draw_wireframe_cube(ax, (T_lo, T_hi), (phi_lo, phi_hi), (logP_lo, logP_hi),
+                             color="dimgray", lw=0.8, alpha=0.45, linestyle="--")
+
+        _draw_wireframe_cube(ax, paper_T, paper_phi, (paper_logP - 0.05, paper_logP + 0.05),
+                             color="lime", lw=2.6, alpha=0.95, linestyle="-")
+        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+        floor = [[(paper_T[0], paper_phi[0], paper_logP), (paper_T[1], paper_phi[0], paper_logP),
+                  (paper_T[1], paper_phi[1], paper_logP), (paper_T[0], paper_phi[1], paper_logP)]]
+        ax.add_collection3d(Poly3DCollection(floor, facecolor="lime", alpha=0.25,
+                                              edgecolor="none"))
+
+        Tg, Pg = np.meshgrid(paper_T_levels, paper_phi_levels)
+        ax.scatter(Tg.ravel(), Pg.ravel(), np.full(Tg.size, paper_logP),
+                   c="white", edgecolor="black", marker="o", s=55, linewidth=1.3,
+                   depthshade=False, zorder=10)
+
+        ax.set_xlabel("Temperature $T$ [K]")
+        ax.set_ylabel(r"Equivalence ratio $\phi$")
+        ax.set_zlabel("Pressure [atm]")
+        zt = np.arange(np.floor(logP_lo), np.ceil(logP_hi) + 1)
+        ax.set_zticks(zt)
+        ax.set_zticklabels([f"{10.0 ** z:g}" for z in zt])
+        ax.set_title(r"Chemical stiffness across $T$, $\phi$ (0.3 to 6.0, step 0.3), $P$"
+                     f"\n(same grid as the ignitable-volume figure) vs. {PAPER_CITATION} training region")
+        ax.view_init(elev=18, azim=-60)
+
+        cbar = fig.colorbar(sc, ax=ax, pad=0.1, shrink=0.65)
+        cbar.set_label(r"log$_{10}$(Jacobian stiffness ratio $|\lambda_{max}|/|\lambda_{min}|$)")
+
+        box_proxy = plt.Line2D([0], [0], color="lime", lw=2.6)
+        paper_pts_proxy = plt.Line2D([0], [0], color="black", marker="o", markerfacecolor="white",
+                                      linestyle="none", markersize=8, markeredgewidth=1.3)
+        ax.legend([box_proxy, paper_pts_proxy],
+                  [f"{PAPER_CITATION} training region (explored)",
+                   f"{PAPER_CITATION}'s 30 training conditions ($\\phi$=0.5:0.2:1.5, P=1 atm)"],
+                  fontsize=7.5, loc="upper left", bbox_to_anchor=(-0.02, 0.98))
+        fig.tight_layout()
+        return self._save(fig, "02c_stiffness_3d_map")
+
+    # -- 11) explored (paper) vs. unexplored, colored by chemical stiffness --
+    def plot_flammability_vs_paper_training(self):
+        """Direct explored-vs-not-explored comparison: Kumar et al.
+        (2025)'s training box vs. this mechanism's actual 2nd-limit
+        crossover locus, with the dense Jacobian-stiffness field
+        (H2/standalone/explosion_limit_map.py's build_dense_stiffness_field)
+        as a filled background -- directly showing how stiff the chemistry
+        gets in the region the NeuralODE was never trained on. Uses the
+        same diverging coolwarm scale as plot_stiffness_3d so "stiffness"
+        reads as one consistent visual language across both figures,
+        distinct from the sequential plasma/phi language of
+        plot_ignitability_3d. The training box is a bold lime dashed
+        outline (a white hatch fill was hard to read against the heatmap)
+        so it reads clearly regardless of what's underneath it."""
+        stiff = self._read_csv("stiffness_field_dense.csv")
+        cross = self._read_csv("explosion_limit_crossover_locus.csv")
+        if stiff is None or stiff.empty:
+            return None
+        fig, ax = plt.subplots(figsize=(8, 6.2))
+        piv = stiff.pivot_table(index="P_atm", columns="T0", values="stiffness_ratio")
+        Tv = piv.columns.values.astype(float)
+        Pv = piv.index.values.astype(float)
+        Zvals = piv.values.astype(float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            Z = np.log10(Zvals)
+        mesh = ax.pcolormesh(Tv, Pv, Z, cmap="coolwarm", shading="nearest")
+        cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+        cbar.set_label(r"log$_{10}$(Jacobian stiffness ratio $|\lambda_{max}|/|\lambda_{min}|$)")
+        ax.set_yscale("log")
+        if cross is not None and not cross.empty:
+            sub = cross[(cross["phi"] == 1.0) & (cross["diluent"] == "N2")].sort_values("P_atm")
+            xs, ys = _spline_xy(sub["T_crossover_K"], sub["P_atm"], logy=True)
+            ax.plot(xs, ys, color="cyan", lw=2.4,
+                    label=r"actual 2nd-limit crossover (analytic, $\phi$=1, N$_2$)")
+        y_lo, y_hi = ax.get_ylim()
+        frac_1atm = (np.log10(1.0) - np.log10(y_lo)) / (np.log10(y_hi) - np.log10(y_lo))
+        _draw_highlight_box_2d(ax, (1000, 1200), (0, frac_1atm), color="lime", lw=2.4,
+                               label=f"{PAPER_CITATION} training box (explored)")
+        ax.set_xlabel("Temperature $T$ [K]")
+        ax.set_ylabel("Pressure [atm]")
+        ax.set_title(f"Explored ({PAPER_CITATION}) vs. actual flammability limit,\n"
+                     "colored by chemical stiffness -- unexplored region is where "
+                     "the NeuralODE was never trained")
+        ax.legend(fontsize=8, loc="upper left", facecolor="white", framealpha=0.85)
+        return self._save(fig, "11_explored_vs_unexplored_stiffness")
+
+    # -- 3) IDT grid, clubbed: one panel-figure per diluent ---------------
+    def _load_idt_rows(self, sim_run_label="nominal_cantera"):
+        """Shared loader for pipeline-driven Tig results, used by both
+        plot_idt_grids and plot_idt_sensitivity so the two figures are
+        built from identically-sourced data. Returns a DataFrame with
+        T, P, phi, diluent, dilution_pct (a real percentage, e.g. 50.0 --
+        journal convention, never the bare word "dil"), and IDT_us."""
+        tig_dir = os.path.join(self.sim_runs_dir, sim_run_label, "Plot", "Dataset", "Tig")
+        design_csv = os.path.join(self.h2_dir, "design", "design.csv")
+        if not os.path.isdir(tig_dir) or not os.path.exists(design_csv):
+            return pd.DataFrame()
+        design = pd.read_csv(design_csv).set_index("dataset_id")
+        rows = []
+        for fn in os.listdir(tig_dir):
+            if not fn.endswith(".csv"):
+                continue
+            ds_id = fn[:-4]
+            if ds_id not in design.index:
+                continue
+            d = pd.read_csv(os.path.join(tig_dir, fn))
+            if d.empty or d["Nominal"].iloc[0] in ("N/A", None) or pd.isna(d["Nominal"].iloc[0]):
+                continue
+            meta = design.loc[ds_id]
+            rows.append(dict(T=meta["T"], P=meta["P_atm"], phi=meta["phi"],
+                              diluent=meta["diluent"], dilution_level=meta["dilution_level"],
+                              dilution_pct=float(meta["dilution_frac"]) * 100.0,
+                              IDT_us=float(d["Nominal"].iloc[0])))
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df["inv1000T"] = 1000.0 / df["T"]
+        return df
+
+    def plot_idt_grids(self, sim_run_label="nominal_cantera"):
+        """One figure per diluent; each figure is an Arrhenius-style IDT
+        plot (ln(tau) vs 1000/T, the standard form throughout the shock-
+        tube/IDT literature -- e.g. Petersen & Hanson, Davidson, Hong et al.
+        -- since tau = A*P^n*phi^m*exp(Ea/RT) is linear in this space),
+        faceted by pressure into panels, with a secondary top axis in T[K]
+        for readability. Each (phi, dilution) curve is spline-smoothed and
+        drawn as a line only (no marker symbols) -- clubs what would
+        otherwise be dozens of separate IDT plots into 3 figures total."""
+        df = self._load_idt_rows(sim_run_label)
+        if df.empty:
+            return []
+        out = []
+        P_levels = sorted(df["P"].unique())
+        for dil, dgrp in df.groupby("diluent"):
+            fig, axes = plt.subplots(1, len(P_levels), figsize=(4.6 * len(P_levels), 4.3), sharey=True)
+            axes = np.atleast_1d(axes)
+            for ax, P in zip(axes, P_levels):
+                sub = dgrp[dgrp["P"] == P]
+                for (phi, pct), g in sub.groupby(["phi", "dilution_pct"]):
+                    g = g.sort_values("inv1000T")
+                    if len(g) < 1:
+                        continue
+                    xs, ys = _spline_xy(g["inv1000T"], g["IDT_us"], logy=True)
+                    ax.plot(xs, ys, lw=1.6, label=rf"$\phi$={phi:g}, {pct:.0f}% dilution")
+                ax.set_yscale("log")
+                ax.set_xlabel(r"1000/T [K$^{-1}$]")
+                ax.set_title(f"P = {P:g} atm")
+                ax.grid(alpha=0.3, which="both")
+                # Secondary top axis in T[K] -- standard companion to an
+                # Arrhenius x-axis so readers don't have to mentally invert.
+                Tticks = np.array(sorted(df["T"].unique()))
+                sec = ax.secondary_xaxis(
+                    "top", functions=(lambda x: 1000.0 / np.where(x > 0, x, np.nan),
+                                       lambda x: 1000.0 / np.where(x > 0, x, np.nan)))
+                sec.set_xticks(1000.0 / Tticks)
+                sec.set_xticklabels([f"{int(t)}" for t in Tticks], fontsize=7)
+                sec.set_xlabel("$T$ [K]", fontsize=8)
+            axes[0].set_ylabel(r"Ignition delay $\tau_{ig}$ [$\mu$s]")
+            fig.suptitle(f"IDT (Arrhenius form), {dil} bath gas -- Cantera, h2o2_he.yaml")
+            axes[-1].legend(fontsize=6, loc="best", ncol=1)
+            fig.tight_layout()
+            out.append(self._save(fig, f"03_idt_grid_{dil}"))
+        return out
+
+    # -- 3b) IDT sensitivity to P, phi, and dilution -- direct comparison ---
+    def plot_idt_sensitivity(self, sim_run_label="nominal_cantera"):
+        """Three-panel comparison of how ignition delay changes with each
+        of P, phi, and dilution independently, holding the other two (and
+        diluent identity) fixed -- the explicit "compare the difference in
+        Tig for change in P and phi and dilution" figure. Spline-smoothed
+        lines only, no markers; dilution is always shown as a percentage,
+        never the bare word "dil"."""
+        df = self._load_idt_rows(sim_run_label)
+        if df.empty:
+            return None
+        T_ref = sorted(df["T"].unique())[len(df["T"].unique()) // 2]
+        P_ref = sorted(df["P"].unique())[len(df["P"].unique()) // 2]
+        phi_ref = 1.0 if 1.0 in df["phi"].unique() else sorted(df["phi"].unique())[len(df["phi"].unique()) // 2]
+        dil_ref = "N2" if "N2" in df["diluent"].unique() else sorted(df["diluent"].unique())[0]
+
+        fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.6))
+
+        # (a) IDT vs P, one line per phi, at T_ref/dil_ref/each dilution pct.
+        ax = axes[0]
+        sub = df[(df["T"] == T_ref) & (df["diluent"] == dil_ref)]
+        for (phi, pct), g in sub.groupby(["phi", "dilution_pct"]):
+            g = g.sort_values("P")
+            if len(g) < 2:
+                continue
+            xs, ys = _spline_xy(g["P"], g["IDT_us"], logx=True, logy=True)
+            ax.plot(xs, ys, lw=1.8, label=rf"$\phi$={phi:g}, {pct:.0f}% dilution")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Pressure $P$ [atm]")
+        ax.set_ylabel(r"Ignition delay $\tau_{ig}$ [$\mu$s]")
+        ax.set_title(f"Pressure sensitivity, $T$={T_ref:g} K, {dil_ref} bath gas")
+        ax.legend(fontsize=6.5)
+        ax.grid(alpha=0.3, which="both")
+
+        # (b) IDT vs phi, one line per P, at T_ref/dil_ref.
+        ax = axes[1]
+        sub = df[(df["T"] == T_ref) & (df["diluent"] == dil_ref)]
+        for P, g in sub.groupby("P"):
+            g = g.sort_values("phi")
+            if len(g) < 2:
+                continue
+            xs, ys = _spline_xy(g["phi"], g["IDT_us"], logy=True)
+            ax.plot(xs, ys, lw=1.8, label=f"P={P:g} atm")
+        ax.set_yscale("log")
+        ax.set_xlabel(r"Equivalence ratio $\phi$")
+        ax.set_title(f"Equivalence-ratio sensitivity, $T$={T_ref:g} K, {dil_ref} bath gas")
+        ax.legend(fontsize=7)
+        ax.grid(alpha=0.3, which="both")
+
+        # (c) IDT vs dilution %, one line per diluent identity, at T_ref/phi_ref.
+        ax = axes[2]
+        sub = df[(df["T"] == T_ref) & (df["phi"] == phi_ref)]
+        for dil, g in sub.groupby("diluent"):
+            g = g.sort_values("dilution_pct")
+            if len(g) < 2:
+                continue
+            xs, ys = _spline_xy(g["dilution_pct"], g["IDT_us"], logy=True)
+            ax.plot(xs, ys, lw=1.8, label=f"{dil}")
+        ax.set_yscale("log")
+        ax.set_xlabel("Bath-gas dilution [%]")
+        ax.set_title(rf"Dilution sensitivity, $T$={T_ref:g} K, $\phi$={phi_ref:g}")
+        ax.legend(fontsize=8, title="diluent")
+        ax.grid(alpha=0.3, which="both")
+
+        for ax in axes:
+            ax.set_ylabel(r"Ignition delay $\tau_{ig}$ [$\mu$s]")
+        fig.suptitle("Ignition-delay sensitivity to pressure, equivalence ratio, "
+                     "and dilution -- Cantera, h2o2_he.yaml")
+        fig.tight_layout(rect=(0, 0, 1, 0.94))
+        return self._save(fig, "12_idt_sensitivity")
+
+    # -- 3b) IDT vs. temperature, one factor varied per panel -------------
+    def plot_idt_vs_T_variation(self, sim_run_label="nominal_cantera"):
+        """Companion to plot_idt_sensitivity: that figure holds T fixed and
+        varies P, phi, and dilution; this one is explicitly IDT *vs.
+        temperature* (Arrhenius form, 1000/T on x, same convention and
+        secondary T[K] top axis as plot_idt_grids), with N2 dilution,
+        pressure, equivalence ratio, and bath-gas identity each varied one
+        at a time across four panels -- the other three held at reference
+        levels (P_ref/phi_ref/dil_ref match plot_idt_sensitivity's own
+        choice; dilution held at the level closest to 50%, common to all
+        three bath gases). Spline-smoothed lines only, no markers;
+        dilution always shown as a percentage."""
+        df = self._load_idt_rows(sim_run_label)
+        if df.empty:
+            return None
+        P_ref = sorted(df["P"].unique())[len(df["P"].unique()) // 2]
+        phi_ref = 1.0 if 1.0 in df["phi"].unique() else sorted(df["phi"].unique())[len(df["phi"].unique()) // 2]
+        dil_ref = "N2" if "N2" in df["diluent"].unique() else sorted(df["diluent"].unique())[0]
+        pct_levels = sorted(df.loc[df["diluent"] == dil_ref, "dilution_pct"].unique())
+        pct_ref = min(pct_levels, key=lambda p: abs(p - 50.0)) if pct_levels else None
+        pct_txt = f"{pct_ref:.0f}%" if pct_ref is not None else "?"
+
+        fig, axes = plt.subplots(2, 2, figsize=(11, 8.6))
+        Tticks = np.array(sorted(df["T"].unique()))
+
+        def _finish(ax, title):
+            ax.set_yscale("log")
+            ax.set_xlabel(r"1000/T [K$^{-1}$]")
+            ax.set_ylabel(r"Ignition delay $\tau_{ig}$ [$\mu$s]")
+            ax.set_title(title, fontsize=10)
+            ax.grid(alpha=0.3, which="both")
+            sec = ax.secondary_xaxis(
+                "top", functions=(lambda x: 1000.0 / np.where(x > 0, x, np.nan),
+                                   lambda x: 1000.0 / np.where(x > 0, x, np.nan)))
+            sec.set_xticks(1000.0 / Tticks)
+            sec.set_xticklabels([f"{int(t)}" for t in Tticks], fontsize=7)
+            sec.set_xlabel("$T$ [K]", fontsize=8)
+
+        def _lines(ax, sub, group_col, label_fmt):
+            for key, g in sub.groupby(group_col):
+                g = g.sort_values("inv1000T")
+                if len(g) < 2:
+                    continue
+                xs, ys = _spline_xy(g["inv1000T"], g["IDT_us"], logy=True)
+                ax.plot(xs, ys, lw=1.8, label=label_fmt(key))
+
+        # (a) vary N2 dilution %, hold P_ref/phi_ref/dil_ref
+        ax = axes[0, 0]
+        sub = df[(df["P"] == P_ref) & (df["phi"] == phi_ref) & (df["diluent"] == dil_ref)]
+        _lines(ax, sub, "dilution_pct", lambda pct: f"{pct:.0f}% dilution")
+        ax.legend(fontsize=7.5, title=f"{dil_ref} dilution")
+        _finish(ax, rf"Dilution, $P$={P_ref:g} atm, $\phi$={phi_ref:g}, {dil_ref}")
+
+        # (b) vary P, hold phi_ref/dil_ref/pct_ref
+        ax = axes[0, 1]
+        sub = df[(df["phi"] == phi_ref) & (df["diluent"] == dil_ref)]
+        if pct_ref is not None:
+            sub = sub[sub["dilution_pct"] == pct_ref]
+        _lines(ax, sub, "P", lambda P: f"P={P:g} atm")
+        ax.legend(fontsize=7.5, title="pressure")
+        _finish(ax, rf"Pressure, $\phi$={phi_ref:g}, {dil_ref}, {pct_txt} dilution")
+
+        # (c) vary phi, hold P_ref/dil_ref/pct_ref
+        ax = axes[1, 0]
+        sub = df[(df["P"] == P_ref) & (df["diluent"] == dil_ref)]
+        if pct_ref is not None:
+            sub = sub[sub["dilution_pct"] == pct_ref]
+        _lines(ax, sub, "phi", lambda phi: rf"$\phi$={phi:g}")
+        ax.legend(fontsize=7.5, title="equivalence ratio")
+        _finish(ax, rf"Equivalence ratio, $P$={P_ref:g} atm, {dil_ref}, {pct_txt} dilution")
+
+        # (d) vary bath-gas identity, hold P_ref/phi_ref/pct_ref
+        ax = axes[1, 1]
+        sub = df[(df["P"] == P_ref) & (df["phi"] == phi_ref)]
+        if pct_ref is not None:
+            sub = sub[sub["dilution_pct"] == pct_ref]
+        _lines(ax, sub, "diluent", lambda dil: dil)
+        ax.legend(fontsize=7.5, title="bath gas")
+        _finish(ax, rf"Bath gas, $P$={P_ref:g} atm, $\phi$={phi_ref:g}, {pct_txt} dilution")
+
+        fig.suptitle("Ignition-delay variation with temperature -- Cantera, h2o2_he.yaml", y=0.995)
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        return self._save(fig, "03b_idt_vs_T_variation")
+
+    # -- 4) species time-history profiles, clubbed by target group -------
+    def plot_species_profiles(self, sim_run_label="nominal_cantera", max_examples=6):
+        """Representative species-vs-time profiles (from saveAll=True
+        time_history.csv dumps). *max_examples* cases are chosen to span
+        the design envelope (T, P, phi, bath gas, dilution) as widely as
+        possible -- rather than just the first N case dirs on disk, which
+        used to all land at the same (T=1000 K, phi=0.3) corner and differ
+        only in bath gas -- restricted to cases that actually ignite
+        inside the fixed 0-2 ms window every panel here shares, so the
+        figures read as genuinely different conditions rather than the
+        same S-curve at different time scales. Titles report the physical
+        condition (composition, phi, T, P), never the internal TIG_####
+        dataset id."""
+        nominal_dir = os.path.join(self.sim_runs_dir, sim_run_label, "NOMINAL")
+        target_data = os.path.join(self.sim_runs_dir, sim_run_label, "target_data.txt")
+        if not os.path.isdir(nominal_dir) or not os.path.exists(target_data):
+            return []
+
+        def _fmt_num(v):
+            try:
+                return f"{float(v):g}"
+            except (TypeError, ValueError):
+                return str(v)
+
+        # -- parse target_data.txt: ds_id|Tig|{comp}|T_K|P_Pa|phi|... ----
+        conds = {}
+        with open(target_data) as f:
+            for idx, line in enumerate(f):
+                parts = line.strip().split("|")
+                if len(parts) < 6:
+                    continue
+                try:
+                    comp = ast.literal_eval(parts[2])
+                except (ValueError, SyntaxError):
+                    comp = {}
+                dil_keys = [k for k in comp if k not in ("H2", "O2")]
+                dil = dil_keys[0] if dil_keys else None
+                conds[idx] = dict(ds_id=parts[0], comp=comp, T=float(parts[3]),
+                                   P_atm=float(parts[4]) / 101325.0, phi=float(parts[5]),
+                                   diluent=dil, dilution_frac=comp.get(dil, 0.0) if dil else 0.0)
+
+        case_dirs = sorted(
+            [d for d in os.listdir(nominal_dir) if d.startswith("case-")],
+            key=lambda s: int(s.split("-")[1]),
+        )
+
+        species_of_interest = ["H2", "O2", "H2O", "OH", "H", "O", "HO2", "H2O2"]
+
+        def _transition_time_s(d):
+            """First time the most-swinging present species crosses 90%
+            (or 10%, depending on direction) of its own total swing -- the
+            actual visible location of the ignition transient in this
+            *saved* trajectory. Deliberately not tau.out's ignition delay:
+            tau.out uses a fixed criterion (peak-OH time) that can fall
+            far later than the visible transient for very hot, fast-
+            igniting conditions -- e.g. a T0=2800 K case whose majors
+            finish moving in under 1 microsecond can still report a
+            tau.out of ~75 microseconds, which would wrongly pass a
+            tau.out-based window check yet show only a flat post-ignition
+            plateau across the whole fixed 0-2 ms frame."""
+            t_s = np.asarray(d["t"] if "t" in d.columns else d.index, dtype=float)
+            present = [s for s in species_of_interest if s in d.columns]
+            if not present or len(t_s) < 2:
+                return None
+            ref = d[present[0]].to_numpy(dtype=float)
+            for s in present:
+                sv = d[s].to_numpy(dtype=float)
+                if (sv.max() - sv.min()) > (ref.max() - ref.min()):
+                    ref = sv
+            lo, hi = ref.min(), ref.max()
+            if not (hi > lo):
+                return None
+            thresh = lo + 0.9 * (hi - lo) if ref[-1] >= ref[0] else lo + 0.1 * (hi - lo)
+            crossed = np.where((ref >= thresh) if ref[-1] >= ref[0] else (ref <= thresh))[0]
+            if not len(crossed):
+                return None
+            return float(t_s[crossed[0]])
+
+        # -- candidates: have a time_history.csv whose actual transition
+        #    time (not tau.out's, see above) falls inside a window where
+        #    the fixed 0-2 ms frame below is legible -- neither a
+        #    near-vertical spike at t~0 nor a flat, already-relaxed line
+        #    all the way across. The DataFrame is cached on the candidate
+        #    so the plotting loop below doesn't re-read it. -------------
+        T_TRANS_LO_S, T_TRANS_HI_S = 50e-6, 1.9e-3
+        candidates = []
+        for cd in case_dirs:
+            th_path = os.path.join(nominal_dir, cd, "time_history.csv")
+            if not os.path.exists(th_path):
+                continue
+            idx = int(cd.split("-")[1])
+            meta = conds.get(idx)
+            if meta is None or meta["diluent"] is None:
+                continue
+            try:
+                d = pd.read_csv(th_path, index_col=0)
+            except Exception:
+                continue
+            t_trans = _transition_time_s(d)
+            if t_trans is None:
+                continue
+            candidates.append(dict(cd=cd, df=d, t_trans_s=t_trans, **meta))
+
+        pool = [c for c in candidates if T_TRANS_LO_S <= c["t_trans_s"] <= T_TRANS_HI_S]
+        widen = 1  # fall back to a wider transition-time window rather than
+        while len(pool) < max_examples and widen <= 4 and candidates:  # returning too few examples, if the design under-populates the base window
+            lo, hi = T_TRANS_LO_S / (2.0 ** widen), T_TRANS_HI_S * (1.2 ** widen)
+            pool = [c for c in candidates if lo <= c["t_trans_s"] <= hi]
+            widen += 1
+        if not pool:
+            pool = candidates
+        if not pool:
+            return []
+
+        # -- greedy farthest-point selection over the normalized design
+        #    tuple (T, P, phi, diluent identity, dilution fraction), so
+        #    the chosen cases spread across the envelope instead of
+        #    clustering at one corner. Deterministic (no RNG): starts
+        #    from the lowest-index candidate and always adds whichever
+        #    remaining candidate is furthest from everything chosen so far.
+        diluents = sorted({c["diluent"] for c in pool})
+
+        def _feat(c):
+            return np.array([
+                np.log10(max(c["T"], 1.0)),
+                np.log10(max(c["P_atm"], 1e-3)),
+                np.log10(max(c["phi"], 1e-3)),
+                float(diluents.index(c["diluent"])) * 2.0,
+                c["dilution_frac"] * 5.0,
+            ])
+
+        feats = {id(c): _feat(c) for c in pool}
+        F = np.array(list(feats.values()))
+        f_lo, f_hi = F.min(axis=0), F.max(axis=0)
+        span = np.where(f_hi > f_lo, f_hi - f_lo, 1.0)
+        norm_feats = {k: (v - f_lo) / span for k, v in feats.items()}
+
+        chosen = [pool[0]]
+        chosen_ids = {id(pool[0])}
+        while len(chosen) < min(max_examples, len(pool)):
+            best, best_dist = None, -1.0
+            for c in pool:
+                if id(c) in chosen_ids:
+                    continue
+                d = min(np.linalg.norm(norm_feats[id(c)] - norm_feats[id(s)]) for s in chosen)
+                if d > best_dist:
+                    best, best_dist = c, d
+            chosen.append(best)
+            chosen_ids.add(id(best))
+        chosen.sort(key=lambda c: int(c["cd"].split("-")[1]))
+
+        T_WINDOW_MS = 2.0
+        out = []
+        for c in chosen:
+            d = c["df"]
+            present = [s for s in species_of_interest if s in d.columns]
+            if not present:
+                continue
+            # The Cantera SolutionArray dump (make_input_file.py's
+            # `timeHistory.to_csv("time_history.csv")`) writes time as the
+            # unnamed first/index column -- pd.read_csv(index_col=0) above
+            # captures it as the DataFrame index regardless of its header
+            # name (empty string, not literally "t"), so just use the index.
+            t_s = np.asarray(d["t"] if "t" in d.columns else d.index, dtype=float)
+            t_ms = t_s * 1e3  # fixed 0-2 ms window, same for every case (per instruction)
+
+            fig, ax1 = plt.subplots(figsize=(6, 4.2))
+            ax2 = ax1.twinx()
+            for s in present:
+                if s in ("H2", "O2", "H2O"):
+                    ax1.plot(t_ms, d[s], label=s)
+                else:
+                    ax2.plot(t_ms, d[s], "--", label=s, alpha=0.7)
+            ax1.set_xlim(0, T_WINDOW_MS)
+            ax1.set_xlabel("time [ms]")
+            ax1.set_ylabel("Y (major species)")
+            ax2.set_ylabel("Y (radicals, dashed)")
+
+            comp = c["comp"]
+            comp_keys = [k for k in ("H2", "O2") if k in comp] + ([c["diluent"]] if c["diluent"] else [])
+            comp_str = "/".join(comp_keys) + " = " + ":".join(_fmt_num(comp[k]) for k in comp_keys)
+            ax1.set_title(
+                f"{comp_str} (mole fraction)\n"
+                rf"$\phi$={_fmt_num(c['phi'])}, $T$={_fmt_num(c['T'])} K, $P$={_fmt_num(c['P_atm'])} atm",
+                fontsize=10,
+            )
+            l1, lab1 = ax1.get_legend_handles_labels()
+            l2, lab2 = ax2.get_legend_handles_labels()
+            ax1.legend(l1 + l2, lab1 + lab2, fontsize=7, loc="center right")
+            out.append(self._save(fig, f"04_species_profile_{c['cd']}"))
+        return out
+
+    # -- 5) flame speed + thickness, clubbed by diluent -------------------
+    def plot_flame_speed(self):
+        df = self._read_csv("flame_thickness.csv")
+        if df is None:
+            return []
+        out = []
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
+        for ax, (dil, dgrp) in zip(axes, df.groupby("diluent")):
+            for P, g in dgrp.groupby("P_atm"):
+                g = g[g["converged"] == True].sort_values("phi")  # noqa: E712
+                if len(g) < 2:
+                    continue
+                xs, ys = _spline_xy(g["phi"], g["S_L_cm_s"], shape_preserving=True)
+                ax.plot(xs, ys, lw=1.8, label=f"P={P:g} atm")
+            ax.set_xlabel(r"Equivalence ratio $\phi$")
+            ax.set_title(f"{dil}, 50% dilution")
+            ax.grid(alpha=0.3)
+        axes[0].set_ylabel("Laminar flame speed [cm/s]")
+        axes[-1].legend(fontsize=8)
+        fig.suptitle(r"Laminar flame speed vs. $\phi$ -- Cantera, h2o2_he.yaml")
+        out.append(self._save(fig, "05_flame_speed"))
+
+        fig2, axes2 = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
+        for ax, (dil, dgrp) in zip(axes2, df.groupby("diluent")):
+            for P, g in dgrp.groupby("P_atm"):
+                g = g[g["converged"] == True].sort_values("phi")  # noqa: E712
+                if len(g) < 2:
+                    continue
+                xs, ys = _spline_xy(g["phi"], np.array(g["flame_thickness_m"]) * 1e3, logy=True, shape_preserving=True)
+                ax.plot(xs, ys, lw=1.8, label=f"P={P:g} atm")
+            ax.set_yscale("log")
+            ax.set_xlabel(r"Equivalence ratio $\phi$")
+            ax.set_title(f"{dil}, 50% dilution")
+            ax.grid(alpha=0.3, which="both")
+        axes2[0].set_ylabel("Flame thickness [mm]")
+        axes2[-1].legend(fontsize=8)
+        fig2.suptitle("Laminar flame thickness")
+        fig2.tight_layout()
+        out.append(self._save(fig2, "05b_flame_thickness"))
+        return out
+
+    # -- 6) extinction strain rate, clubbed by diluent --------------------
+    def plot_extinction(self):
+        df = self._read_csv("extinction_strain_rates.csv")
+        if df is None:
+            return None
+        df = df[df["converged"] == True]  # noqa: E712
+        if df.empty:
+            return None
+        # Not every (P, dilution) combo converged for every diluent, so a
+        # per-axes automatic color cycle would assign the same color to
+        # different P values across panels (and reuse colors within a
+        # panel) purely by which combos happen to be missing -- assign
+        # color by P (fixed across all three panels) and linestyle by
+        # dilution fraction instead, so the legend means the same thing in
+        # every panel regardless of missing combos.
+        P_levels = sorted(df["P_atm"].unique())
+        cmap = plt.get_cmap("tab10")
+        color_by_P = {P: cmap(i % 10) for i, P in enumerate(P_levels)}
+        frac_levels = sorted(df["dilution_frac"].unique())
+        style_by_frac = {f: ls for f, ls in zip(frac_levels, ["-", "--", ":", "-."])}
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
+        drawn_combos = set()
+        for ax, (dil, dgrp) in zip(axes, df.groupby("diluent")):
+            for (P, frac), g in dgrp.groupby(["P_atm", "dilution_frac"]):
+                g = g.sort_values("phi")
+                # A single-phi combo (design has a phi-sweep only at some
+                # (P, dilution) corners, with just the centre point phi=1
+                # elsewhere) collapses to one point after de-duplication --
+                # nothing to draw as a line, and skip it from the legend.
+                if g["phi"].nunique() < 2:
+                    continue
+                xs, ys = _spline_xy(g["phi"], g["a_ext_1_s"], logy=True)
+                ax.plot(xs, ys, lw=1.8, color=color_by_P[P], linestyle=style_by_frac[frac],
+                         label=f"P={P:g} atm, {frac * 100:.0f}% dilution")
+                drawn_combos.add((P, frac))
+            ax.set_yscale("log")
+            ax.set_xlabel(r"Equivalence ratio $\phi$")
+            ax.set_title(f"{dil} dilution")
+            ax.grid(alpha=0.3)
+        axes[0].set_ylabel(r"Extinction strain rate $a_{ext}$ [1/s]")
+        # Combined legend built from every (P, dilution) combo that was
+        # actually drawn in at least one panel (not the full Cartesian
+        # product, since coverage differs by diluent and some combos have
+        # no phi-sweep at all).
+        handles = [plt.Line2D([0], [0], color=color_by_P[P], linestyle=style_by_frac[frac], lw=1.8,
+                               label=f"P={P:g} atm, {frac * 100:.0f}% dilution")
+                   for P in P_levels for frac in frac_levels if (P, frac) in drawn_combos]
+        fig.legend(handles=handles, fontsize=6.5, loc="upper right",
+                   bbox_to_anchor=(0.99, 0.98), ncol=1)
+        fig.suptitle("Twin premixed counterflow extinction strain rate")
+        fig.tight_layout(rect=(0, 0, 0.88, 1))
+        return self._save(fig, "06_extinction_strain")
+
+    # -- 7) JSR S-curve bistability, clubbed by diluent --------------------
+    def plot_jsr_scurve(self):
+        """JSR ignition (light-off) branch: cold-started from the fresh
+        feed composition at each T independently -- robust and standard,
+        but a single branch, not a hysteresis loop (see H2/review/flag.md
+        for why a full bistable-continuation attempt is not shipped: it
+        diverged numerically on this reactor/mechanism combination). The
+        paper's JSR-bistability claim rests on the separate, independently
+        reproduced pipeline convergence failure at the S-curve turning
+        point, not on this figure."""
+        df = self._read_csv("jsr_scurve_continuation.csv")
+        if df is None:
+            return []
+        df = df[df["converged"] == True]  # noqa: E712
+        out = []
+        for dil, dgrp in df.groupby("diluent"):
+            fig, axes = plt.subplots(1, 3, figsize=(15, 4.2), sharey=True)
+            for ax, (P, pgrp) in zip(axes, dgrp.groupby("P_atm")):
+                for phi, g in pgrp.groupby("phi"):
+                    g = g.sort_values("T")
+                    if len(g) < 2:
+                        continue
+                    xs, ys = _spline_xy(g["T"], g["X_H2O"], logy=True)
+                    ax.plot(xs, ys, lw=1.6, label=rf"$\phi$={phi:g}")
+                ax.set_yscale("log")
+                ax.set_xlabel("$T$ [K]")
+                ax.set_title(f"P={P:g} atm")
+                ax.grid(alpha=0.3, which="both")
+            frac = dgrp["dilution_frac"].iloc[0] if "dilution_frac" in dgrp.columns else None
+            pct_txt = f", {frac * 100:.0f}% dilution" if frac is not None else ""
+            axes[0].set_ylabel(r"$X$(H$_2$O) steady state")
+            axes[-1].legend(fontsize=8, ncol=1)
+            fig.suptitle(f"JSR ignition branch (cold-started per T, $\\tau$=100 ms), {dil}{pct_txt}")
+            fig.tight_layout()
+            out.append(self._save(fig, f"07_jsr_scurve_{dil}"))
+        return out
+
+    # -- 8) stiffness diagnostics ------------------------------------------
+    def plot_stiffness(self):
+        """Prefers the dense (T,P) stiffness field from
+        H2/standalone/explosion_limit_map.py (30x14 grid) over the sparse
+        original 10x4 grid, when available, purely for a smoother spline
+        fit -- same underlying method (peak-[OH] state, finite-difference
+        Jacobian), just more points. Subsamples down to at most 7
+        representative pressure levels for plotting (the full 14-level
+        dense field is used to FIT each line, just not all 14 drawn) so a
+        normal, explicit "each line = one pressure" legend stays readable,
+        per instruction, rather than a colorbar."""
+        df = self._read_csv("stiffness_field_dense.csv")
+        if df is None:
+            df = self._read_csv("stiffness_diagnostics.csv")
+        if df is None:
+            return None
+        P_levels_all = sorted(df["P_atm"].unique())
+        max_lines = 7
+        step = max(1, int(np.ceil(len(P_levels_all) / max_lines)))
+        P_levels_plotted = P_levels_all[::step]
+        if P_levels_all[-1] not in P_levels_plotted:
+            P_levels_plotted.append(P_levels_all[-1])
+        cmap = plt.get_cmap("viridis")
+        color_by_P = {P: cmap(i / max(1, len(P_levels_plotted) - 1))
+                      for i, P in enumerate(P_levels_plotted)}
+        fig, ax = plt.subplots(figsize=(7.5, 5))
+        for P in P_levels_plotted:
+            g = df[df["P_atm"] == P].sort_values("T0")
+            if len(g) < 2:
+                continue
+            xs, ys = _spline_xy(g["T0"], g["stiffness_ratio"], logy=True, denoise=True)
+            ax.plot(xs, ys, lw=1.8, color=color_by_P[P], label=f"P = {P:.3g} atm")
+        ax.set_yscale("log")
+        ax.set_xlabel("Temperature $T$ [K]")
+        ax.set_ylabel(r"Jacobian stiffness ratio $|\lambda_{max}|/|\lambda_{min}|$")
+        ax.set_title("Chemical stiffness vs. temperature (stoichiometric H$_2$/N$_2$)")
+        ax.legend(title="Each line = one pressure", fontsize=8, title_fontsize=8,
+                  loc="best", ncol=2 if len(P_levels_plotted) > 4 else 1)
+        ax.grid(alpha=0.3)
+        return self._save(fig, "08_stiffness_diagnostics")
+
+    # -- 9) ROP dominance spectra, clubbed across representative conditions -
+    def plot_rop_spectra(self, top_n=8):
+        """Tornado-style rate-of-progress spectra: within each condition,
+        bars are normalized by that condition's own max |rate| (raw rates
+        span ~1e-9 to ~1e5 mol/m3/s across the sweep -- an absolute-value
+        linear axis makes every bar but the single largest invisible,
+        which is the standard failure mode this avoids), sorted by
+        magnitude, and colored by net direction (forward/reverse) rather
+        than a single uninformative color -- the standard "tornado plot"
+        convention for rate-of-production/sensitivity spectra."""
+        df = self._read_csv("rop_spectra.csv")
+        if df is None:
+            return None
+        conditions = list(df.groupby(["T0", "P_atm", "phi"]).groups.keys())
+        n = len(conditions)
+        ncols = 3
+        nrows = int(np.ceil(n / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(6.3 * ncols, 0.45 * top_n + 2.2 + 2.6 * (nrows - 1)))
+        axes = np.atleast_2d(axes)
+        for i, (T0, P0, phi0) in enumerate(conditions):
+            ax = axes[i // ncols][i % ncols]
+            sub = df[(df["T0"] == T0) & (df["P_atm"] == P0) & (df["phi"] == phi0)].copy()
+            sub["abs_rate"] = sub["net_rate_of_progress"].abs()
+            sub = sub.sort_values("abs_rate", ascending=False).head(top_n)
+            peak = sub["abs_rate"].max()
+            norm = sub["net_rate_of_progress"] / peak if peak > 0 else sub["net_rate_of_progress"] * 0
+            colors = ["tab:red" if v < 0 else "tab:blue" for v in norm]
+            ypos = range(len(sub) - 1, -1, -1)  # largest at top
+            ax.barh(list(ypos), norm, color=colors, edgecolor="k", linewidth=0.4, height=0.7)
+            ax.set_yticks(list(ypos))
+            labels = [e if len(e) <= 34 else e[:31] + "..." for e in sub["equation"]]
+            ax.set_yticklabels(labels, fontsize=8)
+            ax.set_xlim(-1.15, 1.15)
+            ax.set_title(rf"T={T0:g} K, P={P0:g} atm, $\phi$={phi0:g}"
+                         f"\n(peak |ROP| = {peak:.2e} mol/m$^3$/s)", fontsize=9)
+            ax.axvline(0, color="k", lw=0.8)
+            ax.grid(axis="x", alpha=0.3)
+            ax.set_xlabel("Net ROP / max|ROP| in this condition", fontsize=8)
+        for j in range(n, nrows * ncols):
+            axes[j // ncols][j % ncols].axis("off")
+        handles = [plt.Rectangle((0, 0), 1, 1, color="tab:blue"),
+                   plt.Rectangle((0, 0), 1, 1, color="tab:red")]
+        fig.legend(handles, ["net forward", "net reverse"], loc="upper right",
+                   ncol=2, fontsize=9, bbox_to_anchor=(0.99, 1.0))
+        fig.suptitle(f"Top-{top_n} rate-of-progress spectra by condition (normalized per panel)", fontsize=13)
+        fig.tight_layout(rect=(0, 0, 1, 0.97))
+        return self._save(fig, "09_rop_spectra")
+
+    # -- 10) equilibrium / adiabatic flame temperature ----------------------
+    def plot_equilibrium(self):
+        """Standard adiabatic flame temperature vs phi (reactants at a
+        fixed 298 K reference, the textbook convention -- Turns/Law -- so
+        this is directly comparable to any standard combustion reference
+        curve), smooth-sampled and peaking near stoichiometric. Ar and He
+        are merged into one "monatomic diluent" panel rather than shown as
+        two visually-identical panels: both are chemically inert,
+        monatomic ideal gases with the same molar Cp=5/2 R, so at equal
+        mole-fraction dilution the constant-HP equilibrium is numerically
+        the same problem and their T_ad curves coincide. That coincidence
+        is verified at runtime below (not assumed) -- if a future
+        mechanism/thermo update ever actually separated them, this falls
+        back to three separate panels rather than silently hiding it."""
+        df = self._read_csv("equilibrium_flame_temperature.csv")
+        if df is None:
+            return None
+        # H2/standalone/extras.py's DIL_LEVELS -- "low"/"high" map to real
+        # bath-gas mole-fraction percentages (journal convention: report the
+        # percentage directly, never the bare word "dil").
+        level_pct = {"low": 50.0, "high": 90.0, "air": 79.0}
+
+        ARHE_TOL_K = 1.0
+        merge_ar_he, ar_he_diff = False, np.nan
+        if {"AR", "HE"}.issubset(set(df["diluent"].unique())):
+            piv = df.pivot_table(index=["T0", "P_atm", "phi", "dilution_level"],
+                                  columns="diluent", values="T_adiabatic_K").dropna(subset=["AR", "HE"])
+            if not piv.empty:
+                ar_he_diff = float((piv["AR"] - piv["HE"]).abs().max())
+                merge_ar_he = ar_he_diff <= ARHE_TOL_K
+
+        if merge_ar_he:
+            panels = [("Ar or He (monatomic diluent)", df[df["diluent"] == "AR"]),
+                      ("N$_2$ (diatomic diluent)", df[df["diluent"] == "N2"])]
+        else:
+            panels = [(f"{dil} dilution", dgrp) for dil, dgrp in df.groupby("diluent")]
+
+        fig, axes = plt.subplots(1, len(panels), figsize=(5.2 * len(panels), 4.5), sharey=True)
+        axes = np.atleast_1d(axes)
+        for ax, (title, dgrp) in zip(axes, panels):
+            for (P, level), g in dgrp.groupby(["P_atm", "dilution_level"]):
+                g = g.sort_values("phi")
+                if len(g) < 2:
+                    continue
+                pct = level_pct.get(level, level)
+                xs, ys = _spline_xy(g["phi"], g["T_adiabatic_K"])
+                ax.plot(xs, ys, lw=1.6, label=f"P={P:g} atm, {pct:g}% dilution")
+            ax.axvline(1.0, color="k", lw=0.6, ls=":")
+            ax.set_xlabel(r"Equivalence ratio $\phi$")
+            ax.set_title(title)
+            ax.grid(alpha=0.3)
+        axes[0].set_ylabel(r"Adiabatic flame temperature $T_{ad}$ [K] (298 K reactants)")
+        axes[-1].legend(fontsize=6)
+        if merge_ar_he:
+            note = (
+                rf"Ar and He coincide to within {ar_he_diff:.1e} K: both are monatomic, chemically"
+                "\n"
+                r"inert ideal gases with $C_p=\frac{5}{2}R$, so at equal mole-fraction dilution the"
+                "\n"
+                r"constant-HP equilibrium is numerically the same problem. N$_2$ is diatomic"
+                "\n"
+                r"($C_p=\frac{7}{2}R$ + vibrational modes) and absorbs more enthalpy, lowering $T_{ad}$."
+            )
+            fig.suptitle("Equilibrium (HP) adiabatic flame temperature", y=0.99)
+            fig.text(0.5, 0.89, note, ha="center", va="top", fontsize=7.5, style="italic")
+            fig.tight_layout(rect=(0, 0, 1, 0.78))
+        else:
+            fig.suptitle("Equilibrium (HP) adiabatic flame temperature")
+            fig.tight_layout()
+        return self._save(fig, "10_equilibrium_Tad")
+
+    # -- run everything -----------------------------------------------------
+    def run_all(self, sim_run_label="nominal_cantera"):
+        """Generate the full clubbed figure set. Returns a dict of
+        {figure_key: path_or_list}. Any single plot's failure is caught and
+        recorded rather than aborting the rest (same defensiveness as
+        postprocess() below)."""
+        results = {}
+        for key, fn, kwargs in [
+            ("crossover_locus", self.plot_crossover_locus, {}),
+            ("key_temperature_comparison", self.plot_key_temperature_comparison, {}),
+            ("ignitability_map", self.plot_ignitability_map, {}),
+            ("ignitability_3d", self.plot_ignitability_3d, {}),
+            ("stiffness_3d", self.plot_stiffness_3d, {}),
+            ("idt_grids", self.plot_idt_grids, {"sim_run_label": sim_run_label}),
+            ("idt_sensitivity", self.plot_idt_sensitivity, {"sim_run_label": sim_run_label}),
+            ("idt_vs_T_variation", self.plot_idt_vs_T_variation, {"sim_run_label": sim_run_label}),
+            ("species_profiles", self.plot_species_profiles, {"sim_run_label": sim_run_label}),
+            ("flame_speed", self.plot_flame_speed, {}),
+            ("extinction", self.plot_extinction, {}),
+            ("jsr_scurve", self.plot_jsr_scurve, {}),
+            ("stiffness", self.plot_stiffness, {}),
+            ("rop_spectra", self.plot_rop_spectra, {}),
+            ("equilibrium", self.plot_equilibrium, {}),
+            ("flammability_vs_paper_training", self.plot_flammability_vs_paper_training, {}),
+        ]:
+            try:
+                results[key] = fn(**kwargs)
+            except Exception as exc:
+                results[key] = None
+                results[f"{key}_error"] = f"{type(exc).__name__}: {exc}"
+        return results
+
+
+#: Ea/R -> Ea conversion factor (kJ/mol), matching this repo's own convention
+#: in Input_file_reader.py (``R = 8.314E-03``, Ea in kJ/mol).
+_R_KJ = 8.314e-3
+
+_MUQSAC_PATTERNS = {
+    "unsrt": "**/unsrt.pkl",
+    "solution_zeta": "**/solution_zeta.save",
+    "posterior_cov": "**/posterior_cov.pkl",
+    "optimized_mech": "**/Optimized_mech.yaml",
+    "prediction_errors": "**/Prediction_errors.csv",
+    "prediction_errors_detailed": "**/Prediction_errors_detailed.csv",
+    "target_files": "**/*.target",
+}
+
+
+def _load_pickle(path):
+    with open(path, "rb") as fh:
+        return pickle.load(fh)
+
+
+def _load_solution_zeta(path):
+    lines = open(path, "r").readlines()
+    return [float(line.split("=")[1].strip()) for line in lines if "=" in line]
+
+
+def _per_reaction_zeta_and_cov(unsrt_data, opt_zeta, posterior_cov):
+    """Same inline reconstruction run_script.py does right before building
+    each PostOptPlotter (see VisualAid.py's module docstring above) --
+    duplicated here rather than imported since it is a ~10-line loop in
+    run_script.py's own module scope, not a function it exposes."""
+    opt_zeta_arr = np.asarray(opt_zeta, dtype=float)
+    rxn_slices = posterior_cov["rxn_slices"]
+    Sigma_p = posterior_cov["Sigma_p"]
+    out = {}
+    offset = 0
+    for rxn in unsrt_data:
+        m_j = len(unsrt_data[rxn].activeParameters)
+        z_rxn = opt_zeta_arr[offset: offset + m_j]
+        offset += m_j
+
+        sl = rxn_slices[rxn]
+        Sp_rxn = Sigma_p[sl, sl]
+
+        z_full = np.zeros(3, dtype=float)
+        sel = np.asarray(unsrt_data[rxn].selection, dtype=int)
+        act = [i for i, s in enumerate(sel) if s == 1]
+        for local_i, global_i in enumerate(act):
+            if local_i < len(z_rxn):
+                z_full[global_i] = z_rxn[local_i]
+        out[rxn] = (z_full, Sp_rxn)
+    return out
+
+
+def _arrhenius_table_row(rxn, u, z_full):
+    """One row of the --journal Arrhenius parameter table: prior vs.
+    optimised A/n/Ea for one reaction, straight from the same p0/L/zeta_opt
+    PostOptPlotter's curves are built from."""
+    p0 = np.asarray(u.nominal, dtype=float)
+    L = np.asarray(u.cholskyDeCorrelateMat, dtype=float)
+    p_opt = p0 + L @ z_full
+    return {
+        "reaction": rxn,
+        "prior_lnA": p0[0], "prior_n": p0[1], "prior_Ea_kJ_per_mol": p0[2] * _R_KJ,
+        "optimized_lnA": p_opt[0], "optimized_n": p_opt[1],
+        "optimized_Ea_kJ_per_mol": p_opt[2] * _R_KJ,
+        "delta_lnA": p_opt[0] - p0[0], "delta_n": p_opt[1] - p0[1],
+        "delta_Ea_kJ_per_mol": (p_opt[2] - p0[2]) * _R_KJ,
+    }
+
+
+def postprocess(run_dir, out_dir=None, journal=False, csv_only=False,
+                 formats=("png",), intermediate=False):
+    """Regenerate MUQ-SAC optimisation plots/tables from an existing (or
+    still-running, with ``intermediate=True``) ``run_script.py`` run
+    directory. Never raises on missing files -- whatever inputs aren't
+    present yet (a run still in its PRS-fitting stage, before optimisation
+    has produced ``solution_zeta.save``) are recorded in
+    ``result.skipped`` rather than failing the whole call, so this is safe
+    to call repeatedly against a run directory while it's still going.
+
+    Returns a :class:`mso_io.postprocess_base.PostProcessResult`.
+    """
+    if PostProcessResult is None:
+        raise ImportError("mso_io.postprocess_base not importable -- is src/ on sys.path?")
+
+    run_dir = os.path.abspath(run_dir)
+    out_dir = str(default_out_dir(run_dir, out_dir))
+    found = discover(run_dir, _MUQSAC_PATTERNS)
+    result = PostProcessResult(run_dir=run_dir, out_dir=out_dir, partial=bool(intermediate))
+
+    figures_dir = os.path.join(out_dir, "figures")
+    tables_dir = os.path.join(out_dir, "tables")
+
+    # -- Per-reaction posterior plots (unsrt.pkl + solution_zeta.save + posterior_cov.pkl) --
+    have_posterior_inputs = (found["unsrt"] and found["solution_zeta"] and found["posterior_cov"])
+    if have_posterior_inputs:
+        try:
+            unsrt_data = _load_pickle(str(found["unsrt"][0]))
+            opt_zeta = _load_solution_zeta(str(found["solution_zeta"][0]))
+            posterior_cov = _load_pickle(str(found["posterior_cov"][0]))
+            per_rxn = _per_reaction_zeta_and_cov(unsrt_data, opt_zeta, posterior_cov)
+
+            arrhenius_rows = []
+            for rxn, (z_full, Sp_rxn) in per_rxn.items():
+                try:
+                    plotter = PostOptPlotter(unsrt_data=unsrt_data, rxn=rxn,
+                                              zeta_opt=z_full, Sigma_p_rxn=Sp_rxn, n_sigma=1)
+                    if not csv_only:
+                        fig_path = plotter.plot(location=figures_dir)
+                        result.figures.append(fig_path)
+
+                    # Curve data -> CSV, unconditionally (the class's own
+                    # curve-building methods, called as any external caller
+                    # of this public-ish API would -- PostOptPlotter itself
+                    # is not modified).
+                    x = 1e3 / plotter.T
+                    k_nom = plotter._nominal_curve()
+                    k_prior_lo, k_prior_hi = plotter._prior_limits()
+                    k_opt = plotter._optimised_curve()
+                    k_post_lo, k_post_hi = plotter._posterior_band()
+                    safe_rxn = str(rxn).replace("/", "_").replace(" ", "_")
+                    df = pd.DataFrame({
+                        "T_K": plotter.T, "inv1000T": x,
+                        "log10k_nominal": k_nom,
+                        "log10k_prior_lo": k_prior_lo, "log10k_prior_hi": k_prior_hi,
+                        "log10k_optimized": k_opt,
+                        "log10k_posterior_lo": k_post_lo, "log10k_posterior_hi": k_post_hi,
+                    })
+                    result.tables.append(write_table(df, f"{safe_rxn}_posterior", tables_dir))
+
+                    if journal:
+                        arrhenius_rows.append(_arrhenius_table_row(rxn, unsrt_data[rxn], z_full))
+                except Exception as exc:  # a single bad reaction shouldn't abort the run
+                    result.skipped.append(f"reaction {rxn}: {type(exc).__name__}: {exc}")
+
+            if journal and arrhenius_rows:
+                journal_dir = os.path.join(out_dir, "journal_data")
+                result.journal_tables.append(
+                    write_table(pd.DataFrame(arrhenius_rows), "arrhenius_parameters", journal_dir))
+        except Exception as exc:
+            result.skipped.append(f"posterior plots: {type(exc).__name__}: {exc}")
+    else:
+        missing = [k for k in ("unsrt", "solution_zeta", "posterior_cov") if not found[k]]
+        result.skipped.append(
+            f"posterior plots: optimisation not yet at that stage (missing {', '.join(missing)})"
+            if intermediate else
+            f"posterior plots: no {', '.join(missing)} found under {run_dir}")
+
+    # -- Cost / prediction-error CSVs (already CSVs -- just relocate + always tracked) --
+    for key, label in (("prediction_errors", "prediction_errors"),
+                        ("prediction_errors_detailed", "prediction_errors_detailed")):
+        for src_path in found[key]:
+            df = pd.read_csv(src_path)
+            result.tables.append(write_table(df, label, tables_dir))
+            if journal:
+                result.journal_tables.append(
+                    write_table(df, f"summary_{label}", os.path.join(out_dir, "journal_data")))
+
+    # -- TargetSet plots, if a .target file is discoverable --
+    if found["target_files"]:
+        try:
+            target_path = str(found["target_files"][0])
+            add_path = os.path.splitext(target_path)[0] + ".add"
+            target_set = TargetSet(target_path, add_path if os.path.exists(add_path) else None)
+            tsp = TargetSetPlotter(target_set)
+            if not csv_only:
+                os.makedirs(figures_dir, exist_ok=True)
+                p1 = tsp.plot_condition_coverage(
+                    save_path=os.path.join(figures_dir, "condition_coverage.png"))
+                p2 = tsp.plot_observed_vs_deviation(
+                    save_path=os.path.join(figures_dir, "observed_vs_deviation.png"))
+                result.figures.extend([p for p in (p1, p2) if p])
+            result.tables.append(write_table(target_set.to_dataframe(), "target_set", tables_dir))
+        except Exception as exc:
+            result.skipped.append(f"target set plots: {type(exc).__name__}: {exc}")
+    else:
+        result.skipped.append(
+            f"target set plots: no .target file found under {run_dir} "
+            "(NominalParityAnalyzer additionally needs nominal_results, which "
+            "run_script.py does not persist to disk -- not attempted)")
+
+    write_manifest(result, out_dir)
+    return result
+
+
+def _main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="MUQ-SAC VisualAid: standalone plotter class library, "
+                     "plus --postprocess to regenerate plots/tables from an "
+                     "existing run_script.py run directory.")
+    add_postprocess_args(parser)
+    args = parser.parse_args()
+    if not args.postprocess:
+        parser.error("nothing to do -- pass --postprocess RUN_DIR "
+                      "(this file is a library when imported; run_script.py "
+                      "does that. This CLI is only for post-processing.)")
+    result = postprocess(
+        args.postprocess, out_dir=args.out, journal=args.journal,
+        csv_only=args.csv_only, formats=formats_from_args(args),
+        intermediate=args.intermediate,
+    )
+    print(f"[VisualAid.postprocess] {len(result.figures)} figure(s), "
+          f"{len(result.tables)} table(s), {len(result.journal_tables)} journal table(s) "
+          f"-> {result.out_dir}")
+    for note in result.skipped:
+        print(f"  skipped: {note}")
+
+
+if __name__ == "__main__":
+    _main()
+

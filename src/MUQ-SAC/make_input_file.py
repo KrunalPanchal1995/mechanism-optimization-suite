@@ -334,9 +334,26 @@ def create_input_file(case,opt_dict,target,mech_file=None, solver= None):
 		instring = open(target.input_file,'r').read()
 			
 	elif "JSR" in target.target:
-		#print(target.add)
-		instring ="""import pandas as pd
+		# RMIP Phase-6 (Future.md pt. 3 + 6): JSR now dispatches on `solver`
+		# (previously cantera-only) and supports optional reaction-flux
+		# analysis (target.add["flux_analysis"]) in all three solvers.
+		_flux_on = bool(target.add.get("flux_analysis", False))
+		_flux_element = target.add.get("flux_element", "C")
+
+		if "cantera" in solver:
+			_flux_block = ("""
+# --- RMIP flux analysis (Future.md pt. 3) ---
+_rop = stirred_reactor.kinetics.net_rates_of_progress
+_eqs = stirred_reactor.kinetics.reaction_equations()
+_flux_data = {"element": "%s",
+              "rop": {eq: float(r) for eq, r in zip(_eqs, _rop)}}
+with open("output/flux.json", "w") as _ff:
+	json.dump(_flux_data, _ff, indent=2)
+""" % _flux_element) if _flux_on else ""
+
+			instring ="""import pandas as pd
 import time
+import json
 import cantera as ct
 
 gas = ct.Solution("{mech}")
@@ -348,7 +365,7 @@ species = "{species}"
 # Reactor parameters
 residence_time = {residenceTime}  # s
 reactor_volume = 1  # m3
-max_simulation_time = {maxSimTime}
+MaxSimulationTime = {MaxSimulationTime}
 fuel_air_mixture_tank = ct.Reservoir(gas)
 exhaust = ct.Reservoir(gas)
 
@@ -372,7 +389,7 @@ tic = time.time()
 
 t = 0
 counter = 1
-while t < max_simulation_time:
+while t < MaxSimulationTime:
 	t = reactor_network.step()
 
 	# We will store only every 10th value. Remember, we have 1200+ species, so there will be
@@ -388,7 +405,416 @@ toc = time.time()
 MF = time_history(species).X[-1][0]
 tau_file = open("output/jsr.out",'w')
 tau_file.write("#T(K)	mole fraction"+"\\n"+"{{}}	{{}}".format(reactor_temperature,MF))
-tau_file.close()""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,species=str(target.add["species"]),residenceTime = target.add["residenceTime"],maxSimTime = target.add["maxSimulationTime"])
+tau_file.close()
+
+# RMIP full-composition dump (Future.md pt. 6) — additive; does not change
+# the jsr.out contract consumed by data_management.py.
+# NOTE: reactor_pressure is already in Pa (target.pressure is unit-converted
+# to Pa unconditionally by combustion_target_class.__init__) — the stale
+# "in atm" comment above predates that conversion.
+jsr_full = {{
+	"T_K": reactor_temperature, "P_atm": reactor_pressure / 101325.0,
+	"residence_time_s": residence_time,
+	"converged": True,
+	"species_mole_fractions": dict(zip(gas.species_names, stirred_reactor.thermo.X.tolist())),
+}}
+with open("output/jsr_full.json", "w") as jf:
+	json.dump(jsr_full, jf, indent=2)
+{flux_block}""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,species=str(target.add["species"]),residenceTime = target.add["residenceTime"],MaxSimulationTime = target.add["MaxSimulationTime"],flux_block=_flux_block)
+
+		elif "CHEMKIN_PRO" in solver:
+			# NOTE (KP to verify): 'CKReactorGenericPSR' is the standard
+			# Chemkin-Pro perfectly-stirred-reactor executable name used by
+			# PyChemkin's writeinputJSR() — confirm against your installation.
+			instring = """#!/usr/bin/env python
+# encoding: utf-8
+import os
+import json
+from chemkin import ChemkinJob, getMoleFraction
+
+species_conc = {species_conc}
+reactants = [(sp, conc) for sp, conc in species_conc.items()]
+
+currentDir = os.path.dirname(os.path.abspath(__file__))
+chemFile = os.path.join(currentDir, 'mechanism.inp')
+tempDir  = os.path.join(currentDir, 'output')
+
+job = ChemkinJob(name="jsr_case", chemFile=chemFile, tempDir=tempDir)
+job.preprocess()
+
+input_file = job.writeinputJSR(
+	problemType='solveGasEnergy',
+	reactants=reactants,
+	tau={residenceTime},               # s
+	endtime={MaxSimulationTime},               # s
+	volume=1.0e6,                       # cm3 (1 m3, matches the cantera JSR default)
+	temperature={temperature},          # K
+	pressure={pressure_bar},            # bar (writeinputJSR divides by 1.01325 -> atm internally)
+)
+
+job.run(input_file, model='CKReactorGenericPSR', pro=True)
+job.postprocess(sens=False, rop={flux_flag}, all=True, transpose=False)
+
+time_data, spec_data = getMoleFraction(job.ckcsvFile, species=list(species_conc.keys()))
+exit_X = {{sp: float(vals[-1][-1]) for sp, vals in spec_data.items() if len(vals) and len(vals[-1])}}
+
+species = "{species}"
+MF = exit_X.get(species, 0.0)
+with open("output/jsr.out", 'w') as tau_file:
+	tau_file.write("#T(K)	mole fraction" + "\\n" + "{{}}	{{}}".format({temperature}, MF))
+
+with open("output/jsr_full.json", 'w') as jf:
+	json.dump({{
+		"T_K": {temperature}, "P_atm": {pressure_atm},
+		"residence_time_s": {residenceTime},
+		"converged": True,
+		"species_mole_fractions": exit_X,
+	}}, jf, indent=2)
+""".format(species_conc=target.species_dict, residenceTime=target.add["residenceTime"],
+           MaxSimulationTime=target.add["MaxSimulationTime"], temperature=target.temperature,
+           # NOTE: target.pressure is already in Pa here — combustion_target_class
+           # converts P to Pa unconditionally in __init__ regardless of the
+           # original `units["P"]` — so we convert Pa -> atm for the output
+           # label and Pa -> bar for PyChemkin's writeinputJSR() (which
+           # internally divides by 1.01325 to get atm, i.e. expects bar).
+           pressure_atm=target.pressure / 101325.0, pressure_bar=target.pressure / 100000.0,
+           species=str(target.add["species"]), flux_flag=_flux_on)
+
+		elif "zerork" in solver:
+			# Zero-RK's constVolumePSR.x JSR solver (see ZERORK_GSA_PLAN.md
+			# Phase 1/2 and the Tig zerork branch below for the sibling IDT
+			# wiring). Same fuel/oxidizer stream-ratio reconstruction as Tig
+			# -- target.fuel_dict/target.species_dict are already-mixed
+			# absolute fractions, not Zero-RK's stream-relative ratios.
+			_fuel_dict = {sp: x for sp, x in target.fuel_dict.items() if x > 0}
+			_total_fuel = sum(_fuel_dict.values())
+			if _total_fuel <= 0:
+				raise AssertionError("zerork JSR: target.fuel_dict has no positive-fraction species")
+			_fuel_stream = {sp: x / _total_fuel for sp, x in _fuel_dict.items()}
+			_non_fuel = {sp: x for sp, x in target.species_dict.items() if sp not in _fuel_dict and x > 0}
+			_total_non_fuel = sum(_non_fuel.values())
+			if _total_non_fuel <= 0:
+				raise AssertionError("zerork JSR: no oxidizer/bath-gas species found outside target.fuel_dict")
+			_oxidizer_stream = {sp: x / _total_non_fuel for sp, x in _non_fuel.items()}
+
+			instring = """import subprocess
+import yaml
+import json
+
+zerork_bin = "{zerork_bin}/constVolumePSR.x"
+cfg = {{
+	"mechFile": "mechanism.inp",
+	"thermFile": "mechanism.inp",
+	"logFile": "mech.clog",
+	"idtFile": "jsr.dat",
+	"thistFile": "jsr.thist",
+	"fuel_mole_fracs": {fuel_stream},
+	"oxidizer_mole_fracs": {oxidizer_stream},
+	"tracked_species_names": [{tracked_species!r}],
+	"steplimiter": 1e16,
+	"stop_time": {stop_time},
+	"energy_enabled": 1,
+	"residence_times": [{residenceTime}],
+	"print_time": {stop_time},
+	"max_internal_dt": 1.0,
+	"relative_tolerance": {rtol},
+	"absolute_tolerance": {atol},
+	"initial_temperatures": [{temperature}],
+	"initial_pressures": [{pressure}],
+	"initial_phis": [{phi}],
+	"initial_egrs": [0.0],
+	"preconditioner_thresholds": [{precond_thresh}],
+	"eps_lin": {eps_lin},
+	"nonlinear_convergence_coefficient": {nlcc},
+}}
+with open("jsr_input.yml", "w") as fh:
+	yaml.safe_dump(cfg, fh, default_flow_style=False)
+
+proc = subprocess.run([zerork_bin, "jsr_input.yml"], capture_output=True, text=True)
+
+converged = False
+MF = float("nan")
+resid_time_s = None
+if proc.returncode == 0:
+	with open("jsr.dat") as fh:
+		for line in fh:
+			s = line.strip()
+			if s and not s.startswith("#"):
+				fields = s.split()
+				resid_time_s = float(fields[7])
+				cvode_err = int(fields[9])
+				converged = (cvode_err == 0)
+				MF = float(fields[11])  # 10 fixed cols + 1 "init mlfrc" col -> 1st "final mlfrc" col
+				break
+
+tau_file = open("output/jsr.out", "w")
+tau_file.write("#T(K)	mole fraction" + "\\n" + "{{}}	{{}}".format({temperature}, MF))
+tau_file.close()
+
+with open("output/jsr_full.json", "w") as jf:
+	json.dump({{
+		"T_K": {temperature}, "P_atm": {pressure} / 101325.0,
+		"residence_time_s": resid_time_s,
+		"converged": converged,
+		"species_mole_fractions": {{{tracked_species!r}: MF}},
+		"solver_returncode": proc.returncode,
+		"solver_stdout_tail": proc.stdout[-2000:],
+	}}, jf, indent=2)
+""".format(zerork_bin = target.add["zerork_install_dir"] + "/bin",
+           fuel_stream = _fuel_stream, oxidizer_stream = _oxidizer_stream,
+           tracked_species = str(target.add["species"]),
+           stop_time = target.add["zerork_stop_time"],
+           rtol = target.add["zerork_rtol"], atol = target.add["zerork_atol"],
+           temperature = target.temperature, pressure = target.pressure, phi = target.phi,
+           residenceTime = target.add["residenceTime"],
+           precond_thresh = target.add["zerork_jsr_preconditioner_threshold"],
+           eps_lin = target.add["zerork_eps_lin"],
+           nlcc = target.add["zerork_nonlinear_convergence_coefficient"])
+
+			extract = """
+			"""
+
+		elif "FlameMaster" in solver:
+			# NOTE (KP to verify): FlameMaster's PSR/homogeneous-reactor
+			# keyword set (`Flame is PSR`, `ResidenceTime`) should be checked
+			# against your FlameMaster build's documentation — this mirrors
+			# the structure of the existing Tig/Flf FlameMaster decks below.
+			_species_block = "\n".join(
+				"\t\tx-{0} = {1}".format(sp, conc) for sp, conc in target.species_dict.items()
+			)
+			instring = """############
+# Numerics #
+############
+TimeDepFlag is TRUE
+DeltaTStart = 1e-5
+MaxIter = 5000
+TolRes = 1.0e-15
+TolDy = 1e-4
+
+########################
+# Sensitivity Analysis #
+########################
+{flux_line}
+
+#######
+# I/O #
+#######
+OutputPath is ./output
+
+#############
+# Chemistry #
+#############
+MechanismFile is {p_f}
+
+#####################################
+# Reactor (JSR / PSR approximation) #
+#####################################
+Flame is PSR
+ResidenceTime = {residenceTime}
+pressure = {pressure}
+
+Unburnt Side {{
+	dirichlet {{
+		t = {temperature}
+{species_block}
+	}}
+}}
+""".format(p_f=mech_file, residenceTime=target.add["residenceTime"],
+           pressure=target.pressure, temperature=target.temperature,
+           species_block=_species_block,
+           flux_line=("ReactionFluxAnal is TRUE" if _flux_on else "#ReactionFluxAnal is TRUE"))
+
+		extract = """
+		"""
+	elif "PFR" in target.target:
+		# RMIP Phase-6 (Future.md pt. 3 + 6): new target type, all three
+		# solvers, with the same optional flux-analysis toggle as JSR.
+		_flux_on = bool(target.add.get("flux_analysis", False))
+		_flux_element = target.add.get("flux_element", "C")
+
+		if "cantera" in solver:
+			_flux_block = ("""
+# --- RMIP flux analysis (Future.md pt. 3) ---
+_rop = r.kinetics.net_rates_of_progress
+_eqs = r.kinetics.reaction_equations()
+_flux_data = {"element": "%s",
+              "rop": {eq: float(v) for eq, v in zip(_eqs, _rop)}}
+with open("output/flux.json", "w") as _ff:
+	json.dump(_flux_data, _ff, indent=2)
+""" % _flux_element) if _flux_on else ""
+
+			instring = """import json
+import cantera as ct
+
+gas = ct.Solution("{mech}")
+reactor_temperature = {temperature}  # Kelvin
+reactor_pressure = {pressure}  # Pa
+inlet_concentrations = {species_conc}
+gas.TPX = reactor_temperature, reactor_pressure, inlet_concentrations
+
+length = {length}          # m
+area = {area}               # m2
+mdot = {mdot}                # kg/s
+n_points = {n_points}
+
+# Lagrangian marching PFR: advance a fluid parcel in time, with dt=dz/u at
+# each step recomputed from the local density (frictionless, adiabatic,
+# no axial diffusion — standard idealized-PFR assumptions).
+r = ct.IdealGasConstPressureReactor(gas)
+sim = ct.ReactorNet([r])
+
+dz = length / n_points
+positions, temps, t = [], [], 0.0
+u = mdot / (gas.density * area)
+for i in range(n_points):
+	dt = dz / u if u > 0 else 1e-6
+	t += dt
+	sim.advance(t)
+	u = mdot / (r.thermo.density * area)
+	positions.append((i + 1) * dz)
+	temps.append(r.T)
+
+exit_X = dict(zip(gas.species_names, r.thermo.X.tolist()))
+pfr_full = {{
+	"T_K": reactor_temperature, "P_atm": reactor_pressure / 101325.0,
+	"length_m": length, "residence_time_s": t,
+	"converged": True,
+	"species_mole_fractions": exit_X,
+	"axial_profile": {{"position_m": positions, "T_K": temps}},
+}}
+with open("output/pfr_full.json", "w") as jf:
+	json.dump(pfr_full, jf, indent=2)
+
+species = "{species}"
+MF = exit_X.get(species, 0.0)
+with open("output/pfr.out", 'w') as pfr_file:
+	pfr_file.write("#T(K)	mole fraction" + "\\n" + "{{}}	{{}}".format(r.T, MF))
+{flux_block}""".format(mech=mech_file, temperature=target.temperature,
+           # target.pressure is already in Pa (combustion_target_class
+           # unit-converts P unconditionally in __init__) — no further conversion.
+           pressure=target.pressure, species_conc=target.species_dict,
+           length=target.add["pfr_length"], area=(3.141592653589793 * (target.add["pfr_diameter"] / 2.0) ** 2),
+           mdot=target.add["pfr_mdot"], n_points=target.add["pfr_n_points"],
+           species=str(target.add["species"]), flux_block=_flux_block)
+
+		elif "CHEMKIN_PRO" in solver:
+			# NOTE (KP to verify): 'CKReactorPlugFlow' is the standard
+			# Chemkin-Pro plug-flow executable name used by PyChemkin's
+			# writeInputPlugFlow() — confirm against your installation.
+			instring = """#!/usr/bin/env python
+# encoding: utf-8
+import os
+import json
+from chemkin import ChemkinJob, getMoleFraction
+
+species_conc = {species_conc}
+reactants = [(sp, conc) for sp, conc in species_conc.items()]
+diameter_cm = {diameter_cm}
+length_cm = {length_cm}
+mdot_g_s = {mdot_g_s}
+
+currentDir = os.path.dirname(os.path.abspath(__file__))
+chemFile = os.path.join(currentDir, 'mechanism.inp')
+tempDir  = os.path.join(currentDir, 'output')
+
+job = ChemkinJob(name="pfr_case", chemFile=chemFile, tempDir=tempDir)
+job.preprocess()
+
+input_file = job.writeInputPlugFlow(
+	problemType='solveGasEnergy',
+	reactants=reactants,
+	startingAxialPosition=0.0,
+	endingAxialPosition=length_cm,       # cm
+	diameter=diameter_cm,                 # cm
+	massflowrate=mdot_g_s,                # g/sec
+	temperature={temperature},            # K
+	pressure={pressure_bar},               # bar (writeInputPlugFlow divides by 1.01325 -> atm internally)
+)
+
+job.run(input_file, model='CKReactorPlugFlow', pro=True)
+job.postprocess(sens=False, rop={flux_flag}, all=True, transpose=False)
+
+dist_data, spec_data = getMoleFraction(job.ckcsvFile, species=list(species_conc.keys()))
+exit_X = {{sp: float(vals[-1][-1]) for sp, vals in spec_data.items() if len(vals) and len(vals[-1])}}
+
+species = "{species}"
+MF = exit_X.get(species, 0.0)
+with open("output/pfr.out", 'w') as pfr_file:
+	pfr_file.write("#T(K)	mole fraction" + "\\n" + "{{}}	{{}}".format({temperature}, MF))
+
+with open("output/pfr_full.json", 'w') as jf:
+	json.dump({{
+		"T_K": {temperature}, "P_atm": {pressure_atm},
+		"length_m": length_cm / 100.0,
+		"converged": True,
+		"species_mole_fractions": exit_X,
+	}}, jf, indent=2)
+""".format(species_conc=target.species_dict, temperature=target.temperature,
+           # target.pressure is already in Pa (see combustion_target_class
+           # __init__) — convert to atm for the output label and to bar for
+           # PyChemkin's writeInputPlugFlow().
+           pressure_atm=target.pressure / 101325.0, pressure_bar=target.pressure / 100000.0,
+           diameter_cm=target.add["pfr_diameter"] * 100.0,
+           length_cm=target.add["pfr_length"] * 100.0,
+           mdot_g_s=target.add["pfr_mdot"] * 1000.0,
+           species=str(target.add["species"]), flux_flag=_flux_on)
+
+		elif "FlameMaster" in solver:
+			# NOTE (KP to verify): FlameMaster has no native plug-flow-reactor
+			# mode in this toolchain's usage; a fixed-mass-flux
+			# BurnerStabilizedFlame (as already used by the Flf branch below)
+			# is the closest available approximation — it solves 1D reacting
+			# flow at constant mass flux like a PFR, but (unlike an idealized
+			# PFR) still includes axial diffusion terms.
+			_species_block = "\n".join(
+				"\t\tx-{0} = {1}".format(sp, conc) for sp, conc in target.species_dict.items()
+			)
+			instring = """############
+# Numerics #
+############
+TimeDepFlag is TRUE
+DeltaTStart = 1e-5
+initialgridpoints = {n_points}
+maxgridpoints = {n_points}
+MaxIter = 5000
+TolRes = 1.0e-15
+TolDy = 1e-4
+
+########################
+# Sensitivity Analysis #
+########################
+{flux_line}
+
+#######
+# I/O #
+#######
+OutputPath is ./output
+
+#############
+# Chemistry #
+#############
+MechanismFile is {p_f}
+
+#####################################################
+# Reactor (PFR approximation via fixed-mass-flux 1D  #
+# reacting flow — see NOTE above)                    #
+#####################################################
+Flame is BurnerStabilizedFlame
+ConstMassFlux is TRUE
+MassFlowRate = {mdot}
+pressure = {pressure}
+
+Unburnt Side {{
+	dirichlet {{
+		t = {temperature}
+{species_block}
+	}}
+}}
+""".format(p_f=mech_file, n_points=target.add["pfr_n_points"],
+           mdot=target.add["pfr_mdot"] * 1000.0, pressure=target.pressure,
+           temperature=target.temperature, species_block=_species_block,
+           flux_line=("ReactionFluxAnal is TRUE" if _flux_on else "#ReactionFluxAnal is TRUE"))
+
 		extract = """
 		"""
 	elif "Flf" in target.target:
@@ -414,7 +840,7 @@ reactorVolume = 1 #m3
 pressureValveCoefficient = 0.01
 maxPressureRiseAllowed = 0.01
 
-maxSimulationTime = {maxSimTime} # seconds
+MaxSimulationTime = {MaxSimulationTime} # seconds
 
 fuelAirMixtureTank = ct.Reservoir(gas)
 exhaust = ct.Reservoir(gas)
@@ -437,7 +863,7 @@ columnNames = ['pressure'] + columnNames
 timeHistory = pd.DataFrame(columns=columnNames)
 tic = time.time()
 t = 0
-while t < maxSimulationTime:
+while t < MaxSimulationTime:
 	t = reactorNetwork.step()
 	
 state = np.hstack([stirredReactor.thermo.P, 
@@ -455,7 +881,7 @@ timeHistory.loc[reactorTemperature] = state
 Flf = str(timeHistory['{species}']).split("\\n")[0].split("	")[1]
 flf_file = open("output/flf.out",'w')
 flf_file.write("#T(K)	flf(conc.)"+"\\n"+"{{}}	{{}}".format(reactorTemperature,Flf))
-flf_file.close()""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,species=target.add["species"],residenceTime = target.add["residenceTime"],maxSimTime = target.add["maxSimulationTime"])
+flf_file.close()""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,species=target.add["species"],residenceTime = target.add["residenceTime"],MaxSimulationTime = target.add["MaxSimulationTime"])
 			extract = """
 		"""
 	elif "RCM" in target.target:
@@ -581,6 +1007,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 class VolumeProfile(object):
@@ -948,6 +1403,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -1023,7 +1507,7 @@ currentDir = os.path.dirname(__file__).strip("\\n")
 chemFile = os.path.join(currentDir, 'mechanism.inp')  # Update with the mechanism file path
 tempDir = os.path.join(currentDir, 'output')
 
-estimatedIgnitionDelayTime = {estimateTIG}
+MaxSimulationTime = {MaxSimulationTime}
 variableVolumeProfileType = "{VP_FILE_TYPE}"
 if variableVolumeProfileType == "ck_file":
 	VP = "{volume_profile}"
@@ -1051,7 +1535,7 @@ input_file = job.writeInputHomogeneousBatch(
 	reactants=conc_X,
 	temperature=reactorTemperature,
 	pressure=reactorPressure,
-	endTime= {estimateTIG},  # Simulation end time in seconds
+	endTime= {MaxSimulationTime},  # Simulation end time in seconds
 	variableVolume = True,
 	variableVolumeProfile = VP,
 	variableVolumeProfileType = "{VP_FILE_TYPE}"
@@ -1162,7 +1646,7 @@ def delete_files(directory):
 # Specify the directory containing the files
 directory_path = "output/"
 delete_files(directory_path)
-""".format(mech = mech_file,target_Temperature = target.temperature,temperature_K = target.temperature_i,pressure=target.pressure_i,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], volume_profile=target.add["volume_profile"][float(target.temperature)],VP_FILE_TYPE = target.add["volume_profile_type"],estimateTIG = float(target.add["estimateTIG"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
+""".format(mech = mech_file,target_Temperature = target.temperature,temperature_K = target.temperature_i,pressure=target.pressure_i,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], volume_profile=target.add["volume_profile"][float(target.temperature)],VP_FILE_TYPE = target.add["volume_profile_type"],MaxSimulationTime = float(target.add["MaxSimulationTime"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
 		elif "cantera" in solver and "non_reactive" in target.add["RCM_type"]: 
 				instring="""#!/usr/bin/python
@@ -1335,6 +1819,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 	
 def doNonReactive(gas,inp_time,inp_vol):
@@ -1410,6 +1923,99 @@ fig = plt.figure()
 plt.plot(timeHistory_nonreactive,pressureList_nonreactive,"r-",label="Non-reactive pressure profile")
 plt.savefig("p_profile.png",bbox_inches="tight")""".format(mech = mech_file,volumeProfile = target.add["volume_profile"][float(target.temperature)],temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],VP_FILE_TYPE = target.add["volume_profile_type"],delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 		
+		elif "zerork" in solver:
+			# Zero-RK's variable_volume.x RCM solver (see ZERORK_GSA_PLAN.md /
+			# PLAN.md). Ignition-delay DEFINITION differs from the cantera/
+			# CHEMKIN_PRO branches above (which compute tau as the time between
+			# the first-stage and main temperature-rise peaks in a two-thirds-
+			# split of the temperature history): Zero-RK's own "Time at max
+			# dP/dt" stdout summary line is used instead -- a real, documented
+			# definitional difference (same class of gap as zerork_idt_temp_delta
+			# vs. the flexible ign_delay_def/ign_cond options for Tig), not an
+			# oversight. Confirmed empirically by running variable_volume.x
+			# directly: it prints "# Time at max dP/dt [s]: ..." in its stdout
+			# summary but does NOT write the requested thistFile to disk, so
+			# that line is the only reliable place to extract tau from.
+			#
+			# initComp is target.species_dict directly (absolute mole fractions),
+			# matching the existing cantera RCM branches' species_conc usage --
+			# unlike Tig, RCM has no initial_phis field in Zero-RK's schema, so
+			# the fuel/oxidizer stream-splitting the Tig branch needs does not
+			# apply here.
+			instring = """import subprocess
+import pandas as pd
+import yaml
+import json
+
+zerork_bin = "{zerork_bin}/variable_volume.x"
+
+vp_df = pd.read_csv("{volume_profile}")
+with open("volume_profile.dat", "w") as vf:
+	for t, v in zip(vp_df["time(s)"], vp_df["volume(cm3)"]):
+		vf.write("{{}} {{}}\\n".format(t, v))
+
+cfg = {{
+	"mechFile": "mechanism.inp",
+	"thermFile": "mechanism.inp",
+	"mechLogFile": "mech.clog",
+	"volumeFile": "volume_profile.dat",
+	"strokeMult": {stroke_mult},
+	"volumeMult": {volume_mult},
+	"thistFile": "rcm.thist",
+	"initTime": 0.0,
+	"finalTime": {stop_time},
+	"maxDtInternal": {max_dt_internal},
+	"maxSteps": {max_steps},
+	"relTol": {rtol},
+	"absTol": {atol},
+	"refTemp": {ref_temp},
+	"refMoles": {ref_moles},
+	"initComp": {species_conc},
+	"compType": "MOLE_FRACTION",
+	"initTemp": {temperature_i},
+	"initPres": {pressure_i},
+	"maxOrder": {max_order},
+	"maxNumNonLinIters": {max_num_nonlin_iters},
+	"cvEpsLin": {eps_lin},
+	"cvNlConvCoeff": {nlcc},
+}}
+with open("rcm_input.yml", "w") as fh:
+	yaml.safe_dump(cfg, fh, default_flow_style=False)
+
+proc = subprocess.run([zerork_bin, "rcm_input.yml"], capture_output=True, text=True)
+
+tau_s = None
+for line in proc.stdout.splitlines():
+	if "Time at max dP/dt" in line:
+		tau_s = float(line.split(":")[-1].strip())
+		break
+
+tau_us = tau_s * 1e6 if tau_s is not None else float("nan")
+with open("output/RCM.out", "w") as tau_file:
+	tau_file.write("#T(K)\ttau(us)" + "\\n" + "{{}}\t{{}}".format({temperature_i}, tau_us))
+
+with open("output/RCM_full.json", "w") as jf:
+	json.dump({{
+		"T_K": {temperature_i}, "P_Pa": {pressure_i},
+		"tau_s": tau_s,
+		"solver_returncode": proc.returncode,
+		"solver_stdout_tail": proc.stdout[-2000:],
+	}}, jf, indent=2)
+""".format(zerork_bin = target.add["zerork_install_dir"] + "/bin",
+				   volume_profile = target.add["volume_profile"][float(target.temperature)],
+				   stroke_mult = target.add["zerork_rcm_stroke_mult"],
+				   volume_mult = target.add["zerork_rcm_volume_mult"],
+				   stop_time = float(target.add["MaxSimulationTime"]),
+				   max_dt_internal = target.add["zerork_rcm_max_dt_internal"],
+				   max_steps = target.add["zerork_rcm_max_steps"],
+				   rtol = target.add["zerork_rtol"], atol = target.add["zerork_atol"],
+				   ref_temp = target.add["zerork_rcm_ref_temp"], ref_moles = target.add["zerork_rcm_ref_moles"],
+				   species_conc = target.species_dict,
+				   temperature_i = target.temperature_i, pressure_i = target.pressure_i,
+				   max_order = target.add["zerork_rcm_max_order"],
+				   max_num_nonlin_iters = target.add["zerork_rcm_max_num_nonlin_iters"],
+				   eps_lin = target.add["zerork_eps_lin"], nlcc = target.add["zerork_nonlinear_convergence_coefficient"])
+
 		else:
 			raise AssertionError("Invalid solver name for RCM simulations !!!")
 	elif "Tig" in target.target:
@@ -1587,6 +2193,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 	
 def doNonReactive(gas,inp_time,inp_vol):
@@ -1809,6 +2444,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -1871,9 +2535,9 @@ r = ct.IdealGasReactor(contents=gas, name="Batch Reactor")
 env = ct.Reservoir(ct.Solution('{mech}'))
 
 dpdt = {dpdt}#%/ms
-estimatedIgnitionDelayTime = {estimateTIG}
+MaxSimulationTime = {MaxSimulationTime}
 flag = False
-time = getTimeProfile(0,estimatedIgnitionDelayTime)
+time = getTimeProfile(0,MaxSimulationTime)
 pressure_profile = getPressureProfile(gas,time,dpdt)
 volume_profile = getVolumeProfile_From_PressureProfile(gas,pressure_profile)
 string = "time(s),volume(cm3)\\n"
@@ -1906,7 +2570,7 @@ gas_T = []
 gas_T.append(gas.T)
 time_profile = []
 time_profile.append(0)
-while t<estimatedIgnitionDelayTime:
+while t<MaxSimulationTime:
 	t = reactorNetwork.step()
 	gas_T.append(gas.T)
 	if (counter%1 == 0):
@@ -1916,7 +2580,7 @@ while t<estimatedIgnitionDelayTime:
 		pressureList.append(gas.P)
 	counter+=1
 
-#while t<estimatedIgnitionDelayTime:
+#while t<MaxSimulationTime:
 #	t = reactorNetwork.step()
 #	#print(t,gas.T)
 #	time_profile.append(t)
@@ -1933,14 +2597,14 @@ while t<estimatedIgnitionDelayTime:
 #	count+=1
 #	if max(slope_arg_max) == slope_arg_max[-1] and count==1:
 #		continue
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t<estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t<MaxSimulationTime:
 #		continue
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t>estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t>MaxSimulationTime:
 #		break
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 200 and t>estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 200 and t>MaxSimulationTime:
 #		break
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 100 and t<estimatedIgnitionDelayTime and flag == False:
-#		estimatedIgnitionDelayTime = t + 1e-4
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 100 and t<MaxSimulationTime and flag == False:
+#		MaxSimulationTime = t + 1e-4
 #		flag = True
 #	if (counter%1 == 0):
 #		#if reactorNetwork.get_state().astype('float64')[index_a] <0:
@@ -1967,7 +2631,7 @@ plt.savefig("profile.pdf")
 saveAll = {saveAll}
 if saveAll == True:
 	timeHistory.to_csv("time_history.csv")
-""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],dpdt = target.add["dpdt"],dt = float(target.add["dt"]),estimateTIG = float(target.add["estimateTIG"]), delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
+""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],dpdt = target.add["dpdt"],dt = float(target.add["dt"]),MaxSimulationTime = float(target.add["MaxSimulationTime"]), delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 				
 			elif "cantera" in solver and target.add["BoundaryLayer"] != True:
 				instring = """#!/usr/bin/python
@@ -2112,10 +2776,39 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 t0 = time.time()
-estimatedIgnitionDelayTime = {estimateTIG}
+MaxSimulationTime = {MaxSimulationTime}
 flag = False
 t = 0
 pressureList = []
@@ -2126,7 +2819,7 @@ gas_T = []
 gas_T.append(gas.T)
 time_profile = []
 time_profile.append(0)
-while t<estimatedIgnitionDelayTime:
+while t<MaxSimulationTime:
 	t = reactorNetwork.step()
 	gas_T.append(gas.T)
 	if (counter%1 == 0):
@@ -2136,7 +2829,7 @@ while t<estimatedIgnitionDelayTime:
 		pressureList.append(gas.P)
 	counter+=1
 
-#while t<estimatedIgnitionDelayTime:
+#while t<MaxSimulationTime:
 #	t = reactorNetwork.step()
 #	#print(t,gas.T)
 #	time_profile.append(t)
@@ -2153,14 +2846,14 @@ while t<estimatedIgnitionDelayTime:
 #	count+=1
 #	if max(slope_arg_max) == slope_arg_max[-1] and count==1:
 #		continue
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t<estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t<MaxSimulationTime:
 #		continue
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t>estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature <= 200 and t>MaxSimulationTime:
 #		break
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 200 and t>estimatedIgnitionDelayTime:
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 200 and t>MaxSimulationTime:
 #		break
-#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 100 and t<estimatedIgnitionDelayTime and flag == False:
-#		estimatedIgnitionDelayTime = t + 1e-4
+#	elif max(slope_arg_max) == slope_arg_max[-1] and max(slope_arg_max) == slope_arg_max[-2] and gas.T - reactorTemperature >= 100 and t<MaxSimulationTime and flag == False:
+#		MaxSimulationTime = t + 1e-4
 #		flag = True
 #	if (counter%1 == 0):
 #		#if reactorNetwork.get_state().astype('float64')[index_a] <0:
@@ -2178,8 +2871,114 @@ tau_file.close()
 saveAll = {saveAll}
 if saveAll == True:
 	timeHistory.to_csv("time_history.csv")
-""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],estimateTIG = target.add["estimateTIG"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
-			
+""".format(mech = mech_file,temperature = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],MaxSimulationTime = target.add["MaxSimulationTime"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
+
+			elif "zerork" in solver:
+				# Zero-RK's constVolumeWSR.x IDT solver (see ZERORK_GSA_PLAN.md
+				# Phase 1/2). Scope: standard adiabatic constant-volume Tig only
+				# -- no BoundaryLayer/RCM equivalent exists in Zero-RK (that
+				# branch of the elif chain above is cantera/CHEMKIN_PRO/
+				# FlameMaster only, unchanged).
+				#
+				# IDT definition differs from the other solvers here: Zero-RK
+				# only supports a fixed-temperature-rise threshold
+				# (target.add["zerork_idt_temp_delta"]), not the flexible
+				# ign_delay_def/ign_cond/specific_cond species-onset definitions
+				# the cantera branch above supports -- this is a real,
+				# documented Zero-RK capability gap (see ZERORK_GSA_PLAN.md
+				# section 1.1.1), not an oversight here.
+				#
+				# fuel_mole_fracs/oxidizer_mole_fracs must be Zero-RK's stream-
+				# relative ratios (each stream's own composition, normalized to
+				# itself), NOT target.species_dict's already-mixture-diluted
+				# absolute fractions -- confirmed empirically in zerork_bridge.py
+				# Phase 1 that feeding pre-mixed fractions AND initial_phis
+				# double-applies the phi mixing and produces an invalid initial
+				# state. Reconstructed here from target.fuel_dict (fuel-only
+				# absolute fractions) and "everything else" (target.species_dict
+				# minus fuel species = oxidizer + bath gas together, which is
+				# exactly what Zero-RK's own "oxidizer" stream means), each
+				# re-normalized to sum to 1, combined via target.phi exactly the
+				# way Zero-RK's own internal mixing does.
+				_fuel_dict = {sp: x for sp, x in target.fuel_dict.items() if x > 0}
+				_total_fuel = sum(_fuel_dict.values())
+				if _total_fuel <= 0:
+					raise AssertionError("zerork Tig: target.fuel_dict has no positive-fraction species")
+				_fuel_stream = {sp: x / _total_fuel for sp, x in _fuel_dict.items()}
+				_non_fuel = {sp: x for sp, x in target.species_dict.items() if sp not in _fuel_dict and x > 0}
+				_total_non_fuel = sum(_non_fuel.values())
+				if _total_non_fuel <= 0:
+					raise AssertionError("zerork Tig: no oxidizer/bath-gas species found outside target.fuel_dict")
+				_oxidizer_stream = {sp: x / _total_non_fuel for sp, x in _non_fuel.items()}
+
+				instring = """import subprocess
+import yaml
+import json
+
+zerork_bin = "{zerork_bin}/constVolumeWSR.x"
+cfg = {{
+	"mechFile": "mechanism.inp",
+	"thermFile": "mechanism.inp",
+	"logFile": "mech.clog",
+	"idtFile": "idt.dat",
+	"thistFile": "idt.thist",
+	"fuel_mole_fracs": {fuel_stream},
+	"oxidizer_mole_fracs": {oxidizer_stream},
+	"trace_mole_fracs": {{}},
+	"temperature_deltas": [{idt_temp_delta}],
+	"stop_time": {stop_time},
+	"print_time": {stop_time},
+	"relative_tolerance": {rtol},
+	"absolute_tolerance": {atol},
+	"initial_temperatures": [{temperature}],
+	"initial_pressures": [{pressure}],
+	"initial_phis": [{phi}],
+	"initial_egrs": [0.0],
+	"preconditioner_thresholds": [{precond_thresh}],
+	"eps_lin": {eps_lin},
+	"nonlinear_convergence_coefficient": {nlcc},
+	"long_output": 1,
+}}
+with open("idt_input.yml", "w") as fh:
+	yaml.safe_dump(cfg, fh, default_flow_style=False)
+
+proc = subprocess.run([zerork_bin, "idt_input.yml"], capture_output=True, text=True)
+
+converged = False
+idt_s = None
+if proc.returncode == 0:
+	with open("idt.dat") as fh:
+		for line in fh:
+			s = line.strip()
+			if s and not s.startswith("#"):
+				fields = s.split()
+				idt_s = float(fields[7])
+				cvode_err = int(fields[9])
+				converged = (cvode_err == 0 and idt_s > 0)
+				break
+
+tau_us = idt_s * 1e6 if (converged and idt_s) else float("nan")
+with open("output/tau.out", "w") as tf:
+	tf.write("#T(K)	tau(us)" + "\\n" + "{{}}	{{}}".format({temperature}, tau_us))
+
+with open("output/tau_full.json", "w") as jf:
+	json.dump({{
+		"T_K": {temperature}, "P_atm": {pressure} / 101325.0,
+		"converged": converged,
+		"idt_s": idt_s,
+		"solver_returncode": proc.returncode,
+		"solver_stdout_tail": proc.stdout[-2000:],
+	}}, jf, indent=2)
+""".format(zerork_bin = target.add["zerork_install_dir"] + "/bin",
+           fuel_stream = _fuel_stream, oxidizer_stream = _oxidizer_stream,
+           idt_temp_delta = target.add["zerork_idt_temp_delta"],
+           stop_time = target.add["zerork_stop_time"],
+           rtol = target.add["zerork_rtol"], atol = target.add["zerork_atol"],
+           temperature = target.temperature, pressure = target.pressure, phi = target.phi,
+           precond_thresh = target.add["zerork_preconditioner_threshold"],
+           eps_lin = target.add["zerork_eps_lin"],
+           nlcc = target.add["zerork_nonlinear_convergence_coefficient"])
+
 			elif "CHEMKIN_PRO" in solver and target.add["BoundaryLayer"] != True:
 				instring = """#!/usr/bin/env python
 # encoding: utf-8
@@ -2305,6 +3104,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -2373,7 +3201,7 @@ input_file = job.writeInputHomogeneousBatch(
 	reactants=conc_X,
 	temperature=reactorTemperature,
 	pressure=reactorPressure,
-	endTime= {End_Time}  # Simulation end time in seconds
+	endTime= {MaxSimulationTime}  # Simulation end time in seconds
 )
 
 # Run the Chemkin simulation
@@ -2431,7 +3259,7 @@ def delete_files(directory):
 # Specify the directory containing the files
 directory_path = "output/"
 delete_files(directory_path)
-""".format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],End_Time = target.add["estimateTIG"], delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
+""".format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)],MaxSimulationTime = target.add["MaxSimulationTime"], delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
 			elif "CHEMKIN_PRO" in solver and target.add["BoundaryLayer"] == True:
 				instring = """#!/usr/bin/env python
@@ -2559,6 +3387,35 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -2689,22 +3546,22 @@ else:
 	criteria = reactorTemperature + 100
 
 dpdt = {dpdt}#%/ms
-estimatedIgnitionDelayTime = {estimateTIG}
+MaxSimulationTime = {MaxSimulationTime}
 
 # --- Build a BOUNDED facility dp/dt window keyed to this sample's tau --------
 # 1) Cheap constant-volume pre-estimate of tau (no facility effect, never blows up).
 tau_cv = estimate_tau_cv(mech_yaml, reactorTemperature, reactorPressure, spec,
-                         t_max=estimatedIgnitionDelayTime)
+                         t_max=MaxSimulationTime)
 
 # 2) Position the compression window and the run length from tau.
 if tau_cv is None:
 	# No ignition found within the base window: run full window, no compression.
 	t_cut   = 0.0
-	endTime = estimatedIgnitionDelayTime
+	endTime = MaxSimulationTime
 	print("WARNING: no ignition within base window; disabling facility ramp.")
 else:
 	t_cut   = 1.2 * tau_cv                                   # freeze ramp just past ignition
-	endTime = float(min(3.0 * tau_cv, estimatedIgnitionDelayTime))
+	endTime = float(min(3.0 * tau_cv, MaxSimulationTime))
 
 # 3) Physicality guard: facility rise over the induction period must stay modest.
 k = (dpdt / 100.0) * 1.0e3
@@ -2713,7 +3570,7 @@ if tau_cv is not None and (k * tau_cv) > 0.5:
 	      f"{{reactorTemperature}} K — dp/dt model may be unphysical here; "
 	      f"treat tau as suspect / penalize this sample.")
 
-time = getTimeProfile(0,estimatedIgnitionDelayTime)
+time = getTimeProfile(0,MaxSimulationTime)
 pressure_profile = getPressureProfile(gas,time,dpdt,t_cut)
 volume_profile = getVolumeProfile_From_PressureProfile(gas,pressure_profile)
 # -----------------------------------------------------------------------------
@@ -2735,7 +3592,7 @@ input_file = job.writeInputHomogeneousBatch(
 	reactants=conc_X,
 	temperature=reactorTemperature,
 	pressure=reactorPressure,
-	endTime= estimatedIgnitionDelayTime,  # Simulation end time in seconds
+	endTime= MaxSimulationTime,  # Simulation end time in seconds
 	variableVolume = True,
 	variableVolumeProfile = VP,
 	variableVolumeProfileType = "Dict"
@@ -2799,7 +3656,7 @@ def delete_files(directory):
 # Specify the directory containing the files
 directory_path = "output/"
 delete_files(directory_path)
-""".format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], dpdt = target.add["dpdt"],dt = float(target.add["dt"]),estimateTIG = float(target.add["estimateTIG"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
+""".format(mech = mech_file,temperature_K = target.temperature,pressure=target.pressure,species_conc = target.species_dict,exp_conc = target.add["exp_conc"][float(target.temperature)], dpdt = target.add["dpdt"],dt = float(target.add["dt"]),MaxSimulationTime = float(target.add["MaxSimulationTime"]),delay_def = target.add["ign_delay_def"],delay_cond = target.add["ign_cond"],specific_cond = target.add["specific_cond"],saveAll=target.add["saveAll"])
 
 			elif "FlameMaster" in solver and target.add["BoundaryLayer"] == True:
 				instring = """############
@@ -3009,7 +3866,7 @@ RelTol = 1.0e-9
 AbsTol = 1.0e-12
 
 TStart = 0.0
-TEnd = {tend}
+TEnd = {MaxSimulationTime}
 
 ########################
 # Sensitivity Analysis #
@@ -3076,7 +3933,7 @@ InitialCond {{
 	{init_condition}
 	
 }}
-	""".format(pressure = target.pressure, init_condition = target.initialCond , temperature = target.temperature, phi = target.phi, simulation = target.simulation, fuel_is = target.fuel_is, g_r = global_reaction,tend = float(target.add["estimateTIG"]))
+	""".format(pressure = target.pressure, init_condition = target.initialCond , temperature = target.temperature, phi = target.phi, simulation = target.simulation, fuel_is = target.fuel_is, g_r = global_reaction,MaxSimulationTime = float(target.add["MaxSimulationTime"]))
 			extract = """#!/usr/bin/python
 import numpy as np
 import os
@@ -3258,7 +4115,7 @@ Su0 = flame.velocity[0] #m/s
 Su_file = open("output/Su.out",'w')
 Su_file.write("#T(K)	Su(cm/s)"+"\\n"+"{{}}	{{}}".format(To,Su0*(100)))
 Su_file.close()
-""".format(mech = mech_file,temperature = target.temperature,phi = target.phi,fuel= target.add["fuel"],pressure=target.pressure,species_conc = target.species_dict,width = target.add["width"],ratio = target.add["ratio"],slope = target.add["slope"],curve = target.add["curve"],loglevel = target.add["loglevel"],auto = target.add["auto"])
+""".format(mech = mech_file,temperature = target.temperature,phi = target.phi,fuel=repr(target.add["fuel"]),pressure=target.pressure,species_conc = target.species_dict,width = target.add["width"],ratio = target.add["ratio"],slope = target.add["slope"],curve = target.add["curve"],loglevel = target.add["loglevel"],auto = target.add["auto"])
 		
 		else:
 			if target.uniqueID not in os.listdir(startProfile_location[target.target]["CopyTo"]):
@@ -3279,11 +4136,10 @@ Su_file.close()
 				opt_dict["StartProfilesData"][target.target]["globalReaction"] = yaml.dump(yaml.load(str(opt_dict["StartProfilesData"][target.target]["globalReaction"]),Loader=Loader),default_flow_style=True)
 				target.add["Fsc"] = file_specific_command
 				create_start_profile_input(opt_dict,target)
-				os.mkdir("output")
-				subprocess.call("./run_profile")
+				os.makedirs("output", exist_ok=True)
+				subprocess.run(["bash", "./run_profile"], check=False)
 				target.add["StartProfilesFile"] = startProfile_location[target.target]["CopyTo"]+"/"+str(target.uniqueID)
-				
-				#raise AssertionError("NOOOO!!")
+
 			else:
 				target.add["StartProfilesFile"] = startProfile_location[target.target]["CopyTo"]+"/"+str(target.uniqueID)
 			instring = """############
@@ -3467,12 +4323,12 @@ file_dump.close()""".format(mech = mech_file,temperature = target.burner_temp,pr
 				opt_dict["StartProfilesData"][target.target]["globalReaction"] = yaml.dump(yaml.load(str(opt_dict["StartProfilesData"][target.target]["globalReaction"]),Loader=Loader),default_flow_style=True)
 				target.add["Fsc"] = file_specific_command
 				create_start_profile_input(opt_dict,target)
-				os.mkdir("output")
-				subprocess.call("./run_profile")
+				os.makedirs("output", exist_ok=True)
+				subprocess.run(["bash", "./run_profile"], check=False)
 				target.add["StartProfilesFile"] = startProfile_location[target.target]["CopyTo"]+"/"+str(target.uniqueID)
 			else:
 				target.add["StartProfilesFile"] = startProfile_location[target.target]["CopyTo"]+"/"+str(target.uniqueID)
-		
+
 			instring = """############
 # Numerics #
 ############
@@ -3622,7 +4478,7 @@ mdot = r1.mass/residenceTime
 sim1 = ct.ReactorNet([r1])
 
 # approximate a time step to achieve a similar resolution as in the next method
-t_total = {total_time}
+t_total = {MaxSimulationTime}
 dt = t_total / n_steps
 # define time, space, and other information vectors
 t1 = (np.arange(n_steps) + 1) * dt
@@ -3843,7 +4699,7 @@ time_.close()
 #plt.xlim(0,residenceTime)
 #plt.legend(loc=0)
 #plt.savefig('compare_exp.png')
-os.chdir("..")""".format(mech = mech_file,temperature = target.temperature ,pressure=target.pressure,species_conc = target.species_dict ,flowReactorLength = target.add["flw_length"] ,flow_velocity = target.add["flow_velocity"] ,crossSectionalArea = target.add["crossSectionalArea"] ,reactorVolume = target.add["reactorVolume"] ,residence_time = target.add["residenceTime"] ,total_time = target.add["total_time"],time_step = target.add["time_step"],anchor_time = target.add["anchor_time"] ,flow_rate = target.flow_rate ,species_in_investigation = target.add["flw_species"] ,method = target.add["flw_method"] ,limits = target.add["flw_limits"] ,anchor = target.add["anchor"] ,unit = target.add["limit_units"])
+os.chdir("..")""".format(mech = mech_file,temperature = target.temperature ,pressure=target.pressure,species_conc = target.species_dict ,flowReactorLength = target.add["flw_length"] ,flow_velocity = target.add["flow_velocity"] ,crossSectionalArea = target.add["crossSectionalArea"] ,reactorVolume = target.add["reactorVolume"] ,residence_time = target.add["residenceTime"] ,MaxSimulationTime = target.add["MaxSimulationTime"],time_step = target.add["time_step"],anchor_time = target.add["anchor_time"] ,flow_rate = target.flow_rate ,species_in_investigation = target.add["flw_species"] ,method = target.add["flw_method"] ,limits = target.add["flw_limits"] ,anchor = target.add["anchor"] ,unit = target.add["limit_units"])
 				
 			else:
 				instring = """############
@@ -3854,7 +4710,7 @@ RelTol = 1.0e-10
 AbsTol = 1.0e-12
 
 TStart = 0.0
-TEnd = {tend}
+TEnd = {MaxSimulationTime}
 TRes = {tres}
 ########################
 # Sensitivity Analysis #
@@ -3928,7 +4784,7 @@ InitialCond {{
 	t = {temperature}
 {init_condition}
 }}
-	""".format(tend = target.add["total_time"],tres = target.add["residenceTime"], pressure = target.pressure, init_condition = target.initialCond , temperature = target.temperature, phi = target.phi, simulation = target.simulation, fuel_is = target.fuel_is, g_r = global_reaction,heat = target.add["heat"],T_amb = target.add["T_amb"],isotherm = target.add["isIsotherm"])
+	""".format(MaxSimulationTime = target.add["MaxSimulationTime"],tres = target.add["residenceTime"], pressure = target.pressure, init_condition = target.initialCond , temperature = target.temperature, phi = target.phi, simulation = target.simulation, fuel_is = target.fuel_is, g_r = global_reaction,heat = target.add["heat"],T_amb = target.add["T_amb"],isotherm = target.add["isIsotherm"])
 			extract = """#!/usr/bin/python
 import numpy as np
 import os
@@ -4177,10 +5033,31 @@ python3.9 cantera_.py &> solve"""
 ck2yaml --input=mechanism.mech --thermo=thermo.therm --transport=transport.trans &> out """
 		s_run = """#!/bin/bash
 export NUMEXPR_MAX_THREADS=1
-python3.9 {MUQSAC}/soln2ck_2.py --mechanism=mechanism.inp --thermo=thermo.dat {mech} &> soln2ck.out
-python3.9 cantera_.py &> solve
-find ./output -type f ! -name 'RCM.out' ! -name 'tau.out' -delete &> delete.log
+# 2026-08-26 empty-folder fix: chain with && so the destructive find
+# cleanup below only runs when BOTH soln2ck_2.py and cantera_.py succeeded.
+# Previously the find ran unconditionally -- a license failure or solver
+# crash wiped the output/ folder clean, leaving an EMPTY output dir that
+# looked identical to "never simulated".
+python3.9 {MUQSAC}/soln2ck_2.py --mechanism=mechanism.inp --thermo=thermo.dat {mech} &> soln2ck.out && python3.9 cantera_.py &> solve && find ./output -type f ! -name 'RCM.out' ! -name 'tau.out' -delete &> delete.log
 find . -type f \( -name 'time_history.csv' -o -name 'ScanMan.log' \) -delete &> delete2.log
+		""".format(MUQSAC = opt_dict["Bin"]["bin"] ,Bin=opt_dict["Bin"]["solver_bin"],mech = mech_file,thermo_file = thermo_file_location, trans_file = trans_file_location, fsc = file_specific_command)
+		extract = """
+		"""
+	elif solver == "zerork":
+		# Same CHEMKIN-ASCII conversion CHEMKIN_PRO uses (this repo's vendored
+		# copy of Cantera's own yaml2ck tool, soln2ck_2.py) -- Zero-RK's
+		# mechFile/thermFile are also CHEMKIN-ASCII, and this converter is
+		# already known-correct (unlike rmip's own hand-rolled ChemkinWriter,
+		# which had real elemental-composition/thermo-formatting bugs fixed
+		# in ZERORK_GSA_PLAN.md Phase 1 -- this pipeline sidesteps all of
+		# that by reusing Cantera's own converter instead).
+		s_convert = """#!/bin/bash
+ck2yaml --input=mechanism.mech --thermo=thermo.therm --transport=transport.trans &> out """
+		s_run = """#!/bin/bash
+export NUMEXPR_MAX_THREADS=1
+# 2026-08-26 empty-folder fix: same && gating as the CHEMKIN_PRO branch.
+python3.9 {MUQSAC}/soln2ck_2.py --mechanism=mechanism.inp --thermo=thermo.dat {mech} &> soln2ck.out && python3.9 cantera_.py &> solve && find ./output -type f ! -name 'RCM.out' ! -name 'tau.out' -delete &> delete.log
+find . -type f \( -name 'time_history.csv' -o -name 'ScanMan.log' -o -name 'mech.clog' -o -name 'idt.thist' -o -name 'rcm.thist' -o -name 'rcm_input.yml' -o -name 'idt_input.yml' -o -name 'volume_profile.dat' \) -delete &> delete2.log
 		""".format(MUQSAC = opt_dict["Bin"]["bin"] ,Bin=opt_dict["Bin"]["solver_bin"],mech = mech_file,thermo_file = thermo_file_location, trans_file = trans_file_location, fsc = file_specific_command)
 		extract = """
 		"""
@@ -4193,10 +5070,11 @@ rm -f ScanMan.log
 
 			
 		s_run = """#!/bin/bash
-python3.9 {MUQSAC}/soln2ck_FM.py --mechanism=mechanism.inp --thermo=therm.dat --transport=trans.dat {mech} &> soln2ck.log 
+python3.9 {MUQSAC}/soln2ck_FM.py --mechanism=mechanism.inp --thermo=therm.dat --transport=trans.dat {mech} &> soln2ck.log
 {Bin}/ScanMan -i mechanism.inp -t {thermo_file} -m {trans_file} -f chemkin -3sr -N 0.05 -E -o mechanism.pre &> ScanMan.log
-{Bin}/FlameMan &> Flame.log && python3.9 extract.py &> extract.log
-find ./output -type f ! -name 'modified.csv' ! -name 'tau.out' -delete &> delete.log
+# 2026-08-26 empty-folder fix: extend the && chain so the destructive find
+# only runs after FlameMan AND extract.py both succeeded.
+{Bin}/FlameMan &> Flame.log && python3.9 extract.py &> extract.log && find ./output -type f ! -name 'modified.csv' ! -name 'tau.out' -delete &> delete.log
 find . -type f \( -name 'mechanism.pre' -o -name 'ScanMan.log' \) -delete &> delete2.log
 		""".format(MUQSAC = opt_dict["Bin"]["bin"] ,Bin=opt_dict["Bin"]["solver_bin"],mech = mech_file,thermo_file = thermo_file_location, trans_file = trans_file_location, fsc = file_specific_command)
 		#extract = """

@@ -52,6 +52,39 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Target/addendum preview (Phase 5b, 2026-08 backlog program, bug.md)
+# ---------------------------------------------------------------------------
+
+def preview_targets_for_run(sim_run_cfg: SimRunConfig, base_opt_file: str) -> list:
+    """Preview the targets a nominal-sim run will actually simulate.
+
+    Resolves ``Locations.targets``/``Locations.addendum`` the exact same
+    way :func:`run_nominal_simulation` does -- via :func:`build_run_config`
+    layering *sim_run_cfg* over *base_opt_file* -- so this reflects any
+    per-run ``addendum`` override (``SimRunConfig.addendum``), not just
+    whatever the base template happens to specify. Read-only, does not
+    launch anything.
+
+    Closes the gap KRUNAL_JULY_23.md point 4's "same for nominal
+    simulations" follow-up flagged: nominal_sim_gui.py wraps this
+    mso_compare pipeline (not MUQ-SAC's target.opt/.target/.add system
+    directly), and had no way to preview which targets/solver a run would
+    actually use before launching it.
+
+    Returns a list of :class:`mso_io.target_add_io.TargetPreview`.
+    """
+    from mso_io.target_add_io import preview_targets
+
+    base_opt  = load_opt_file(base_opt_file)
+    optInputs = build_run_config(base_opt, sim_run_cfg)
+    locations = optInputs["Locations"]
+
+    targets_path  = locations["targets"]
+    addendum_path = locations.get("addendum") or None
+    return preview_targets(targets_path, addendum_path)
+
+
+# ---------------------------------------------------------------------------
 # Directory layout
 # ---------------------------------------------------------------------------
 
@@ -87,6 +120,7 @@ def _create_sim_directories(output_dir: Path) -> Dict[str, Path]:
         "rcm":      output_dir / "Plot" / "Dataset" / "RCM",
         "jsr":      output_dir / "Plot" / "Dataset" / "JSR",
         "fls":      output_dir / "Plot" / "Dataset" / "Fls",
+        "pfr":      output_dir / "Plot" / "Dataset" / "PFR",
     }
     for d in dirs.values():
         d.mkdir(parents=True, exist_ok=True)
@@ -130,7 +164,7 @@ def _sweep_missing_simulations(
     Detect every simulation across ALL cases that failed to produce output,
     then re-run all of them in a single multiprocessing pool.
 
-    ``data_management_nominal.generate_target_value_tables`` (called once per
+    ``data_management.generate_target_value_tables`` (called once per
     case, right after this) already does exactly this detect-then-rerun
     dance, but only within its own case -- so a compare run with e.g. 68
     cases spins up 68 separate multiprocessing pools, most of them idle
@@ -255,7 +289,7 @@ def run_nominal_simulation(
     # ── Import MUQ-SAC modules (deferred so sys.path is ready) ────────────
     try:
         import combustion_target_class       # noqa: PLC0415
-        import data_management_nominal as data_management               # noqa: PLC0415
+        import data_management               # noqa: PLC0415  (data_management_nominal does not exist)
         import simulation_manager2_0 as simulator   # noqa: PLC0415
     except ImportError as exc:
         logger.error(
@@ -335,17 +369,18 @@ def run_nominal_simulation(
            exe_locations = locations_path.read_text().splitlines()
     finally:
         os.chdir(original_cwd)
+    
 
-    fuel = optInputs["Inputs"].get("fuel", {})
+    # ── Extract simulation results ─────────────────────────────────────────
+    print(nominal_dir)
+    logger.info("Extracting simulation results …")
+    fuel            = optInputs["Inputs"].get("fuel", {})
 
     # ── Cross-case re-run sweep ─────────────────────────────────────────────
     # Catch every case's missing simulations up front, in one pool, before
     # the per-case extraction loop below does its own (much smaller) retry.
     _sweep_missing_simulations(data_management, exe_locations, target_list, fuel, optInputs)
 
-    # ── Extract simulation results ─────────────────────────────────────────
-    print(nominal_dir)
-    logger.info("Extracting simulation results …")
     temp_sim_opt:   Dict[str, List[float]] = {}
 
     for case_idx in range(len(target_list)):
@@ -353,8 +388,14 @@ def run_nominal_simulation(
         cached_file = dirs["sims"] / f"sim_data_case-{case_idx}.lst"
 
         if cached_file.exists():
+            # Same None-guard as the fresh-compute branch below: a case that
+            # failed after its retry can have a literal "None" second field
+            # in its cached row, which float() rejects (ValueError) and used
+            # to abort extraction for the whole run, discarding every other
+            # case's already-cached result.
             rows = [r for r in cached_file.read_text().splitlines() if r.strip()]
-            eta  = [np.exp(float(r.split("\t")[1])) / 10.0 for r in rows]
+            eta  = [np.exp(float(r.split("\t")[1])) / 10.0 for r in rows
+                    if r.split("\t")[1].strip() not in ("None", "")]
             temp_sim_opt[str(t.index)] = eta             # was case_idx
         else:
             case_dir_path = nominal_dir / f"case-{case_idx}"
@@ -365,6 +406,17 @@ def run_nominal_simulation(
                        exe_locations, target_list, case_idx, fuel,
                    input_= optInputs)
                 )
+                # H2/O2 extreme-condition sweep fix: generate_target_value_tables()
+                # can return eta_arr=None, or a list containing None entries,
+                # for a case where some/all rows failed (a legitimate outcome
+                # when deliberately sweeping to physical/numerical extremes,
+                # not just a transient error) -- np.exp() on either raised
+                # TypeError and aborted extraction for the WHOLE run,
+                # discarding every other case's already-computed results.
+                if eta_arr is None:
+                    eta_arr = []
+                else:
+                    eta_arr = [v for v in eta_arr if v is not None]
                 temp_sim_opt[str(t.index)] = list(np.exp(eta_arr) / 10.0)  # was case_idx
             finally:
                 os.chdir(original_cwd)
@@ -411,12 +463,21 @@ def _write_dataset_csv(
     Flame-speed targets (``Fls``) produce::
 
         DS_ID, T, P, Phi, Fuel, Ox, BathGas, Obs(us), Nominal
+
+    Plug-flow-reactor targets (``PFR``) produce::
+
+        DS_ID, T, P, species, Obs(us), Nominal
+
+    (closes the pipeline gap noted in H2/review/flag.md -- PFR cases ran to
+    completion and wrote their own output/pfr_full.json per case, but this
+    writer previously had no branch for the target type, so no
+    Plot/Dataset/PFR/*.csv was ever produced.)
     """
     matching = [t for t in target_list if t.dataSet_id == d_set]
     if not matching:
         return
 
-    target_type = matching[0].target   # "Tig", "RCM", "JSR", "Fls"
+    target_type = matching[0].target   # "Tig", "RCM", "JSR", "Fls", "PFR"
 
     if target_type in ("Tig", "RCM", "JSR"):
         lines = ["DS_ID,T,Obs(us),Nominal\n"]
@@ -437,7 +498,8 @@ def _write_dataset_csv(
     elif target_type == "Fls":
         lines = ["DS_ID,T,P,Phi,Fuel,Ox,BathGas,Obs(us),Nominal\n"]
         for t in matching:
-            vals = temp_sim_opt.get(str(t.index), [None])[0]
+            # Task 4B: fix double-index — vals is already the list; take first element directly
+            vals = temp_sim_opt.get(str(t.index), [])
             sim_val = vals[0] if vals else float("nan")
             lines.append(
                 f"{t.uniqueID},{t.temperature},{t.pressure},{t.phi},"
@@ -446,6 +508,17 @@ def _write_dataset_csv(
             )
         (dirs["fls"] / f"{d_set}.csv").write_text("".join(lines))
         logger.debug("  CSV → fls / %s.csv", d_set)
+
+    elif target_type == "PFR":
+        lines = ["DS_ID,T,P,species,Obs(us),Nominal\n"]
+        for t in matching:
+            vals = temp_sim_opt.get(str(t.index), [])
+            sim_val = vals[0] if vals else float("nan")
+            species = t.add.get("species", "") if getattr(t, "add", None) else ""
+            lines.append(f"{t.uniqueID},{t.temperature},{t.pressure},{species},"
+                         f"{t.observed},{sim_val}\n")
+        (dirs["pfr"] / f"{d_set}.csv").write_text("".join(lines))
+        logger.debug("  CSV → pfr / %s.csv", d_set)
 
     else:
         logger.warning(

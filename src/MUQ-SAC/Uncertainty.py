@@ -2051,17 +2051,84 @@ def _normalize_rxn_arrow(s):
 	return s.replace("<=>", "=>")
 
 
+def _canon_rxn_equation(equation):
+	"""
+	Order-independent, notation-independent canonical form of a reaction
+	equation string, used as the deepest fallback of _find_rxn_index.
+	(Imported from the FINALIZED_MECH_OPT_SUITE line, 2026-08-26 merge.)
+
+	Real bug (found 2026-07-17): `MechanismParser.Parser(mechPath).rxnList`
+	reads each reaction's `equation:` string VERBATIM from the mechanism
+	YAML file -- but Cantera's own `gas.reaction_equations()`, when loading
+	that exact same file, reorders reactant/product species internally and
+	returns a DIFFERENT string for the identical physical reaction. Any
+	uncertainty XML whose `rxn=` attribute was populated from a live
+	`ct.Solution` then fails an exact-string membership check even though
+	the reaction is genuinely present. Mirrors
+	`rmip.core.graph_builder._canon_formula`'s normalization.
+
+	Also handles (WORKBENCH_AUDIT_2026-08-10, defect B3):
+	1. Stoichiometric-coefficient shorthand ("OH+OH<=>O+H2O" vs
+	   "2 OH <=> O + H2O"): each side is expanded to one token per
+	   stoichiometric unit before sorting.
+	2. Direction disagreement between mechanisms for a REVERSIBLE ("<=>")
+	   reaction: the two expanded sides are additionally sorted AS A PAIR
+	   for reversible reactions only. Irreversible ("=>") equations are
+	   never side-swapped -- reactant/product order is physically
+	   meaningful there.
+	3. Falloff third-body notation: "(+M)"/"(+N2)"/etc. is normalized to
+	   "+ M"/"+ N2" before tokenizing.
+	"""
+	eq = re.sub(r'\(\+\s*(\S+?)\)', r'+ \1', equation)
+	eq = " ".join(eq.split())
+	reversible = True
+	for arrow in (" <=> ", "<=>", " => ", "=>", " = ", "="):
+		if arrow in eq:
+			lhs, rhs = eq.split(arrow, 1)
+			# NOT a plain "'=>' not in arrow" substring check -- "<=>"
+			# itself contains "=>" as a substring, which would misclassify
+			# every reversible reaction as irreversible.
+			reversible = arrow not in (" => ", "=>")
+			break
+	else:
+		return eq.lower()
+
+	def _expand_side(side):
+		"""One token per stoichiometric unit, e.g. "2 OH" -> ["OH", "OH"]."""
+		tokens = []
+		for t in side.split("+"):
+			t = t.strip()
+			if not t:
+				continue
+			m = re.match(r'^(\d+)\s+(.+)$', t)
+			if m:
+				tokens.extend([m.group(2).strip()] * int(m.group(1)))
+			else:
+				tokens.append(t)
+		return " + ".join(sorted(tokens))
+
+	lhs_c, rhs_c = _expand_side(lhs), _expand_side(rhs)
+	if reversible:
+		lhs_c, rhs_c = sorted([lhs_c, rhs_c])
+	return lhs_c + " <=> " + rhs_c
+
+
 def _find_rxn_index(rxn, rxn_list):
-	"""Exact match first -- preserves existing lookup order/behavior for
-	every currently-working XML/YAML pair unchanged. Falls back to an
-	arrow-agnostic match (see _normalize_rxn_arrow) before giving up.
-	Returns None (never raises) if neither matches, so callers can decide
+	"""Three-tier match. Tier 1 exact -- preserves existing lookup
+	order/behavior for every currently-working XML/YAML pair unchanged.
+	Tier 2 arrow-agnostic (see _normalize_rxn_arrow). Tier 3
+	order/stoichiometry/notation-independent (see _canon_rxn_equation).
+	Returns None (never raises) if no tier matches, so callers can decide
 	how to handle a genuine mismatch."""
 	if rxn in rxn_list:
 		return rxn_list.index(rxn)
 	target = _normalize_rxn_arrow(rxn)
 	for i, candidate in enumerate(rxn_list):
 		if _normalize_rxn_arrow(candidate) == target:
+			return i
+	canon_target = _canon_rxn_equation(rxn)
+	for i, candidate in enumerate(rxn_list):
+		if _canon_rxn_equation(candidate) == canon_target:
 			return i
 	return None
 

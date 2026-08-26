@@ -85,10 +85,28 @@ class DesignMatrix(object):
 			`optimization` argument when method='lhs' (None to disable).
 		"""
 		self.unsrt = UnsrtData
+		# Additive, non-behavior-changing: introspection hook for the GSA
+		# reaction-prefilter benchmark tests (see
+		# rmip/simulation/gsa_reaction_prefilter.py / test_gsa_reaction_prefilter.py).
+		# Every reaction-list derivation in this class already flows from
+		# self.unsrt (list(self.unsrt.keys()) throughout) -- this is just a
+		# convenience count, nothing downstream reads it.
+		self.n_reactions_in_design = len(UnsrtData)
 		self.sim = sample_length
 		self.design = design
 		#self.n = ind
 		self.n = ind
+		# getSA_samples()/getNominal_samples() (the one-at-a-time OFAT design:
+		# an eye(rxn_len)-scaled perturbation matrix, or a single all-zero
+		# nominal row) both reference self.rxn_len, which was never assigned
+		# anywhere in this class -- calling either raised a bare
+		# AttributeError. Found 2026-07-22 running the ammonia campaign's
+		# Phase 6 target-opt (first real end-to-end MUQ-SAC/sens.py exercise
+		# this session): `ind` is exactly the reaction count these two
+		# methods need (sens.py always calls
+		# DesignMatrix(unsrt, design_type, len(reaction_dict), ind=len(reaction_dict))
+		# for the A-factor path), matching self.n_reactions_in_design too.
+		self.rxn_len = ind if ind is not None else sample_length
 		allowed_count = int(0.70*multiprocessing.cpu_count())
 		self.allowed_count = allowed_count
 		self.sample_method = method

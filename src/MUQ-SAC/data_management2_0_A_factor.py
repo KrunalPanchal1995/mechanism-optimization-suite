@@ -259,26 +259,26 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 	failed_sim = ""
 	ETA = []
 	eta = []
-	re_run_sim_dict = {}
-	count = 0
-	for i in data_loc:
-		eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)		
-		if "N/A" in str(eta_):
-			re_run_sim_dict[count] = file_path
-			count+=1
-	
-	re_run_loc = []
-	if re_run_sim_dict != {}:
-		for i in re_run_sim_dict:
-			re_run_loc.append(re_run_sim_dict[i])
-	
-	if len(re_run_loc)!=0:
+	# ── Bounded retry loop (2026-08-26, mirrors data_management.py): up to
+	# 3 detect -> re-run -> re-extract attempts before a sample lands in
+	# failed_sim -- a transient failure (e.g. an Ansys license checkout
+	# hiccup) no longer drops a row after a single unverified retry.
+	max_retries = 3
+	for attempt in range(1, max_retries + 1):
+		re_run_loc = []
+		for i in data_loc:
+			eta_,_,file_path = extract_output(t_list[case],fuel,i[:-3]+"output/",data_loc.index(i),input_=optInputs,caseID = case)
+			if "N/A" in str(eta_):
+				re_run_loc.append(file_path)
+
+		if len(re_run_loc) == 0:
+			break
 		print("#############______________________################\n")
-		print(f"\t\tFor Case-{case}:\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not returned expected results\n\t\tRe-running those simulations........\n\n\n")
+		print(f"\t\tFor Case-{case} (attempt {attempt}/{max_retries}):\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not return expected results\n\t\tRe-running those simulations........\n\n\n")
 		W = Worker(100)
 		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(re_run_loc,t_list[case],optInputs,case)
 		del W
-		print(f"\t\tSimulations ended successfully\n\n#############______________________################\n")
+		print(f"\t\tRe-run attempt {attempt} ended\n\n#############______________________################\n")
 	
 	for i in data_loc:
 		pathList = i.split("/")
@@ -339,8 +339,23 @@ def extract_direct_simulation_values(case,loc,target_list,fuel):
 #function extracts output from the given text file based on the called location where it currently is. Called in the previous function.		
 def extract_output(case,fuel,path,index,input_=None,caseID=None):
 	eta = string = ETA = None
+	# 2026-08-26 empty-folder fix (mirrors data_management.py): a missing
+	# or EMPTY output/ folder is reported as N/A with an explicit reason
+	# (the terminal state of a failed simulation -- license failure,
+	# interrupted ./run, or the find -delete cleanup) and is left to the
+	# bounded retry loop in generate_target_value_tables to regenerate.
+	_outfile_by_target = {"RCM": "RCM.out", "JSR": "jsr.out", "Tig": "tau.out"}
+	_outname = _outfile_by_target.get(case.target.strip(), "tau.out")
+	if not os.path.isdir(path):
+		eta = f"N/A (output folder missing: {path})"
+		ETA = eta
+		return eta, ETA, path + _outname
+	if not os.listdir(path):
+		eta = f"N/A (output folder empty: {path})"
+		ETA = eta
+		return eta, ETA, path + _outname
 	#print(case.target)
-	
+
 	if case.target.strip() == "RCM":
 		if "cantera" in case.add["solver"]:
 			if "RCM.out" in os.listdir(path):
@@ -398,8 +413,8 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
-	
+				string = path + "jsr.out"
+
 	elif case.target.strip() == "Tig" and case.add["op_type"] != 'species_profile':
 		if "cantera" in case.add["solver"]:
 			if "tau.out" in os.listdir(path):
@@ -419,9 +434,9 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
-		
-		
+				string = path + "tau.out"
+
+
 		elif "CHEMKIN_PRO" in case.add["solver"]:
 			#print("True")
 			#print(path)
@@ -443,9 +458,9 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 			else:
 				eta = "N/A"
 				ETA = eta
-				string = path
-		
-		
+				string = path + "tau.out"
+
+
 		else:
 			#print("Tig is the target and FlameMaster is the solver")
 			

@@ -10,6 +10,18 @@ import subprocess
 import time
 import sys
 import copy
+
+# Thread cap from chem_data (os.cpu_count()-5, floor 1) -- merged from the
+# FINALIZED_MECH_OPT_SUITE line (Task 4C): parallel_threads must never pin
+# every CPU core, or Chemkin license interposer failures cascade under load.
+try:
+    _chem_data_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    if _chem_data_dir not in sys.path:
+        sys.path.insert(0, _chem_data_dir)
+    from chem_data import thread_cap as _thread_cap
+except ImportError:
+    def _thread_cap():
+        return max((os.cpu_count() or 4) - 5, 1)
 try:
     import ruamel_yaml as yaml
 except ImportError:
@@ -149,12 +161,20 @@ def run_sampling_direct(sample,rxn,data,generator,length):
 class Worker():
 	def __init__(self, workers,path_to_yamlwriter=None):
 		self.pool = multiprocessing.Pool(processes=workers)
-		self.pool1 = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
+		# NOTE: self.pool1 (a second, completely unused ProcessPoolExecutor)
+		# was removed here -- it was never referenced again anywhere and never
+		# shut down, so every Worker(...) instantiation leaked `workers` more
+		# OS processes on top of the ones self.pool actually uses. Under
+		# parallel_threads=80 that is 80 leaked processes per Worker, which
+		# contends with Chemkin license checkouts and pool IPC.
 		self.progress = []
 		self.parallized_zeta = []
 		self.parallel_zeta_dict = {}
 		self.generator = []
-		sys.path.append(path_to_yamlwriter)  
+		# Task 4A: absolute path for progress file; caller sets this before
+		# do_job_async_ so pool callbacks never write to an arbitrary CWD.
+		self.progress_file = None
+		sys.path.append(path_to_yamlwriter)
 		#self.yamlwriter = import_module('yamlwriter')
 	def update_progress(self, total):
         	update_progress(self.progress, total)
@@ -179,9 +199,17 @@ class Worker():
 		self.progress.append(result[0])
 		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
-		f = open('../progress','+a')
-		f.write(result[0]+"/run"+"\n")
-		f.close()
+		# Task 4A: progress_file must be an absolute path set explicitly by the
+		# caller before do_job_async_ -- pool worker callbacks fire with
+		# unpredictable CWD, so any os.getcwd()-based fallback silently writes
+		# to the wrong directory.
+		if not self.progress_file:
+			raise RuntimeError(
+				"Worker.progress_file was not set before do_job_async_(); "
+				"set it explicitly (e.g. X.progress_file = os.path.join(optDir, 'progress'))."
+			)
+		with open(self.progress_file, 'a') as f:
+			f.write(result[0]+"/run"+"\n")
 		
 	def callback_create(self, future):
 		result = future.result()
@@ -317,7 +345,8 @@ class SM(object):
 			self.design_matrix_dict = design_matrix
 		self.file_type = target_data["Inputs"]["fileType"]
 		self.order = target_data["Stats"]["Order_of_PRS"]
-		self.parallel_threads = target_data["Counts"]["parallel_threads"]
+		# Task 4C: clamp to thread_cap() so we never pin all CPU cores
+		self.parallel_threads = min(int(target_data["Counts"]["parallel_threads"]), _thread_cap())
 		self.responseOrder = target_data["Stats"]["Order_of_PRS"]
 		self.mech_loc = target_data["Locations"]["mechanism"]
 		self.pre_file = target_data["Locations"]["Initial_pre_file"]
@@ -452,8 +481,20 @@ class SM(object):
 		design_matrix = self.design_matrix_dict[case]
 		#print(len(design_matrix))	
 		for i in tqdm(range(len(design_matrix)),desc="Zipping all files"):
-			
-			if os.path.isdir(os.getcwd()+"/"+str(i)) == True and os.path.isdir(os.getcwd()+"/"+str(i)+"/output") != True:
+
+			# 2026-08-26 empty-folder fix: an output/ that EXISTS but is
+			# EMPTY is the terminal state of a failed simulation (license
+			# failure before tau.out was written, an interrupted ./run, or
+			# the run script's unconditional find -delete cleanup) --
+			# previously this fell through BOTH branches below (dir exists,
+			# output/ exists) and was treated as complete forever. Treat it
+			# as incomplete: wipe + regenerate its input files so the
+			# bounded retry in generate_target_value_tables re-runs it.
+			_sample_dir = os.getcwd()+"/"+str(i)
+			_sample_out = _sample_dir+"/output"
+			_out_is_empty = (os.path.isdir(_sample_out)
+			                 and not os.listdir(_sample_out))
+			if os.path.isdir(_sample_dir) and (not os.path.isdir(_sample_out) or _out_is_empty):
 				shutil.rmtree(str(i))
 				if self.pert_mech_file == "":
 					#yaml_dict[str(i)],sim_dict[str(i)] = mani.doPerturbation()				
@@ -568,6 +609,7 @@ class SM(object):
 		print("\tFiles converted to standard input files for iteration \n".format(iter_number))
 		
 		X = Worker(int(self.allowed_count),self.build_path)
+		X.progress_file = os.path.join(os.getcwd(), "progress")  # Task 4A
 		X.do_job_async(dir_run_list,"run")
 		
 		print("\tSimulations for {} iteration is Done!!".format(iter_number))
@@ -654,31 +696,42 @@ class SM(object):
 		###########################################
 		
 		X = Worker(allowed_count,self.build_path)
+		X.progress_file = os.path.join(nominalDir, "progress")  # Task 4A
 		file_n = []
 		length = []
 		for i in locations:
 			file_n.append("run")
 		args = list(zip(locations,file_n))
 		X.do_job_async_(args)
-		
+
 		del X
 		print("\tSimulations for all cases is Done!!")
-			
+
 		dt = int(time.time() - start_time)
 		hours = dt/3600
 		minutes = (dt%3600)/60
 		seconds = dt%60
 		print("Performed {} Simulations....".format(len(locations)))
 		print("Time for performing simulations : {h:.4f} hours,  {m:.2f} minutes, {s:.2f} seconds\n................................................ \n".format(h = hours, m = minutes, s =seconds))
-		simulation_locations = open(nominalDir+"/locations",'+a')
+		# FUTURE-BUG-5 (audit 2026-07-19): dedupe against lines already on disk
+		# so re-running the nominal stage doesn't double-count entries in the
+		# `locations` file -- mirrors the restart-path fix in make_dir_in_parallel.
+		_nominal_locations_path = nominalDir + "/locations"
+		_written = set()
+		if os.path.exists(_nominal_locations_path):
+			with open(_nominal_locations_path, "r") as _lf:
+				_written = set(_lf.read().splitlines())
 		sim_location = []
-		for loc in locations:
-			simulation_locations.write(loc+"/run\n")
-			sim_location.append(loc+"/run\n")
-		simulation_locations.close()
-		
+		with open(_nominal_locations_path, "a") as simulation_locations:
+			for loc in locations:
+				line = loc + "/run"
+				if line not in _written:
+					simulation_locations.write(line + "\n")
+					_written.add(line)
+				sim_location.append(line + "\n")
+
 		#os.chdir('..')
-		return sim_location	
+		return sim_location
 		
 	def make_dir_in_parallel(self,yaml_loc,cases=None):
 
@@ -710,6 +763,14 @@ class SM(object):
 		"""
 		case_iterable = list(self.case_dir) if cases is None else list(cases)
 		sim_location = []
+		# Bug 5 fix: dedupe against lines already on disk (e.g. from a prior run)
+		# instead of blindly appending, which would double-count a case that gets
+		# reprocessed after a restart.
+		_locations_path = os.path.join(optDir, "locations")
+		_written_lines = set()
+		if os.path.exists(_locations_path):
+			with open(_locations_path, "r") as _lf:
+				_written_lines = set(_lf.read().splitlines())
 		for case in case_iterable:
 			case_index = case
 			if "case-"+str(case_index) in os.listdir():
@@ -742,14 +803,24 @@ class SM(object):
 				print(f"\tCase-{case_index} directory already exists -- "
 				      f"reconstructing its simulation-location list "
 				      f"(no re-simulation).")
-				_ , _, _, _, run_list, _ = self.getDirectoryList(case, case_index, yaml_loc)
-				simulation_locations = open(optDir+"/locations", '+a')
-				for key in sorted(run_list, key=lambda k: int(k) if str(k).isdigit() else k):
-					loc = run_list[key]
-					simulation_locations.write(loc+"/run\n")
-					sim_location.append(loc+"/run\n")
-				simulation_locations.close()
-				os.chdir('..')
+				# Bug 2 fix: run under try/finally so CWD is always restored
+				# to optDir afterwards -- getDirectoryList chdir's into
+				# case-N and does not chdir back; a bare os.chdir('..') after
+				# the body meant any exception mid-case left CWD stuck inside
+				# case-N/ and broke every subsequent case.
+				try:
+					_ , _, _, _, run_list, _ = self.getDirectoryList(case, case_index, yaml_loc)
+					simulation_locations = open(_locations_path, 'a')
+					for key in sorted(run_list, key=lambda k: int(k) if str(k).isdigit() else k):
+						loc = run_list[key]
+						line = loc + "/run"
+						if line not in _written_lines:
+							simulation_locations.write(line + "\n")
+							_written_lines.add(line)
+						sim_location.append(line + "\n")
+					simulation_locations.close()
+				finally:
+					os.chdir('..')
 			else:
 				#Old version of the code
 				#yaml_dict,instring_dict,s_run_dict,dir_list,run_convert_dict,run_list,extract_list,sim_dict = self.getDirectoryList(case,case_index)
@@ -809,6 +880,7 @@ class SM(object):
 				###########################################
 				
 				X = Worker(allowed_count,self.build_path)
+				X.progress_file = os.path.join(optDir, "progress")  # Task 4A
 				file_n = []
 				length = []
 				for i in locations:
@@ -825,13 +897,15 @@ class SM(object):
 				seconds = dt%60
 				print("Performed {} Simulations....".format(len(locations)))
 				print("Time for performing simulations : {h:.5f} hours,  {m:.3f} minutes, {s:.2f} seconds\n................................................ \n".format(h = hours, m = minutes, s =seconds))
-				simulation_locations = open(optDir+"/locations",'+a')
-				
+				simulation_locations = open(_locations_path, 'a')
 				for loc in locations:
-					simulation_locations.write(loc+"/run\n")
-					sim_location.append(loc+"/run\n")
+					line = loc + "/run"
+					if line not in _written_lines:
+						simulation_locations.write(line + "\n")
+						_written_lines.add(line)
+					sim_location.append(line + "\n")
 				simulation_locations.close()
-			
+
 				os.chdir('..')
 		return sim_location
 

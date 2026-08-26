@@ -1,4 +1,6 @@
 import os,sys
+import glob
+import shutil
 import numpy as np
 import DesignMatrix as DM
 import pickle
@@ -234,8 +236,10 @@ class PartialPRS(object):
 		case: if a parameter of the linked partner exceeds the threshold, the
 		corresponding parameter of this reaction is also selected.
 
-		NOTE: correlation-aware rescue (`self.correlation_list`) is NOT yet
-		wired into this branch -- A-facto only, for now.
+		Correlation-aware rescue: `self.correlation_list` features (strings
+		like "R1093_A") are rescued when below threshold, mirroring the A-facto
+		branch. Correlations are SA-data-only (Pearson/Spearman); no Cholesky /
+		UQ prior is used.
 		"""
 		# Populate s_A / s_n / s_Ea in unsrt_data order so that abs_coeff
 		# is aligned 1-to-1 with active_parameters / DesignMatrix columns.
@@ -671,8 +675,22 @@ class PartialPRS(object):
 		SSM = simulator.SM(self.target_list,self.optInputs,self.unsrt,design_matrix,tag="Partial")
 		if f"YAML_FILES_FOR_PARTIAL_PRS" not in os.listdir():
 			os.mkdir("YAML_FILES_FOR_PARTIAL_PRS")
-		if f"{self.case_index}" not in os.listdir("YAML_FILES_FOR_PARTIAL_PRS/"):
-			os.mkdir(f"YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}")
+		# Bug 4 fix: a case directory existing is not proof that all its YAML files
+		# were written -- files are written in chunks of 500, so a run interrupted
+		# mid-chunk leaves a directory with only some mechanism_*.yaml files. Verify
+		# the file count against p_design_matrix (the matrix these files were
+		# generated from) before trusting the restart path; otherwise wipe the
+		# partial directory and regenerate everything.
+		yaml_case_dir = f"YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}"
+		case_dir_exists = f"{self.case_index}" in os.listdir("YAML_FILES_FOR_PARTIAL_PRS/")
+		existing_yaml_count = len(glob.glob(os.path.join(yaml_case_dir, "mechanism_*.yaml"))) if case_dir_exists else 0
+		if case_dir_exists and existing_yaml_count != len(p_design_matrix):
+			print(f"\nIncomplete YAML directory found for case-{self.case_index} "
+			      f"({existing_yaml_count}/{len(p_design_matrix)} files) -- regenerating\n")
+			shutil.rmtree(yaml_case_dir)
+			case_dir_exists = False
+		if not case_dir_exists:
+			os.mkdir(yaml_case_dir)
 			print("\nPerturbing the Mechanism files\n")
 			
 			chunk_size = 500
@@ -703,7 +721,10 @@ class PartialPRS(object):
 			yaml_loc = []
 			location_mech = []
 			index_list = []
-			for i,sample in enumerate(design_matrix):
+			# Bug 3 fix: files on disk were generated from p_design_matrix (the
+			# partial matrix), not design_matrix (the full matrix) -- design_matrix
+			# can have more rows, producing mechanism_{k}.yaml paths that don't exist.
+			for i,sample in enumerate(p_design_matrix):
 				index_list.append(i)
 				location_mech.append(os.getcwd()+f"/YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}")
 				yaml_loc.append(os.getcwd()+f"/YAML_FILES_FOR_PARTIAL_PRS/{self.case_index}/mechanism_"+str(i)+".yaml")
