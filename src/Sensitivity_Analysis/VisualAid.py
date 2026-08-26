@@ -558,3 +558,132 @@ class PostOptPlotter:
         plt.close(fig)
         return out_path
 
+
+# =============================================================================
+# postprocess() -- "process the results" flag entry point
+# =============================================================================
+# Same shared CLI contract as src/MUQ-SAC/VisualAid.py's postprocess() (see
+# that file's docstring for the full rationale) via
+# mso_io.postprocess_base. sens.py / sens_3_params.py's own on-disk
+# artifacts are pickles of a "sens_dict" (RXN_DICT.pkl / sens_parameters.pkl
+# / sens_3p_parameters.pkl) -- correlation_analysis.run_pipeline() already
+# turns one of those into CSVs + heatmaps given an output directory, so
+# postprocess() here is a thin driver over that existing pipeline (not a
+# reimplementation) plus the same "always emit CSV" + --journal contract.
+
+import sys  # noqa: E402
+import glob  # noqa: E402
+
+_this_dir_pp = os.path.dirname(os.path.abspath(__file__))
+_src_dir_pp = os.path.normpath(os.path.join(_this_dir_pp, ".."))
+if _src_dir_pp not in sys.path:
+    sys.path.append(_src_dir_pp)
+try:
+    from mso_io.postprocess_base import (  # noqa: E402
+        PostProcessResult, add_postprocess_args, default_out_dir, discover,
+        formats_from_args, write_manifest, write_table,
+    )
+except ImportError:  # pragma: no cover
+    PostProcessResult = None
+
+if _this_dir_pp not in sys.path:
+    sys.path.append(_this_dir_pp)
+
+_SENS_PATTERNS = {
+    "sens_pickle": "**/sens_parameters.pkl",
+    "sens_3p_pickle": "**/sens_3p_parameters.pkl",
+    "rxn_dict": "**/RXN_DICT.pkl",
+    "correlation_csvs": "**/correlation_matrix_*.csv",
+    "selection_csvs": "**/selection_with_rescue_*.csv",
+    "final_active_set_csvs": "**/final_active_set_*.csv",
+    "correlation_heatmaps": "**/correlation_heatmap_*.png",
+    "design_matrix_csvs": "**/DesignMatrix*.csv",
+}
+
+
+def postprocess(run_dir, out_dir=None, journal=False, csv_only=False,
+                 formats=("png",), intermediate=False):
+    """Regenerate sensitivity-analysis correlation tables/heatmaps from an
+    existing (or still-running) ``sens.py``/``sens_3_params.py`` run
+    directory. Never raises on missing files.
+
+    Returns a :class:`mso_io.postprocess_base.PostProcessResult`.
+    """
+    if PostProcessResult is None:
+        raise ImportError("mso_io.postprocess_base not importable -- is src/ on sys.path?")
+
+    run_dir = os.path.abspath(run_dir)
+    out_dir = str(default_out_dir(run_dir, out_dir))
+    found = discover(run_dir, _SENS_PATTERNS)
+    result = PostProcessResult(run_dir=run_dir, out_dir=out_dir, partial=bool(intermediate))
+    tables_dir = os.path.join(out_dir, "tables")
+
+    # -- Regenerate correlation tables/heatmaps from a sens_dict pickle, if found --
+    sens_pickle = (found["sens_3p_pickle"] or found["sens_pickle"] or found["rxn_dict"])
+    if sens_pickle and not csv_only:
+        try:
+            import correlation_analysis as _ca
+            corr_out = os.path.join(out_dir, "correlation")
+            # Round 4 fix: `formats` used to be accepted by this function's
+            # own signature and computed by the CLI (formats_from_args)
+            # but never actually passed to run_pipeline() nor used to glob
+            # anything beyond "*.png" here -- `--formats png,pdf` silently
+            # produced only a .png. Now threaded through end to end.
+            _ca.run_pipeline(str(sens_pickle[0]), corr_out, formats=formats)
+            for fmt in formats:
+                result.figures.extend(
+                    str(p) for p in glob.glob(os.path.join(corr_out, f"*.{fmt}")))
+            result.tables.extend(str(p) for p in glob.glob(os.path.join(corr_out, "*.csv")))
+        except Exception as exc:
+            result.skipped.append(f"correlation regeneration: {type(exc).__name__}: {exc}")
+    elif not sens_pickle:
+        result.skipped.append(
+            f"correlation regeneration: no sens_parameters.pkl / sens_3p_parameters.pkl / "
+            f"RXN_DICT.pkl found under {run_dir}"
+            + (" (SA not yet at that stage)" if intermediate else ""))
+
+    # -- Relocate whatever correlation/design-matrix CSVs already exist -- always tracked --
+    for key in ("correlation_csvs", "selection_csvs", "final_active_set_csvs", "design_matrix_csvs"):
+        for src_path in found[key]:
+            try:
+                df = pd.read_csv(src_path)
+                result.tables.append(write_table(df, os.path.splitext(os.path.basename(str(src_path)))[0], tables_dir))
+            except Exception as exc:
+                result.skipped.append(f"{os.path.basename(str(src_path))}: {type(exc).__name__}: {exc}")
+
+    if journal and result.tables:
+        journal_dir = os.path.join(out_dir, "journal_data")
+        os.makedirs(journal_dir, exist_ok=True)
+        for t in result.tables:
+            df = pd.read_csv(t)
+            result.journal_tables.append(write_table(df, "journal_" + os.path.splitext(os.path.basename(t))[0], journal_dir))
+
+    write_manifest(result, out_dir)
+    return result
+
+
+def _main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Sensitivity_Analysis VisualAid: standalone plotter class "
+                     "library, plus --postprocess to regenerate correlation "
+                     "tables/heatmaps from an existing sens.py run directory.")
+    add_postprocess_args(parser)
+    args = parser.parse_args()
+    if not args.postprocess:
+        parser.error("nothing to do -- pass --postprocess RUN_DIR")
+    result = postprocess(
+        args.postprocess, out_dir=args.out, journal=args.journal,
+        csv_only=args.csv_only, formats=formats_from_args(args),
+        intermediate=args.intermediate,
+    )
+    print(f"[VisualAid.postprocess] {len(result.figures)} figure(s), "
+          f"{len(result.tables)} table(s), {len(result.journal_tables)} journal table(s) "
+          f"-> {result.out_dir}")
+    for note in result.skipped:
+        print(f"  skipped: {note}")
+
+
+if __name__ == "__main__":
+    _main()
+

@@ -56,8 +56,14 @@ units:
   quantity: mol
 """
 
-# Elements in preferred CHEMKIN order
-_ELEMENT_ORDER = ["C", "H", "O", "N", "S", "AR", "HE", "CL", "F"]
+# Elements in preferred CHEMKIN order. M6 (review.md): must use Cantera's
+# canonical element-symbol case ("Ar", not "AR") -- Cantera element lookup
+# is case-sensitive and species `composition:` blocks are built from the
+# same [A-Z][a-z]? regex as _build_phases_section below with no case
+# transform, so a mismatched-case `elements:` declaration made the exported
+# YAML unloadable for any mechanism with a 2-letter element (EXEC: GRI-
+# wetCO round trip failed "element not found: AR").
+_ELEMENT_ORDER = ["C", "H", "O", "N", "S", "Ar", "He", "Cl", "F"]
 
 
 class CanteraYAMLWriter:
@@ -176,7 +182,11 @@ class CanteraYAMLWriter:
         for sp in species_rows:
             formula = dict(sp).get("formula") or ""
             for el in re.findall(r"[A-Z][a-z]?", formula):
-                elements.add(el.upper())
+                # M6: keep the regex-captured case as-is (matches
+                # _parse_composition's identical regex with no case
+                # transform below) -- .upper() turned "Ar" into "AR",
+                # mismatching the `composition:` block's "Ar" key.
+                elements.add(el)
         elements.update({"C", "H", "O", "N"})
 
         ordered = [e for e in _ELEMENT_ORDER if e in elements]
@@ -228,10 +238,44 @@ class CanteraYAMLWriter:
                     lines.append("    model: NASA7")
                     lines.append(f"    temperature-ranges: [{tmin:.1f}, {tmid:.1f}, {tmax:.1f}]")
                     lines.append("    data:")
-                    lines.append("    - " + _yaml_coeff_list(high))
+                    # M8 (review.md): Cantera's YAML NASA7 format pairs the
+                    # data blocks positionally with temperature-ranges --
+                    # the FIRST block covers [Tmin, Tmid] (low-T) and the
+                    # SECOND covers [Tmid, Tmax] (high-T), confirmed against
+                    # this repo's own FFCM1.yaml (e.g. N2: low-T block's a1
+                    # ~3.53 matches a rigid-rotor diatomic at 300 K; high-T
+                    # block's a1 ~2.95 only makes sense above ~1000 K).
+                    # These were swapped -- Cantera evaluated the high-T
+                    # polynomial below Tmid and vice versa, which is exactly
+                    # what surfaced as spurious "discontinuity in cp/R" (and
+                    # h/RT, s/R) warnings at Tmid on every multi-range
+                    # species this writer ever exported.
                     lines.append("    - " + _yaml_coeff_list(low))
+                    lines.append("    - " + _yaml_coeff_list(high))
             except (TypeError, ValueError, json.JSONDecodeError):
                 lines.append("  thermo: {}")
+
+            # Lennard-Jones transport (Phase-3 follow-on) — emitted only when the
+            # species carries it in the DB (backward-compatible: absent columns /
+            # NULLs simply omit the block).
+            geom = sp.get("transport_geometry")
+            well = sp.get("well_depth_K")
+            diam = sp.get("diameter_A")
+            if geom is not None and well is not None and diam is not None:
+                lines.append("  transport:")
+                lines.append("    model: gas")
+                lines.append(f"    geometry: {geom}")
+                lines.append(f"    well-depth: {float(well):.4f}")
+                lines.append(f"    diameter: {float(diam):.4f}")
+                dip = sp.get("dipole_D") or 0.0
+                pol = sp.get("polarizability_A3") or 0.0
+                rot = sp.get("rot_relax") or 0.0
+                if float(dip):
+                    lines.append(f"    dipole: {float(dip):.4f}")
+                if float(pol):
+                    lines.append(f"    polarizability: {float(pol):.4f}")
+                if float(rot):
+                    lines.append(f"    rotational-relaxation: {float(rot):.4f}")
 
         return lines
 

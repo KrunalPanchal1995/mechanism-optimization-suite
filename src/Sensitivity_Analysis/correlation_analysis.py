@@ -124,7 +124,7 @@ def suggest_corr_cutoff(n_cases, alpha=0.05, practical_floor=0.8):
 # HEATMAP (optional visual, secondary to the CSVs)
 # ============================================================
 
-def plot_correlation_heatmap(rho_df, title, outpath, top_n=40, importance=None):
+def plot_correlation_heatmap(rho_df, title, outpath, top_n=40, importance=None, extra_formats=()):
     cols = rho_df.columns
     order = importance.reindex(cols).fillna(0).abs().sort_values(ascending=False).index \
         if importance is not None else cols
@@ -151,6 +151,15 @@ def plot_correlation_heatmap(rho_df, title, outpath, top_n=40, importance=None):
     fig.colorbar(im, ax=ax, shrink=0.8, label="Pearson r")
     fig.tight_layout()
     fig.savefig(outpath, dpi=150)
+    # Round 4 fix (WORKBENCH_AUDIT_2026-08-10.md): VisualAid.postprocess()'s
+    # --formats flag used to be silently ignored for this pipeline's own
+    # heatmap output -- run_pipeline() had no formats parameter at all, so
+    # `--formats png,pdf` produced only a .png, contradicting the shared
+    # postprocess CLI contract's documented behavior. Save the SAME already-
+    # rendered figure under any additional requested extensions instead of
+    # re-plotting per format.
+    for fmt in extra_formats:
+        fig.savefig(f"{os.path.splitext(outpath)[0]}.{fmt}", dpi=150)
     plt.close(fig)
 
 
@@ -275,7 +284,7 @@ def final_active_set_per_target(pickle_path, correlation_csv_path, output_dir,
 
 def run_pipeline(pickle_path, output_dir, threshold=0.05, corr_cutoff=None,
                   alpha=0.05, min_pairs=8, top_n_heatmap=40, param_names=None,
-                  final_set_corr_cutoff=0.9):
+                  final_set_corr_cutoff=0.9, formats=("png",)):
     os.makedirs(output_dir, exist_ok=True)
     sens_dict = load_sens_pickle(pickle_path)
     structure, param_names = detect_structure(sens_dict, param_names)
@@ -303,6 +312,7 @@ def run_pipeline(pickle_path, output_dir, threshold=0.05, corr_cutoff=None,
             rho, f"Reaction correlation across all targets -- parameter {p}",
             os.path.join(output_dir, f"correlation_heatmap_{p}.png"),
             top_n=top_n_heatmap, importance=importance,
+            extra_formats=[f for f in formats if f != "png"],
         )
 
         sel_table = build_selection_table(wide, rho, threshold, corr_cutoff)

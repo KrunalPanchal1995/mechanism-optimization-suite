@@ -287,8 +287,25 @@ class DesignMatrix(object):
 		"""
 		tic = time.time()
 		n_a = 1
-		rxn_param_indices = self._get_rxn_param_indices(selected_params)
-		print(rxn_param_indices)
+		# M30 fix: this brute-force sweep probes exactly one global Arrhenius
+		# parameter (A/n/Ea, given explicitly via `param_type`) independently
+		# across every reaction -- it is NOT the variable-per-reaction
+		# activeParameters selection that _get_rxn_param_indices exists for
+		# (that helper is for the real joint MUQ-SAC PRS/GSA path, where a
+		# "factor"-restricted reaction genuinely only has 1 active slot).
+		# Reusing it here made the offset walk over `selected_params`
+		# (always a uniform 3-per-reaction [A,n,Ea] mask, e.g. [0,1,0,...]
+		# for param_type="n") drift out of alignment for any reaction whose
+		# activeParameters length != 3 (any "factor"-type reaction) -- for
+		# such reactions every param_type silently collapsed to idx=(0,),
+		# so "n"/"Ea" were never actually perturbed and their samples (and
+		# therefore delta_n/delta_Ea) came out exactly 0.0, which crashed
+		# sens_3_params.py's normalized_n = 1.0/delta_n_val with a
+		# ZeroDivisionError for any reaction with n0=0 that also happened to
+		# be factor-restricted (bug.md M30). Map param_type straight to its
+		# fixed Arrhenius-parameter index instead.
+		_param_type_index = {"A": 0, "n": 1, "Ea": 2}[param_type]
+		rxn_param_indices = {rxn: (_param_type_index,) for rxn in self.unsrt}
 		rng = np.random.default_rng()
 
 		# ── Class-A (partial) curves ──────────────────────────────────────

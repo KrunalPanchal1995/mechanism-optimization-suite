@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Uncertainty XML fixture for src/rmip/simulation/gsa_prs_crosscheck.py's
+  direct-sim-vs-PRS-surrogate Sobol validation (ZERORK_GSA_PLAN.md Phase 4,
+  open question #4).
+
+  Built new rather than reusing DATASET/H2_O2_TEST/uncertainty/H2_uncertainty.xml
+  directly, because that shipped fixture has <class></class> (blank) and no
+  `no=`/<perturbation_type>: Uncertainty.py's reaction.__init__ requires
+  `no=` (KeyError without it) and a non-blank <class> so
+  MechManipulator2_0.py's perturbation dispatch doesn't silently no-op (a
+  blank classification falls through every branch in doPerturbation()).
+
+  <temp>/<unsrt> arrays for these 3 reactions are copied byte-for-byte from
+  the real shipped fixture (same data, just reactions renumbered/retagged),
+  not invented. `rxn=` text uses Cantera's exact equation-string spacing as
+  emitted by ck2yaml for outputs/project.db mechanism_id=8 (GRI-3.0),
+  confirmed empirically via MechanismParser.Parser(...).rxnList, NOT the
+  shipped fixture's own (differently-spaced/ordered) rxn= text.
+
+  <perturbation_type>factor</perturbation_type> restricts these to A-factor-
+  only perturbation, matching ZerorkGSARunner's own A-factor-only GSA scope:
+  both sides of the cross-check perturb the same physical quantity.
+-->
+<uncertainty>
+	<reaction rxn="H + O2 &lt;=&gt; O + OH" no="1">
+		<class>Elementary</class>
+		<type>pressure_independent</type>
+		<perturbation_type>factor</perturbation_type>
+		<sub_type name="forward">
+			<multiple>False</multiple>
+			<branches>N/A</branches>
+			<pressure_limit>N/A</pressure_limit>
+			<common_temp>N/A</common_temp>
+			<temp_limit>N/A</temp_limit>
+		</sub_type>
+		<data_type>constant;array</data_type>
+		<temp>500.0,700.0,900.0,1100.0,1300.0,1500.0,1700.0,1900.0,2100.0,2300.0,2500.0</temp>
+		<unsrt>0.40,0.35,0.30,0.27,0.25,0.22,0.20,0.18,0.17,0.16,0.15</unsrt>
+	</reaction>
+	<reaction rxn="O + H2 &lt;=&gt; H + OH" no="2">
+		<class>Elementary</class>
+		<type>pressure_independent</type>
+		<perturbation_type>factor</perturbation_type>
+		<sub_type name="forward">
+			<multiple>False</multiple>
+			<branches>N/A</branches>
+			<pressure_limit>N/A</pressure_limit>
+			<common_temp>N/A</common_temp>
+			<temp_limit>N/A</temp_limit>
+		</sub_type>
+		<data_type>constant;array</data_type>
+		<temp>500.0,700.0,900.0,1100.0,1300.0,1500.0,1700.0,1900.0,2100.0,2300.0,2500.0</temp>
+		<unsrt>0.35,0.30,0.28,0.26,0.24,0.22,0.20,0.19,0.18,0.17,0.16</unsrt>
+	</reaction>
+	<reaction rxn="OH + H2 &lt;=&gt; H + H2O" no="3">
+		<class>Elementary</class>
+		<type>pressure_independent</type>
+		<perturbation_type>factor</perturbation_type>
+		<sub_type name="forward">
+			<multiple>False</multiple>
+			<branches>N/A</branches>
+			<pressure_limit>N/A</pressure_limit>
+			<common_temp>N/A</common_temp>
+			<temp_limit>N/A</temp_limit>
+		</sub_type>
+		<data_type>constant;array</data_type>
+		<temp>500.0,700.0,900.0,1100.0,1300.0,1500.0,1700.0,1900.0,2100.0,2300.0,2500.0</temp>
+		<unsrt>0.25,0.22,0.20,0.18,0.17,0.16,0.15,0.14,0.14,0.13,0.13</unsrt>
+	</reaction>
+</uncertainty>

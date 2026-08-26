@@ -247,7 +247,7 @@ def insert_species(conn: sqlite3.Connection, **kwargs) -> int:
         f"VALUES ({', '.join('?' * len(cols))})"
     )
     cur = conn.execute(sql, vals)
-    if cur.lastrowid == 0:
+    if cur.rowcount == 0:
         row = conn.execute(
             "SELECT id FROM species WHERE mechanism_id=? AND name=?",
             (kwargs.get("mechanism_id"), kwargs.get("name"))

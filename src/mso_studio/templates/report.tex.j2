@@ -1,0 +1,117 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{fancyvrb}
+\usepackage{xcolor}
+
+\title{MSO Studio Run Report \\ \large \VAR{ record.config.module | e } / \VAR{ record.config.label | e }}
+\author{Mechanism Optimization Suite}
+\date{\VAR{ record.started_at | e }}
+
+\begin{document}
+\maketitle
+
+\section{Summary}
+\begin{tabular}{ll}
+Module & \VAR{ record.config.module | e } \\
+Run label & \VAR{ record.config.label | e } \\
+Status & \VAR{ record.status | e } \\
+Started & \VAR{ record.started_at | e } \\
+Finished & \VAR{ record.finished_at | e } \\
+Wall time (s) & \VAR{ "%.2f" | format(record.wall_time_s) if record.wall_time_s is not none else "N/A" } \\
+Host & \VAR{ record.hostname | e } \\
+\end{tabular}
+
+\section{Software versions}
+\begin{tabular}{ll}
+\BLOCK{ for name, version in record.software_versions.items() }
+\VAR{ name | e } & \VAR{ version | e } \\
+\BLOCK{ endfor }
+\end{tabular}
+
+\section{Run configuration}
+\begin{tabular}{ll}
+\BLOCK{ for key, value in record.config.inputs.items() }
+\VAR{ key | e } & \texttt{\VAR{ value | e }} \\
+\BLOCK{ endfor }
+\BLOCK{ for key, value in record.config.parameters.items() }
+\VAR{ key | e } & \VAR{ value | e } \\
+\BLOCK{ endfor }
+\end{tabular}
+
+\subsection{Input file provenance (SHA-256)}
+\begin{tabular}{ll}
+\BLOCK{ for key, digest in record.input_hashes.items() }
+\VAR{ key | e } & \texttt{\VAR{ (digest or "N/A") | e }} \\
+\BLOCK{ endfor }
+\end{tabular}
+
+\BLOCK{ if simple_results }
+\section{Results}
+\begin{tabular}{ll}
+\BLOCK{ for key, value in simple_results.items() }
+\VAR{ key | e } & \VAR{ value | e } \\
+\BLOCK{ endfor }
+\end{tabular}
+\BLOCK{ endif }
+
+\BLOCK{ if record.tables }
+\section{Output tables}
+This run produced \VAR{ record.tables | length } table(s). Paths (on the machine the run executed on):
+\begin{itemize}
+\BLOCK{ for name, path in record.tables.items() }
+\item \VAR{ name | e }: \texttt{\VAR{ path | e }}
+\BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ endif }
+
+\BLOCK{ if figure_paths }
+\section{Figures}
+\BLOCK{ for name, path in figure_paths.items() }
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{\VAR{ path }}
+\caption{\VAR{ name | e }}
+\end{figure}
+\BLOCK{ endfor }
+\BLOCK{ endif }
+
+\BLOCK{ if record.warnings }
+\section{Warnings}
+\begin{itemize}
+\BLOCK{ for w in record.warnings }
+\item \VAR{ w | e }
+\BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ endif }
+
+\BLOCK{ if record.error }
+\section{Error}
+\VAR{ record.error | e }
+\BLOCK{ endif }
+
+\appendix
+\section{Reproduction command}
+\begin{Verbatim}[fontsize=\small]
+\VAR{ record.config.backend_command | join(" ") | e }
+\end{Verbatim}
+Working directory: \texttt{\VAR{ record.config.working_dir | e }}
+
+\section{Full configuration (YAML)}
+\begin{Verbatim}[fontsize=\small]
+\VAR{ config_yaml }
+\end{Verbatim}
+
+\BLOCK{ if record.log_tail }
+\section{Log tail}
+\begin{Verbatim}[fontsize=\scriptsize]
+\BLOCK{ for line in record.log_tail[-80:] }
+\VAR{ line }
+\BLOCK{ endfor }
+\end{Verbatim}
+\BLOCK{ endif }
+
+\end{document}

@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,62 +13,78 @@ import pandas as pd
 import time
 from scipy.optimize import minimize
 
+# Task 2D: load MW/stoich from shared chem_data module; fall back to inline tables
+# if chem_data is not on the path (e.g., running from src/MUQ-SAC/ directly).
+try:
+	_chem_data_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+	if _chem_data_dir not in sys.path:
+		sys.path.insert(0, _chem_data_dir)
+	from chem_data import DEFAULT_FUEL_MW as _DEFAULT_MW, DEFAULT_STOICH_O2 as _DEFAULT_NU, compute_nu_o2 as _compute_nu_o2
+	_HAS_CHEM_DATA = True
+except ImportError:
+	_HAS_CHEM_DATA = False
+
 class combustion_target():
-###Class definition and acquisition of input parameters.	
+###Class definition and acquisition of input parameters.
 	def __init__(self,data,addendum,index):
-		self.molecularWt = {}
-		self.molecularWt = {}
-		self.molecularWt["CO"] = 28
-		self.molecularWt["H2"] = 2
-		self.molecularWt["O2"] = 32
-		self.molecularWt["co"] = 28
-		self.molecularWt["h2"] = 2
-		self.molecularWt["o2"] = 32
-		self.molecularWt["CO2"] = 0
-		self.molecularWt["AR"] = 0
-		self.molecularWt["HE"] = 0
-		self.molecularWt["CO2"] = 0
-		self.molecularWt["Ar"] = 0
-		self.molecularWt["He"] = 0
-		self.molecularWt["N2"] = 0
-		self.molecularWt["H2O"] = 0
-		self.molecularWt["CH4"] = 16
-		self.molecularWt["NC7H16"] = 100.21
-		self.molecularWt["nc7h16"] = 100.21
-		self.molecularWt["C4H6"] = 54
-		self.molecularWt["OME3"] = 136
-		self.molecularWt["MB-C5H10O2"] = 86
-		self.molecularWt["CH2O"] = 30
-		self.molecularWt["NC12H26"] = 170
-		self.molecularWt["C7H8"] = 92
-		self.molecularWt["IC16H34"] = 226
-		self.stoichiometry = {}
-		self.stoichiometry["H2"] = 0.5
-		self.stoichiometry["CO"] = 0.5
-		self.stoichiometry["O2"] = 0.0
-		self.stoichiometry["N2"] = 0.0
-		self.stoichiometry["h2"] = 0.5
-		self.stoichiometry["co"] = 0.5
-		self.stoichiometry["o2"] = 0.0
-		self.stoichiometry["n2"] = 0.0
-		self.stoichiometry["HE"] = 0.0
-		self.stoichiometry["AR"] = 0.0
-		self.stoichiometry["He"] = 0.0
-		self.stoichiometry["Ar"] = 0.0
-		self.stoichiometry["H2O"] = 0.0
-		self.stoichiometry["CO2"] = 0.0
-		self.stoichiometry["CH4"] = 2.0
-		self.stoichiometry["NC7H16"] = 11
-		self.stoichiometry["nc7h16"] = 11
-		self.stoichiometry["C4H6"] = 5.5
-		self.stoichiometry["OME3"] = 6
-		self.stoichiometry["MB-C5H10O2"] = 6.5
-		self.stoichiometry["CH2O"] = 1
-		self.stoichiometry["NC12H26"] = 25
-		self.stoichiometry["C7H8"] = 11
-		self.stoichiometry["IC16H34"] = 33
-		self.stoichiometry["C12H23"] = 17.75
-		self.stoichiometry["C3H8"] = 5.0
+		# Task 2D: MW and stoichiometry tables now sourced from chem_data.py.
+		# Hard-coded fallback retained for backward compatibility when
+		# chem_data is unavailable.
+		if _HAS_CHEM_DATA:
+			self.molecularWt = dict(_DEFAULT_MW)
+			self.stoichiometry = dict(_DEFAULT_NU)
+		else:
+			self.molecularWt = {}
+			self.molecularWt["CO"] = 28
+			self.molecularWt["H2"] = 2
+			self.molecularWt["O2"] = 32
+			self.molecularWt["co"] = 28
+			self.molecularWt["h2"] = 2
+			self.molecularWt["o2"] = 32
+			self.molecularWt["CO2"] = 0
+			self.molecularWt["AR"] = 0
+			self.molecularWt["HE"] = 0
+			self.molecularWt["Ar"] = 0
+			self.molecularWt["He"] = 0
+			self.molecularWt["N2"] = 0
+			self.molecularWt["H2O"] = 0
+			self.molecularWt["CH4"] = 16
+			self.molecularWt["NC7H16"] = 100.21
+			self.molecularWt["nc7h16"] = 100.21
+			self.molecularWt["C4H6"] = 54
+			self.molecularWt["OME3"] = 136
+			self.molecularWt["MB-C5H10O2"] = 86
+			self.molecularWt["CH2O"] = 30
+			self.molecularWt["NC12H26"] = 170
+			self.molecularWt["C7H8"] = 92
+			self.molecularWt["IC16H34"] = 226
+			self.stoichiometry = {}
+			self.stoichiometry["H2"] = 0.5
+			self.stoichiometry["CO"] = 0.5
+			self.stoichiometry["O2"] = 0.0
+			self.stoichiometry["N2"] = 0.0
+			self.stoichiometry["h2"] = 0.5
+			self.stoichiometry["co"] = 0.5
+			self.stoichiometry["o2"] = 0.0
+			self.stoichiometry["n2"] = 0.0
+			self.stoichiometry["HE"] = 0.0
+			self.stoichiometry["AR"] = 0.0
+			self.stoichiometry["He"] = 0.0
+			self.stoichiometry["Ar"] = 0.0
+			self.stoichiometry["H2O"] = 0.0
+			self.stoichiometry["CO2"] = 0.0
+			self.stoichiometry["CH4"] = 2.0
+			self.stoichiometry["NC7H16"] = 11
+			self.stoichiometry["nc7h16"] = 11
+			self.stoichiometry["C4H6"] = 5.5
+			self.stoichiometry["OME3"] = 6
+			self.stoichiometry["MB-C5H10O2"] = 6.5
+			self.stoichiometry["CH2O"] = 1
+			self.stoichiometry["NC12H26"] = 25
+			self.stoichiometry["C7H8"] = 11
+			self.stoichiometry["IC16H34"] = 33
+			self.stoichiometry["C12H23"] = 17.75
+			self.stoichiometry["C3H8"] = 5.0
 		self.data = data
 		#print(self.data)
 		parameters = self.data.split('|')
@@ -77,7 +94,7 @@ class combustion_target():
 		self.x = None
 		self.index = index
 		self.case_index = "case-"+str(index)
-		self.units = self.f_unit = self.t_unit = self.temperature_factor = self.p_unit = self.pressure_factor = self.target_unit = self.target_factor = self.flow_unit  = self.flow_rate = self.target_key = self.input_file = self.target = self.simulation = self.temperature = self.fuel = self.oxygen = self.nitrogen = self.argon = self.pressure = self.phi = self.observed = self.d_weight = self.d_set = self.Tend = self.species = self.s_p_name = None
+		self.units = self.f_unit = self.t_unit = self.temperature_factor = self.p_unit = self.pressure_factor = self.target_unit = self.target_factor = self.flow_unit  = self.flow_rate = self.target_key = self.input_file = self.target = self.simulation = self.temperature = self.fuel = self.oxygen = self.nitrogen = self.argon = self.pressure = self.phi = self.observed = self.d_weight = self.d_set = self.species = self.s_p_name = None
 		self.add = {}	
 		self.simulated = None
 		#raise ValueError("addendum")
@@ -173,9 +190,18 @@ class combustion_target():
 			if key.strip() == "Fuel":
 				#print(content.split("->"))
 				#print(content)
-				if "Multi" in self.fuel_type:
+				# Real generated .target files (e.g. DATASET/H2_O2_TEST/targets/
+				# H2_IDT.target) write the fuel spec as a dict even for a
+				# single-species "Mono" fuel, e.g. "x->{'a': 'H2'} = {'a': 0.0050}"
+				# -- the generator does not special-case Mono to a bare scalar.
+				# Dispatch on the ACTUAL content shape (does it start with "{"),
+				# not just the declared Fuel_type, so a real Mono target doesn't
+				# crash trying float() on a dict-repr string. A genuine bare-
+				# scalar Mono line (no "{") still takes the original branch.
+				_fuel_rhs = content.split("->")[1].split("=")[0].strip()
+				if "Multi" in self.fuel_type or _fuel_rhs.startswith("{"):
 					self.fuel_id = json.loads(content.split("=")[0].split("->")[1].replace("'",'"'))
-					self.fuel_x = json.loads(content.split("=")[1].replace("'",'"'))	
+					self.fuel_x = json.loads(content.split("=")[1].replace("'",'"'))
 					self.fuel_is = ""
 					for i in self.fuel_id:
 						self.species_dict[str(self.fuel_id[i])] = float(self.fuel_x[i])
@@ -188,10 +214,39 @@ class combustion_target():
 					self.fuel_dict[str(self.fuel_id)] = float(self.fuel_x)
 			
 			if "Oxidizer" in key:
-				self.oxidizer = content.split("->")[1].split("=")[0].strip(" ")
-				self.oxidizer_x = float(content.split("->")[1].split("=")[1])# to convert to percentage
-				self.species_dict[str(self.oxidizer)] = float(self.oxidizer_x)
-				actual_oxidizer = float(self.oxidizer_x)
+				# Same dict-shape dispatch as the Fuel field above (B4,
+				# Round-2 audit): no shipped .target currently writes a
+				# dict-valued Oxidizer, but generate_target_opt.py's writer
+				# does not special-case Oxidizer to a bare scalar any more
+				# than it did for Fuel, so a Multi oxidizer blend (e.g. an
+				# O2/N2/Ar custom oxidizer, as opposed to Bath_gas) would hit
+				# the same "ValueError: could not convert string to float"
+				# this dispatch already fixed for Fuel. actual_oxidizer
+				# collapses to the summed oxidizer mole fraction, matching
+				# how Fact (line ~524) uses a single scalar amount
+				# regardless of how many oxidizer species compose it.
+				#
+				# Unlike Fuel, this dispatches on content shape ALONE, not
+				# on self.fuel_type -- real data (DATASET/METHYL_BUTANOATE_2026/
+				# MB_LTC_no_dummy.target) has Fuel_type=Multi with a plain
+				# scalar Oxidizer ("x->O2 = 0.2035"): Fuel_type governs the
+				# FUEL field's own shape, not the Oxidizer field's, and
+				# gating on it here sent that real scalar through json.loads
+				# and crashed with JSONDecodeError (caught by
+				# test_write_curated_real_bridge_gates_clean going from pass
+				# to fail during this same fix -- corrected before commit).
+				_ox_rhs = content.split("->")[1].split("=")[0].strip()
+				if _ox_rhs.startswith("{"):
+					self.oxidizer = json.loads(content.split("=")[0].split("->")[1].replace("'",'"'))
+					self.oxidizer_x = json.loads(content.split("=")[1].replace("'",'"'))
+					for i in self.oxidizer:
+						self.species_dict[str(self.oxidizer[i])] = float(self.oxidizer_x[i])
+					actual_oxidizer = sum(float(v) for v in self.oxidizer_x.values())
+				else:
+					self.oxidizer = content.split("->")[1].split("=")[0].strip(" ")
+					self.oxidizer_x = float(content.split("->")[1].split("=")[1])# to convert to percentage
+					self.species_dict[str(self.oxidizer)] = float(self.oxidizer_x)
+					actual_oxidizer = float(self.oxidizer_x)
 			
 			
 			if "Bath_gas" in key:
@@ -288,9 +343,6 @@ class combustion_target():
 				self.species = content
 				#print(content)
 			
-			if "time" in key:
-				self.Tend = float(content)
-				#print(content)	
 			
 			#print(self.target)		
 		if "Pi" in self.units:
@@ -373,8 +425,6 @@ class combustion_target():
 			self.add["reactorVolume"] = 0.000314 #m**3,area*l	
 		if "residenceTime" not in self.add:
 			self.add["residenceTime"] = 1
-		if "EndTime" not in self.add:
-			self.add["EndTime"] = 0.04 #s
 		if "time_step" not in self.add:
 			self.add["time_step"] = 2000 #steps		
 		if "flw_method" not in self.add:
@@ -397,8 +447,6 @@ class combustion_target():
 			self.add["flf_target"] = "H" #m**3	
 		if "flf_cond" not in self.add:
 			self.add["flf_cond"] = "max" #m**3	
-		if "estimateTIG" not in self.add:
-			self.add["estimateTIG"] = 0.4
 		if "T_amb" not in self.add:
 			self.add["T_ambient"] = 298
 		else:
@@ -418,6 +466,94 @@ class combustion_target():
 				self.add["group"] = "mix"
 				self.add["description"] = "solution with mixture-averaged transport"
 			
+		# --- RMIP Phase-6 additions (Future.md pt. 3 + 6) -------------------
+		# JSR defaults (residenceTime already defaulted above; these fill the
+		# remaining keys the JSR templates in make_input_file.py read).
+		# RMIP: unified simulation-stop-time key across all target types
+		# (previously split across estimateTIG/maxSimulationTime/total_time,
+		# which could silently collide if defaulted independently).
+		if "MaxSimulationTime" not in self.add:
+			if "JSR" in self.target or "Flf" in self.target or "PFR" in self.target or "Flw" in self.target:
+				self.add["MaxSimulationTime"] = 10  # s
+			else:  # Tig, RCM, Fls, Flf_a, etc.
+				self.add["MaxSimulationTime"] = 0.4  # s
+		if "species" not in self.add:
+			self.add["species"] = list(self.species_dict.keys())[0] if self.species_dict else "CO2"
+		# PFR (Plug-Flow Reactor) defaults — new target type, all three solvers.
+		if "pfr_length" not in self.add:
+			self.add["pfr_length"] = 0.1  # m
+		if "pfr_diameter" not in self.add:
+			self.add["pfr_diameter"] = 0.02  # m
+		if "pfr_mdot" not in self.add:
+			self.add["pfr_mdot"] = 1e-3  # kg/s
+		if "pfr_n_points" not in self.add:
+			self.add["pfr_n_points"] = 200
+		# Reaction flux / ROP analysis toggle — applies to ANY target type
+		# (Tig/Fls/Flf/JSR/PFR/RCM) across all three solvers:
+		#   FlameMaster  -> uncomments 'ReactionFluxAnal is TRUE'
+		#   CHEMKIN_PRO  -> job.postprocess(rop=True) + VARIABLE ROP ALL
+		#   cantera      -> dumps gas.net_rates_of_progress to output/flux.json
+		if "flux_analysis" not in self.add:
+			self.add["flux_analysis"] = False
+		if "flux_element" not in self.add:
+			self.add["flux_element"] = "C"
+
+		# Zero-RK solver defaults (Tig/JSR only — see ZERORK_GSA_PLAN.md; Zero-RK
+		# has no PFR/flame reactor, those stay on cantera/CHEMKIN_PRO/FlameMaster
+		# regardless of this target's solver= setting). Per the same rule as
+		# every other solver's parameters above: these are the ONLY place
+		# defaults are set — make_input_file.py's zerork branches read
+		# target.add[...] exclusively, never hardcode a value themselves.
+		if "zerork_install_dir" not in self.add:
+			self.add["zerork_install_dir"] = "/home/krithika/zero-rk/build2/inst_dir"
+		if "zerork_idt_temp_delta" not in self.add:
+			self.add["zerork_idt_temp_delta"] = 400.0  # K, ignition-delay definition
+		if "zerork_stop_time" not in self.add:
+			self.add["zerork_stop_time"] = float(self.add["MaxSimulationTime"])  # s
+		if "zerork_rtol" not in self.add:
+			self.add["zerork_rtol"] = 1e-8
+		if "zerork_atol" not in self.add:
+			self.add["zerork_atol"] = 1e-20
+		if "zerork_eps_lin" not in self.add:
+			self.add["zerork_eps_lin"] = 0.05
+		if "zerork_nonlinear_convergence_coefficient" not in self.add:
+			self.add["zerork_nonlinear_convergence_coefficient"] = 0.05
+		if "zerork_preconditioner_threshold" not in self.add:
+			self.add["zerork_preconditioner_threshold"] = 2.048e-3
+		# JSR (constVolumePSR) uses its own preconditioner threshold, not the
+		# Tig/IDT (constVolumeWSR) one above -- Zero-RK's own example decks use
+		# different tuned values per reactor type (1.0e-6 for PSR vs 2.048e-3
+		# for WSR; see zerork_bridge.py's build_jsr_input default), so reusing
+		# the Tig value here would be wrong, not just untuned.
+		if "zerork_jsr_preconditioner_threshold" not in self.add:
+			self.add["zerork_jsr_preconditioner_threshold"] = 1.0e-6
+		if "zerork_n_mpi_ranks" not in self.add:
+			self.add["zerork_n_mpi_ranks"] = 1
+
+		# Zero-RK RCM defaults (variable_volume.x, see ZERORK_GSA_PLAN.md section
+		# 1.1 table). RCM's own ignition-delay DEFINITION differs from the cantera/
+		# CHEMKIN_PRO/FlameMaster RCM branches above (which compute tau as the time
+		# between the first-stage and main temperature-rise peaks): Zero-RK's own
+		# "Time at max dP/dt" summary line is used instead -- a real, documented
+		# definitional difference (same class of gap as zerork_idt_temp_delta vs.
+		# the flexible ign_delay_def/ign_cond options for Tig), not an oversight.
+		if "zerork_rcm_volume_mult" not in self.add:
+			self.add["zerork_rcm_volume_mult"] = 1.0e-6  # cm^3 -> m^3 (volume_profile files are cm^3)
+		if "zerork_rcm_stroke_mult" not in self.add:
+			self.add["zerork_rcm_stroke_mult"] = 1.0
+		if "zerork_rcm_max_dt_internal" not in self.add:
+			self.add["zerork_rcm_max_dt_internal"] = 1.0e-3  # s
+		if "zerork_rcm_max_steps" not in self.add:
+			self.add["zerork_rcm_max_steps"] = 1000000
+		if "zerork_rcm_ref_temp" not in self.add:
+			self.add["zerork_rcm_ref_temp"] = 1000.0  # K, ODE-state normalization only
+		if "zerork_rcm_ref_moles" not in self.add:
+			self.add["zerork_rcm_ref_moles"] = 0.25  # ODE-state normalization only
+		if "zerork_rcm_max_order" not in self.add:
+			self.add["zerork_rcm_max_order"] = 5  # max BDF order
+		if "zerork_rcm_max_num_nonlin_iters" not in self.add:
+			self.add["zerork_rcm_max_num_nonlin_iters"] = 3
+
 		self.initialCond = self.getInitialCond()
 		if "Flf" in self.target:
 			#print(self.add)
@@ -491,6 +627,9 @@ class combustion_target():
 				continue
 
 			nu_o2 = float(self.stoichiometry.get(fuel, 0.0))
+			# For fuels not in the table, compute from atom balance via chem_data
+			if nu_o2 <= 0.0 and _HAS_CHEM_DATA:
+				nu_o2 = _compute_nu_o2(fuel)
 			# Only include fuels for which a valid stoichiometric O2 coefficient exists
 			if nu_o2 <= 0.0:
 				continue

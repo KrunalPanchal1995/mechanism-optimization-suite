@@ -1,0 +1,51 @@
+# ===========================================================================
+# MINIMAL EXAMPLE — comparison only, one fuel.
+# The optimizations already ran (or are running) somewhere else; this just
+# watches n_Heptane_159/HTC for case folders containing new_mech.yaml and
+# runs the mechanism-comparison pipeline for each, max 8 at a time.
+#
+#   python3.9 _automation/run_tasks.py compare_only_minimal.yaml --validate
+#   python3.9 _automation/run_tasks.py compare_only_minimal.yaml --daemon
+# ===========================================================================
+
+version: 1
+
+settings:
+  system_thread_cap: 100
+
+locations:
+  mb_opt:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MB/STAGE_1_HTC_D_0_05_CORRELATION_AWARE_6_CASES/CMA-ES
+    target_opt: target.opt
+  mb_cmp:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/MB/THRESHOLD_0_05/MRE_6_CSE
+    ref_config: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/MB/THRESHOLD_0_05/MRE_6_CORRELATED/powerMeanWMRE_1_0_1_1200_GEN/MSO_CONFIG.yaml
+#  nheptane_opt:
+#    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/n_Heptane_159/HTC
+#  nheptane_cmp:
+#    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/n-Heptane/Threshold_0_05/MRE_2
+#    ref_config: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/n-Heptane/Threshold_0_05/MRE_2/powerMeanWMRE_1_0_1_1200_GEN_POLISH_0_1/MSO_CONFIG.yaml
+
+tasks:
+  - id: cmp_mb
+    type: compare
+    watch:
+      case_glob: "powerMeanWMRE_*"   # case folders to look for in 'from'
+      # expect_total: 15             # optional: keep watching until N cases
+                                     # have been processed (use this when
+                                     # cases will keep appearing over time!)
+    source_marker: new_mech.yaml     # a case is ready when this file exists
+    pairs:
+      - {from: mb_opt,        to: mb_cmp}
+    config_edits:
+      simulations.stage1_htc.mechanism: "{case_dir}/new_mech.yaml"
+    max_terminals: 8                 # 8 x 19 = 152 <= 160
+    parallel_threads: 12
+    done_marker: PLOTS/HTC/nominal_s1/combined_nominal_vs_s1.pdf
+  
+  - id: reports
+    type: report
+    depends_on: cmp_mb
+    locations: [mb_cmp]
+    output_dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON
+    case_glob: "*powerMeanWMRE_*"

@@ -217,18 +217,19 @@ class GraphComparator:
         for sc in result.species_classifications:
             spec.species_map[sc.inchi_key] = sc
 
-        # Reaction buckets
+        # Reaction buckets (M9: key on (canonical_key, occurrence_index) so
+        # CHEMKIN DUPLICATE reactions don't collide and silently drop one).
         for rc in result.unique_reactions:
-            spec.verbatim_reactions[rc.canonical_key] = rc
+            spec.verbatim_reactions[(rc.canonical_key, rc.occurrence_index)] = rc
 
         for rc in result.shared_identical_reactions:
-            spec.copy_reactions[rc.canonical_key] = rc
+            spec.copy_reactions[(rc.canonical_key, rc.occurrence_index)] = rc
 
         for rc in result.shared_divergent_reactions:
-            spec.fuse_reactions[rc.canonical_key] = rc
+            spec.fuse_reactions[(rc.canonical_key, rc.occurrence_index)] = rc
 
             # Build per-reaction fuse params from stored mean/min/max
-            spec.fuse_params[rc.canonical_key] = {
+            spec.fuse_params[(rc.canonical_key, rc.occurrence_index)] = {
                 "mean_A_si":  rc.mean_A_si,
                 "mean_n":     rc.mean_n,
                 "mean_Ea_si": rc.mean_Ea_si,
@@ -336,21 +337,25 @@ class GraphComparator:
         conn:           sqlite3.Connection,
         session_id:     int,
         mechanism_ids:  List[int],
-        mech_reactions: Dict[int, Dict[str, Dict]],
+        mech_reactions: Dict[int, Dict[Tuple[str, int], Dict]],
     ) -> List[ReactionClassification]:
         """
-        Group reactions by canonical_key and assign classification.
+        Group reactions by (canonical_key, occurrence_index) and assign
+        classification (M9: occurrence_index disambiguates CHEMKIN
+        DUPLICATE reactions -- see _load_all_reactions). Cross-mechanism
+        pairing matches occurrence 0 in one mechanism to occurrence 0 in
+        another, occurrence 1 to occurrence 1, etc.
         """
-        # canonical_key → {mech_id: row_dict}
-        ck_to_mechs: Dict[str, Dict[int, Dict]] = defaultdict(dict)
+        # (canonical_key, occurrence_index) → {mech_id: row_dict}
+        ck_to_mechs: Dict[Tuple[str, int], Dict[int, Dict]] = defaultdict(dict)
         for mid, rxn_dict in mech_reactions.items():
-            for ck, row in rxn_dict.items():
-                ck_to_mechs[ck][mid] = row
+            for key, row in rxn_dict.items():
+                ck_to_mechs[key][mid] = row
 
         n_mechs = len(mechanism_ids)
         result: List[ReactionClassification] = []
 
-        for ck, mech_data in ck_to_mechs.items():
+        for (ck, occ), mech_data in ck_to_mechs.items():
             present     = sorted(mech_data.keys())
             n_pres      = len(present)
             rep         = next(iter(mech_data.values()))
@@ -378,6 +383,7 @@ class GraphComparator:
                     formula_string      = formula_str,
                     classification      = cls,
                     present_in_mech_ids = present,
+                    occurrence_index    = occ,
                     kinetics_set        = ks,
                 )
             else:
@@ -391,6 +397,7 @@ class GraphComparator:
                     formula_string      = formula_str,
                     classification      = cls,
                     present_in_mech_ids = present,
+                    occurrence_index    = occ,
                     kinetics_set        = ks,
                     mean_A_si           = agg["mean_A"],
                     mean_n              = agg["mean_n"],
@@ -430,6 +437,17 @@ class GraphComparator:
         """
         Return True if all A/n/Ea values agree within tolerances.
         Handles None values conservatively (→ not identical).
+
+        M10 (review.md): this used to compare ONLY the single representative
+        A/n/Ea triple (the high-pressure limit for Troe/Lindemann, the
+        ~1atm entry for PLOG) -- two mechanisms could share that one number
+        while having completely different LOW-pressure parameters, Troe
+        alpha/T1/T2/T3, or other PLOG pressure points, and still get
+        classified SHARED_IDENTICAL. Now also requires (a) every mechanism
+        report the same kinetics_type for this reaction, and (b) for
+        pressure-dependent types, the full kinetics_data_json payload
+        (falloff/PLOG/Chebyshev table) to match within the same tolerances
+        used for the representative A/n/Ea triple above.
         """
         A_vals  = ks.A_values
         n_vals  = ks.n_values
@@ -456,7 +474,55 @@ class GraphComparator:
             if Ea_spread > self._tol_Ea:
                 return False
 
+        ktypes = {d.get("kinetics_type") for d in ks.mech_data.values()
+                  if d.get("kinetics_type") is not None}
+        if len(ktypes) > 1:
+            return False
+
+        ktype = next(iter(ktypes), None)
+        if ktype in ("troe", "lindemann", "sri", "plog", "chebyshev"):
+            payloads = []
+            for d in ks.mech_data.values():
+                raw = d.get("kinetics_data_json")
+                if not raw:
+                    return False  # pressure-dependent type must have aux data
+                try:
+                    payloads.append(json.loads(raw) if isinstance(raw, str) else raw)
+                except (TypeError, ValueError):
+                    return False
+            if len(payloads) >= 2 and not self._kinetics_data_matches(payloads):
+                return False
+
         return True
+
+    def _kinetics_data_matches(self, payloads: List[Any]) -> bool:
+        """Pairwise-compare parsed kinetics_data_json payloads (falloff/PLOG/
+        Chebyshev tables) within this comparator's existing A/n/Ea
+        tolerances. Numeric leaves compared with a relative tolerance
+        (tol_A-scale) for magnitude-varying values, everything else
+        (list lengths, non-numeric leaves) must match exactly -- a
+        differing number of PLOG pressure points, for example, is never
+        "identical" regardless of tolerance."""
+        first = payloads[0]
+        return all(self._values_match(first, other) for other in payloads[1:])
+
+    def _values_match(self, a: Any, b: Any) -> bool:
+        if isinstance(a, dict) and isinstance(b, dict):
+            if set(a.keys()) != set(b.keys()):
+                return False
+            return all(self._values_match(a[k], b[k]) for k in a)
+        if isinstance(a, list) and isinstance(b, list):
+            if len(a) != len(b):
+                return False
+            return all(self._values_match(x, y) for x, y in zip(a, b))
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if a is None or b is None:
+                return a == b
+            mag = max(abs(a), abs(b))
+            if mag == 0:
+                return True
+            return abs(a - b) / mag <= max(self._tol_A, 1e-6)
+        return a == b
 
     @staticmethod
     def _aggregate_kinetics(ks: ReactionKineticsSet) -> Dict[str, Optional[float]]:
@@ -498,15 +564,24 @@ class GraphComparator:
         """
         Load species from DB for all mechanisms.
         Returns: {mech_id: {inchi_key: row_dict}}
+
+        B4 (review.md): species with no inchi_key (glossary didn't resolve
+        them) used to be filtered out of the SQL query entirely, so they
+        never appeared in any classification and FusionEngine never saw
+        them -- fusing two identical FFCM1 copies (28.9% glossary hit rate)
+        dropped to 11/38 species. Unresolved species now fall back to a
+        per-mechanism name-based key, so they classify as UNIQUE (never
+        cross-match another mechanism's real inchi_key, which is the correct
+        conservative behaviour for an identifier we don't trust) instead of
+        disappearing.
         """
         placeholders = ",".join("?" * len(mechanism_ids))
         rows = conn.execute(
-            f"""SELECT mechanism_id, inchi_key, canonical_smiles, formula,
+            f"""SELECT mechanism_id, inchi_key, canonical_smiles, formula, name,
                        coeffs_low_json, coeffs_high_json,
                        tmin_K, tmid_K, tmax_K
                 FROM species
-                WHERE mechanism_id IN ({placeholders})
-                  AND inchi_key IS NOT NULL""",
+                WHERE mechanism_id IN ({placeholders})""",
             mechanism_ids,
         ).fetchall()
 
@@ -514,7 +589,7 @@ class GraphComparator:
         for row in rows:
             d   = dict(row)
             mid = d["mechanism_id"]
-            ik  = d["inchi_key"]
+            ik  = d["inchi_key"] or f"\0unresolved\0{mid}\0{d.get('name')}"
             result[mid][ik] = d
         return result
 
@@ -522,30 +597,48 @@ class GraphComparator:
         self,
         conn:          sqlite3.Connection,
         mechanism_ids: List[int],
-    ) -> Dict[int, Dict[str, Dict]]:
+    ) -> Dict[int, Dict[Tuple[str, int], Dict]]:
         """
         Load reactions from DB for all mechanisms.
-        Returns: {mech_id: {canonical_key: row_dict}}
+        Returns: {mech_id: {(canonical_key, occurrence_index): row_dict}}
         Only Arrhenius-type reactions (with A_si / n / Ea_si populated) are
         included in kinetic comparison.  PLOG/Troe reactions are included but
         flagged via kinetics_type for special handling in M7.
+
+        B4: same fix as _load_all_species -- reactions with no canonical_key
+        (depends on species inchi_key resolution) used to be filtered out
+        entirely (20/291 reactions survived fusing two identical FFCM1
+        copies). They now fall back to a per-mechanism formula-string key,
+        classifying as UNIQUE so FusionEngine passes them through VERBATIM
+        instead of dropping them.
+
+        M9 (review.md): CHEMKIN DUPLICATE reactions (two rows sharing one
+        canonical_key -- e.g. two Arrhenius expressions summed for one
+        reaction) used to collide in the `{canonical_key: row}` shape this
+        used to return, silently dropping every duplicate but the last row
+        read. Keyed by (canonical_key, occurrence_index) instead --
+        occurrence_index counts repeats of the same canonical_key within
+        one mechanism, in `id` (insertion/file) order.
         """
         placeholders = ",".join("?" * len(mechanism_ids))
         rows = conn.execute(
-            f"""SELECT mechanism_id, canonical_key, formula_string,
+            f"""SELECT id, mechanism_id, canonical_key, formula_string,
                        kinetics_type, A_si, n, Ea_si, kinetics_data_json
                 FROM reactions
                 WHERE mechanism_id IN ({placeholders})
-                  AND canonical_key IS NOT NULL""",
+                ORDER BY mechanism_id, id""",
             mechanism_ids,
         ).fetchall()
 
-        result: Dict[int, Dict[str, Dict]] = {mid: {} for mid in mechanism_ids}
+        result: Dict[int, Dict[Tuple[str, int], Dict]] = {mid: {} for mid in mechanism_ids}
+        occurrence_counts: Dict[Tuple[int, str], int] = {}
         for row in rows:
             d   = dict(row)
             mid = d["mechanism_id"]
-            ck  = d["canonical_key"]
-            result[mid][ck] = d
+            ck  = d["canonical_key"] or f"\0unresolved\0{mid}\0{d.get('formula_string')}"
+            occ = occurrence_counts.get((mid, ck), 0)
+            occurrence_counts[(mid, ck)] = occ + 1
+            result[mid][(ck, occ)] = d
         return result
 
     # ------------------------------------------------------------------

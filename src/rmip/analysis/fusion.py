@@ -71,6 +71,7 @@ import json
 import logging
 import math
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -90,6 +91,18 @@ log = logging.getLogger("rmip.analysis.fusion")
 
 R_GAS: float = 8.314_462_618  # J mol⁻¹ K⁻¹
 
+# Must match graph_comparator.py's _load_all_species/_load_all_reactions
+# fallback-key convention exactly, so this module's own lookups (built
+# straight from source_rows, independently of GraphComparisonResult) resolve
+# the same species/reactions that GraphComparator classified as UNIQUE via
+# the same fallback (B4, review.md).
+def _unresolved_key(mid: int, name: Optional[str]) -> str:
+    return f"\0unresolved\0{mid}\0{name}"
+
+
+def _is_unresolved_key(key: Optional[str]) -> bool:
+    return isinstance(key, str) and key.startswith("\0unresolved\0")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Result types
@@ -103,12 +116,35 @@ class FusionRecord:
     treatment:       FusionTreatment
     source_mech_ids: List[int]
 
-    # Chosen parameters (always in SI)
-    A_si:   float
-    n:      float
-    Ea_si:  float
+    # Chosen parameters (always in SI). None for reactions whose kinetics
+    # aren't representable as a single Arrhenius triple (e.g. Chebyshev) --
+    # never a fabricated 0.0 (B4).
+    A_si:   Optional[float]
+    n:      Optional[float]
+    Ea_si:  Optional[float]
     kinetics_type:      str
     kinetics_data_json: Optional[str]  # raw JSON for PLOG/Troe etc. (VERBATIM/COPY only)
+
+    # M9 (review.md): disambiguates CHEMKIN DUPLICATE reactions (two rows
+    # sharing one canonical_key) -- must match the occurrence_index on the
+    # ReactionClassification this record was built from.
+    occurrence_index: int = 0
+
+    # True original-file-units values (CGS A-factor, cal/mol Ea), copied
+    # verbatim from the chosen source row for VERBATIM/COPY/PRIORITY
+    # treatments. Left None for averaged FUSE records, which have no single
+    # source's original-units value to point to -- ChemkinWriter's
+    # A_orig-is-None fallback then correctly derives CGS units from A_si via
+    # SI->CGS conversion instead of writing the SI number out unconverted
+    # (see 2026-07-17 fusion ignition bug: this used to be A_si duplicated
+    # into A_orig under a claimed "SI" A_units, which ChemkinWriter's
+    # use_original_units=True path takes completely literally -- it never
+    # actually checks A_units, so every bimolecular A-factor got written
+    # 10^6 too small).
+    A_orig:   Optional[float] = None
+    A_units:  Optional[str]   = None
+    Ea_orig:  Optional[float] = None
+    Ea_units: Optional[str]   = None
 
     # For FUSE reactions: ParameterEstimator bounds (→ MSO search bounds)
     A_min_si:  Optional[float] = None
@@ -127,9 +163,14 @@ class FusionRecord:
             "formula_string":      self.formula_string,
             "treatment":           self.treatment.value,
             "source_mech_ids":     self.source_mech_ids,
+            "occurrence_index":    self.occurrence_index,
             "A_si":                self.A_si,
             "n":                   self.n,
             "Ea_si":               self.Ea_si,
+            "A_orig":              self.A_orig,
+            "A_units":             self.A_units,
+            "Ea_orig":             self.Ea_orig,
+            "Ea_units":            self.Ea_units,
             "kinetics_type":       self.kinetics_type,
             "A_min_si":            self.A_min_si,
             "A_max_si":            self.A_max_si,
@@ -279,9 +320,25 @@ class FusionEngine:
         comparison_result: GraphComparisonResult,
         name: str,
         description: str = "",
+        priority_order: Optional[List[int]] = None,
     ) -> FusionResult:
         """
         Build a fused mechanism from the GraphComparisonResult.
+
+        Parameters
+        ----------
+        priority_order : list[int], optional
+            If given (2026-07-14 fusion session), switches from the default
+            consensus-mean strategy to priority-pick: for every reaction
+            present in >=2 mechanisms (what would otherwise be COPY/FUSE),
+            copy A/n/Ea/kinetics_data_json/kinetics_type VERBATIM from the
+            highest-priority mechanism ID in this list that's actually
+            present for that reaction (falling back down the list), instead
+            of averaging. Reactions unique to one mechanism are unaffected
+            (already a single-source copy). Species thermo consensus is
+            picked the same way (verbatim from the top present source),
+            not averaged, for self-consistency with the picked kinetics.
+            Treatment is recorded as FusionTreatment.PRIORITY.
 
         Returns a FusionResult containing the new mechanism_id and all records.
         The fused mechanism is written to the DB.
@@ -297,17 +354,18 @@ class FusionEngine:
 
             # ── 2. Fuse species ───────────────────────────────────────────
             species_records = self._fuse_species(
-                conn, comparison_result, source_rows
+                conn, comparison_result, source_rows, priority_order=priority_order,
             )
 
             # ── 3. Fuse reactions ─────────────────────────────────────────
             reaction_records = self._fuse_reactions(
-                conn, comparison_result, source_rows
+                conn, comparison_result, source_rows, priority_order=priority_order,
             )
 
             n_verbatim = sum(1 for r in reaction_records if r.treatment == FusionTreatment.VERBATIM)
             n_copy     = sum(1 for r in reaction_records if r.treatment == FusionTreatment.COPY)
             n_fused    = sum(1 for r in reaction_records if r.treatment == FusionTreatment.FUSE)
+            n_priority = sum(1 for r in reaction_records if r.treatment == FusionTreatment.PRIORITY)
 
             high_uf = [
                 r.canonical_key for r in reaction_records
@@ -323,9 +381,12 @@ class FusionEngine:
             provenance = {
                 "source_mechanism_ids": mech_ids,
                 "comparison_session_id": comparison_result.session_id,
+                "strategy": "priority" if priority_order else "mean",
+                "priority_order": priority_order,
                 "n_verbatim": n_verbatim,
                 "n_copy": n_copy,
                 "n_fused": n_fused,
+                "n_priority": n_priority,
                 "n_species": len(species_records),
                 "uf_warn_threshold": self._uf_warn,
                 "fused_at": datetime.now(timezone.utc).isoformat(),
@@ -352,12 +413,12 @@ class FusionEngine:
             log.info("Created fused mechanism DB id=%d", fused_mech_id)
 
             # ── 5. Insert species rows ─────────────────────────────────────
-            self._insert_species(conn, fused_mech_id, species_records,
+            fused_sp_by_key = self._insert_species(conn, fused_mech_id, species_records,
                                  comparison_result, source_rows)
 
             # ── 6. Insert reaction rows ────────────────────────────────────
             self._insert_reactions(conn, fused_mech_id, reaction_records,
-                                   comparison_result, source_rows)
+                                   comparison_result, source_rows, fused_sp_by_key)
 
             conn.commit()
 
@@ -481,15 +542,18 @@ class FusionEngine:
         conn: sqlite3.Connection,
         cmp: GraphComparisonResult,
         source_rows: Dict[int, Dict[str, Any]],
+        priority_order: Optional[List[int]] = None,
     ) -> List[SpeciesFusionRecord]:
         """Compute consensus thermo for every species in the union."""
         # Build lookup: inchi_key → {mech_id: species_row}
+        # B4: species with no inchi_key used to be skipped here entirely --
+        # GraphComparator now classifies them as UNIQUE via the same
+        # fallback key, so this lookup must use it too or they'd resolve to
+        # an empty source_map below and get silently dropped anyway.
         sp_lookup: Dict[str, Dict[int, dict]] = {}
         for mid, data in source_rows.items():
             for sp in data["species"]:
-                ik = sp.get("inchi_key") or ""
-                if not ik:
-                    continue
+                ik = sp.get("inchi_key") or _unresolved_key(mid, sp.get("name"))
                 sp_lookup.setdefault(ik, {})[mid] = sp
 
         records: List[SpeciesFusionRecord] = []
@@ -499,6 +563,16 @@ class FusionEngine:
             if not source_map:
                 log.warning("No DB rows found for inchi_key=%s", ik)
                 continue
+
+            if priority_order:
+                # Priority mode: pick ONE source's thermo verbatim (for
+                # self-consistency with priority-picked kinetics) rather
+                # than averaging -- restricting source_map to a single
+                # entry makes _compute_species_consensus's "mean of N"
+                # logic a verbatim copy with no separate code path needed.
+                chosen_mid = next((mid for mid in priority_order if mid in source_map),
+                                   min(source_map.keys()))
+                source_map = {chosen_mid: source_map[chosen_mid]}
 
             rec = self._compute_species_consensus(ik, sc.canonical_smiles, source_map)
             records.append(rec)
@@ -589,25 +663,52 @@ class FusionEngine:
         conn: sqlite3.Connection,
         cmp: GraphComparisonResult,
         source_rows: Dict[int, Dict[str, Any]],
+        priority_order: Optional[List[int]] = None,
     ) -> List[FusionRecord]:
         """Build FusionRecords for all reactions in the union."""
-        # Build lookup: canonical_key → {mech_id: reaction_row}
-        rxn_lookup: Dict[str, Dict[int, dict]] = {}
+        # Build lookup: (canonical_key, occurrence_index) → {mech_id: reaction_row}
+        # B4: must match graph_comparator.py's fallback-key convention
+        # exactly (namespaced by mid), or a reaction GraphComparator
+        # classified as UNIQUE via that fallback resolves to an empty
+        # rxn_map here and gets silently dropped anyway.
+        # M9: occurrence_index disambiguates CHEMKIN DUPLICATE reactions
+        # (two rows sharing one canonical_key) -- must match
+        # graph_comparator.py's _load_all_reactions occurrence-counting
+        # convention (id order, per (mid, ck)) exactly so occurrence 0/1/...
+        # here refers to the same physical row GraphComparator classified.
+        rxn_lookup: Dict[Tuple[str, int], Dict[int, dict]] = {}
+        occurrence_counts: Dict[Tuple[int, str], int] = {}
         for mid, data in source_rows.items():
-            for rxn in data["reactions"]:
-                ck = rxn.get("canonical_key") or rxn.get("formula_string", "")
-                rxn_lookup.setdefault(ck, {})[mid] = rxn
+            for rxn in sorted(data["reactions"], key=lambda r: r["id"]):
+                ck = rxn.get("canonical_key") or _unresolved_key(mid, rxn.get("formula_string"))
+                occ = occurrence_counts.get((mid, ck), 0)
+                occurrence_counts[(mid, ck)] = occ + 1
+                rxn_lookup.setdefault((ck, occ), {})[mid] = rxn
 
         records: List[FusionRecord] = []
         for rc in cmp.reaction_classifications:
             ck = rc.canonical_key
-            rxn_map = rxn_lookup.get(ck, {})
+            rxn_map = rxn_lookup.get((ck, rc.occurrence_index), {})
             if not rxn_map:
                 log.warning("No DB rows for canonical_key=%s", ck)
                 continue
 
             treatment = rc.fusion_treatment()
-            rec = self._build_reaction_record(rc, rxn_map, treatment)
+            if priority_order and treatment in (FusionTreatment.COPY, FusionTreatment.FUSE):
+                rec = self._build_priority_reaction_record(rc, rxn_map, priority_order)
+            else:
+                rec = self._build_reaction_record(rc, rxn_map, treatment)
+            if rec is None:
+                # B4: refuse to fuse rows with NULL kinetics (writing A_si=0.0
+                # for "we have no rate data" misrepresents it as "rate is
+                # zero"). Post-B1 this is rare -- essentially only Chebyshev
+                # or genuinely unparseable kinetics.
+                log.warning(
+                    "Reaction %s: source kinetics are NULL -- excluding from "
+                    "fused mechanism rather than writing a fabricated A_si=0.0",
+                    rc.canonical_key,
+                )
+                continue
             records.append(rec)
 
         return records
@@ -617,23 +718,49 @@ class FusionEngine:
         rc: ReactionClassification,
         rxn_map: Dict[int, dict],
         treatment: FusionTreatment,
-    ) -> FusionRecord:
-        """Apply VERBATIM / COPY / FUSE logic to produce a FusionRecord."""
+    ) -> Optional[FusionRecord]:
+        """Apply VERBATIM / COPY / FUSE logic to produce a FusionRecord.
+        Returns None if the source kinetics are truly hollow (no A_si AND no
+        kinetics_data_json -- nothing to fuse; B4)."""
         source_ids = list(rxn_map.keys())
 
         if treatment in (FusionTreatment.VERBATIM, FusionTreatment.COPY):
             # Pick kinetics from the first (lowest) mechanism ID
             first_row = rxn_map[min(rxn_map.keys())]
+            A_si = first_row.get("A_si")
+            kdata_json = first_row.get("kinetics_data_json")
+            if A_si is None and not kdata_json:
+                return None
+            # B4: A_si=None (e.g. Chebyshev, which has no representative
+            # Arrhenius triple by design) must stay None, not become a
+            # fabricated 0.0 that misrepresents "no rate data" as "rate is
+            # exactly zero".
             return FusionRecord(
                 canonical_key=rc.canonical_key,
-                formula_string=rc.formula_string,
+                # Use the CHOSEN row's own formula_string, not the
+                # classification's "representative" one -- found stress-
+                # testing fusion on Keromnes/Li/Davis (2026-07-14):
+                # specific-collider falloff reactions ("H+O2(+M)",
+                # "H+O2(+AR)", "H+O2(+HE)") share one canonical_key (the
+                # collider annotation is stripped before canonicalization)
+                # but are 3 physically distinct reactions -- rc.formula_string
+                # picks whichever row happened to be "representative" and
+                # was wrongly reused for every occurrence, so the fused
+                # mechanism emitted 3 identical-looking "H+O2(+M)" equation
+                # lines with no DUPLICATE marker, which ck2yaml rejects.
+                formula_string=first_row.get("formula_string") or rc.formula_string,
+                occurrence_index=rc.occurrence_index,
                 treatment=treatment,
                 source_mech_ids=source_ids,
-                A_si=first_row.get("A_si") or 0.0,
-                n=first_row.get("n") or 0.0,
-                Ea_si=first_row.get("Ea_si") or 0.0,
+                A_si=A_si,
+                n=first_row.get("n"),
+                Ea_si=first_row.get("Ea_si"),
                 kinetics_type=first_row.get("kinetics_type") or "arrhenius",
-                kinetics_data_json=first_row.get("kinetics_data_json"),
+                kinetics_data_json=kdata_json,
+                A_orig=first_row.get("A_orig"),
+                A_units=first_row.get("A_units"),
+                Ea_orig=first_row.get("Ea_orig"),
+                Ea_units=first_row.get("Ea_units"),
             )
 
         # FUSE treatment — use ParameterEstimator
@@ -641,24 +768,48 @@ class FusionEngine:
         n_vals  = [rxn.get("n")     for rxn in rxn_map.values() if rxn.get("n")     is not None]
         Ea_vals = [rxn.get("Ea_si") for rxn in rxn_map.values() if rxn.get("Ea_si") is not None]
 
-        if not A_vals:
-            # Non-Arrhenius (PLOG/Troe etc.) — VERBATIM from first source
+        # M11 (review.md): a Troe/Lindemann/PLOG/SRI/Chebyshev row DOES have
+        # a representative A_si (Troe/Lindemann's is the high-P limit, PLOG's
+        # is the 1-atm entry -- see cantera_reader.py/_chemkin_parser.py) so
+        # `not A_vals` alone doesn't catch them. Averaging their A/n/Ea and
+        # discarding kinetics_data_json produces a FusionRecord that still
+        # claims kinetics_type="troe"/etc but has no LOW/TROE/PLOG table --
+        # a falloff/PLOG reaction with no falloff/PLOG data on export.
+        # Non-Arrhenius rows are never safe to parameter-average (the mean
+        # of two Troe blending functions isn't a Troe blending function);
+        # fall back to VERBATIM from the preferred (lowest-mech-id) source,
+        # preserving its kinetics_data_json intact, whenever ANY source row
+        # for this reaction is non-Arrhenius.
+        NON_ARRHENIUS_TYPES = {"troe", "lindemann", "sri", "plog", "chebyshev", "falloff"}
+        source_ktypes = {(rxn.get("kinetics_type") or "arrhenius").lower() for rxn in rxn_map.values()}
+        has_non_arrhenius = bool(source_ktypes & NON_ARRHENIUS_TYPES)
+
+        if not A_vals or has_non_arrhenius:
             first_row = rxn_map[min(rxn_map.keys())]
+            kdata_json = first_row.get("kinetics_data_json")
+            if first_row.get("A_si") is None and not kdata_json:
+                return None
             log.warning(
-                "FUSE reaction %s has no A_si values (likely PLOG/Troe)."
-                " Falling back to VERBATIM from mech %d.",
-                rc.canonical_key, min(rxn_map.keys()),
+                "FUSE reaction %s has non-Arrhenius kinetics (%s) in at least "
+                "one source -- averaging would discard falloff/PLOG data. "
+                "Falling back to VERBATIM from mech %d.",
+                rc.canonical_key, sorted(source_ktypes), min(rxn_map.keys()),
             )
             return FusionRecord(
                 canonical_key=rc.canonical_key,
-                formula_string=rc.formula_string,
+                formula_string=first_row.get("formula_string") or rc.formula_string,
+                occurrence_index=rc.occurrence_index,
                 treatment=FusionTreatment.VERBATIM,
                 source_mech_ids=source_ids,
-                A_si=first_row.get("A_si") or 0.0,
-                n=first_row.get("n") or 0.0,
-                Ea_si=first_row.get("Ea_si") or 0.0,
+                A_si=first_row.get("A_si"),
+                n=first_row.get("n"),
+                Ea_si=first_row.get("Ea_si"),
                 kinetics_type=first_row.get("kinetics_type") or "unknown",
-                kinetics_data_json=first_row.get("kinetics_data_json"),
+                kinetics_data_json=kdata_json,
+                A_orig=first_row.get("A_orig"),
+                A_units=first_row.get("A_units"),
+                Ea_orig=first_row.get("Ea_orig"),
+                Ea_units=first_row.get("Ea_units"),
             )
 
         est: ArrheniusEstimate = self._estimator.estimate_arrhenius(
@@ -678,6 +829,7 @@ class FusionEngine:
         return FusionRecord(
             canonical_key=rc.canonical_key,
             formula_string=rc.formula_string,
+            occurrence_index=rc.occurrence_index,
             treatment=FusionTreatment.FUSE,
             source_mech_ids=source_ids,
             A_si=est.A_mean_si,
@@ -694,6 +846,48 @@ class FusionEngine:
             uncertainty_factor=est.uncertainty_factor,
         )
 
+    def _build_priority_reaction_record(
+        self,
+        rc: ReactionClassification,
+        rxn_map: Dict[int, dict],
+        priority_order: List[int],
+    ) -> Optional[FusionRecord]:
+        """Priority-fusion mode (2026-07-14 fusion session): for a reaction
+        present in >=2 mechanisms, copy A/n/Ea/kinetics_data_json/
+        kinetics_type VERBATIM from the highest-priority mechanism present
+        for this reaction, instead of averaging. No parameter-mixing at
+        all -- unlike mean-fusion's FUSE bucket, this never needs the M11
+        non-Arrhenius fallback logic since nothing is ever averaged."""
+        source_ids = list(rxn_map.keys())
+        chosen_mid = next((mid for mid in priority_order if mid in rxn_map), None)
+        if chosen_mid is None:
+            # priority_order didn't name every source mechanism -- fall back
+            # to the lowest present mechanism id rather than silently drop.
+            chosen_mid = min(rxn_map.keys())
+        row = rxn_map[chosen_mid]
+
+        A_si = row.get("A_si")
+        kdata_json = row.get("kinetics_data_json")
+        if A_si is None and not kdata_json:
+            return None
+
+        return FusionRecord(
+            canonical_key=rc.canonical_key,
+            formula_string=row.get("formula_string") or rc.formula_string,
+            occurrence_index=rc.occurrence_index,
+            treatment=FusionTreatment.PRIORITY,
+            source_mech_ids=source_ids,
+            A_si=A_si,
+            n=row.get("n"),
+            Ea_si=row.get("Ea_si"),
+            kinetics_type=row.get("kinetics_type") or "arrhenius",
+            kinetics_data_json=kdata_json,
+            A_orig=row.get("A_orig"),
+            A_units=row.get("A_units"),
+            Ea_orig=row.get("Ea_orig"),
+            Ea_units=row.get("Ea_units"),
+        )
+
     # ─────────────────────────────────────────────────────────────────────────
     # Internal helpers — DB insertion
     # ─────────────────────────────────────────────────────────────────────────
@@ -705,19 +899,46 @@ class FusionEngine:
         species_records: List[SpeciesFusionRecord],
         cmp: GraphComparisonResult,
         source_rows: Dict[int, Dict[str, Any]],
-    ) -> None:
-        """Write SpeciesFusionRecords into the ``species`` table."""
+    ) -> Dict[str, int]:
+        """Write SpeciesFusionRecords into the ``species`` table.
+
+        Returns {fusion_key: new_species_id} where fusion_key is either a
+        real inchi_key or this module's per-mechanism unresolved-species
+        sentinel -- the same identifier space used throughout this class --
+        so _insert_reactions/_copy_stoichiometry can resolve stoichiometry
+        without depending on (possibly disambiguated, see below) DB names.
+        """
         # Build helper lookup: inchi_key → representative source row
+        # (B4: use the same sentinel fallback as _fuse_species so unresolved
+        # species' metadata -- formula, MW, etc -- isn't lost on insert.)
         sp_lookup: Dict[str, dict] = {}
         for mid, data in source_rows.items():
             for sp in data["species"]:
-                ik = sp.get("inchi_key") or ""
-                if ik and ik not in sp_lookup:
+                ik = sp.get("inchi_key") or _unresolved_key(mid, sp.get("name"))
+                if ik not in sp_lookup:
                     sp_lookup[ik] = sp  # first-seen wins for metadata
+
+        fused_sp_by_key: Dict[str, int] = {}
+        seen_names: set = set()
 
         for sfr in species_records:
             src_row = sp_lookup.get(sfr.inchi_key, {})
-            conn.execute(
+            # Sentinel keys are an internal matching device only -- never
+            # persist one as a real inchi_key (would collide with nothing
+            # but would misrepresent "unknown" as a resolved identifier).
+            out_inchi_key = None if _is_unresolved_key(sfr.inchi_key) else sfr.inchi_key
+
+            # species has a UNIQUE(mechanism_id, name) constraint. Two
+            # different UNIQUE-per-mechanism species (no shared inchi_key to
+            # verify identity) can share a raw name -- disambiguate rather
+            # than crash or silently overwrite one.
+            out_name = sfr.name
+            if out_name in seen_names:
+                src_mid = sfr.source_mech_ids[0] if sfr.source_mech_ids else "?"
+                out_name = f"{sfr.name}__src{src_mid}"
+            seen_names.add(out_name)
+
+            cur = conn.execute(
                 """
                 INSERT INTO species (
                     mechanism_id, name, canonical_smiles, source_smiles,
@@ -730,11 +951,11 @@ class FusionEngine:
                 """,
                 (
                     fused_mech_id,
-                    sfr.name,
+                    out_name,
                     sfr.canonical_smiles,
                     src_row.get("source_smiles"),
                     src_row.get("inchi"),
-                    sfr.inchi_key,
+                    out_inchi_key,
                     src_row.get("formula"),
                     src_row.get("mw_kg_mol"),
                     src_row.get("charge", 0),
@@ -750,6 +971,9 @@ class FusionEngine:
                     f"Fused from {sfr.source_mech_ids}",
                 ),
             )
+            fused_sp_by_key[sfr.inchi_key] = cur.lastrowid
+
+        return fused_sp_by_key
 
     def _insert_reactions(
         self,
@@ -758,28 +982,45 @@ class FusionEngine:
         reaction_records: List[FusionRecord],
         cmp: GraphComparisonResult,
         source_rows: Dict[int, Dict[str, Any]],
+        fused_sp_by_key: Dict[str, int],
     ) -> None:
         """Write FusionRecords into the ``reactions`` table."""
-        # Build lookup: (mech_id, canonical_key) → reaction row
-        rxn_lookup: Dict[Tuple[int, str], dict] = {}
+        # Build lookup: (mech_id, canonical_key, occurrence_index) → reaction row
+        # (B4: match graph_comparator's fallback-key convention. M9:
+        # occurrence_index disambiguates CHEMKIN DUPLICATE reactions.)
+        rxn_lookup: Dict[Tuple[int, str, int], dict] = {}
+        occurrence_counts: Dict[Tuple[int, str], int] = {}
         for mid, data in source_rows.items():
-            for rxn in data["reactions"]:
-                ck = rxn.get("canonical_key") or ""
-                rxn_lookup[(mid, ck)] = rxn
+            for rxn in sorted(data["reactions"], key=lambda r: r["id"]):
+                ck = rxn.get("canonical_key") or _unresolved_key(mid, rxn.get("formula_string"))
+                occ = occurrence_counts.get((mid, ck), 0)
+                occurrence_counts[(mid, ck)] = occ + 1
+                rxn_lookup[(mid, ck, occ)] = rxn
 
-        # Collect fused species ids for stoichiometry mapping
-        fused_sp = {
-            row["inchi_key"]: row["id"]
-            for row in conn.execute(
-                "SELECT id, inchi_key FROM species WHERE mechanism_id=?",
-                (fused_mech_id,),
-            ).fetchall()
-        }
+        # ck2yaml requires an explicit DUPLICATE marker on EVERY reaction
+        # sharing a canonical_key in the output file, or it refuses to load
+        # ("Undeclared duplicate reaction") -- this applies not just to true
+        # rate-sum duplicates but also to specific-collider falloff variants
+        # of one base equation ("H+O2(+M)" / "H+O2(+AR)" / "H+O2(+HE)"),
+        # which ck2yaml's own duplicate check treats as textually equal
+        # regardless of the collider annotation. Found stress-testing
+        # fusion on Keromnes/Li/Davis (2026-07-14): mark every canonical_key
+        # that appears more than once among the records actually being
+        # written, independent of each source row's own `duplicate` flag.
+        ck_write_counts = Counter(
+            fr.canonical_key for fr in reaction_records
+            if not _is_unresolved_key(fr.canonical_key)
+        )
 
         for fr in reaction_records:
             # Pick source row for metadata not covered by fusion
             src_mid = min(fr.source_mech_ids)
-            src_row = rxn_lookup.get((src_mid, fr.canonical_key), {})
+            src_row = rxn_lookup.get((src_mid, fr.canonical_key, fr.occurrence_index), {})
+            out_canonical_key = None if _is_unresolved_key(fr.canonical_key) else fr.canonical_key
+            out_duplicate = (
+                1 if ck_write_counts.get(fr.canonical_key, 0) > 1
+                else src_row.get("duplicate", 0)
+            )
 
             # Check if fusion_class column exists (added by Phase-3 migration)
             has_fusion_cols = self._has_fusion_cols(conn)
@@ -801,20 +1042,20 @@ class FusionEngine:
                     (
                         fused_mech_id,
                         fr.formula_string,
-                        fr.canonical_key,
+                        out_canonical_key,
                         src_row.get("reversible", 1),
                         src_row.get("family"),
-                        src_row.get("duplicate", 0),
+                        out_duplicate,
                         fr.kinetics_type,
                         src_row.get("pressure_dependent", 0),
                         src_row.get("has_third_body", 0),
                         fr.A_si,
-                        fr.A_si,
-                        "SI",
+                        fr.A_orig,
+                        fr.A_units,
                         fr.n,
                         fr.Ea_si,
-                        fr.Ea_si,
-                        "J/mol",
+                        fr.Ea_orig,
+                        fr.Ea_units,
                         fr.kinetics_data_json,
                         f"Fused ({fr.treatment.value}) from {fr.source_mech_ids}",
                         fr.treatment.value,
@@ -837,20 +1078,20 @@ class FusionEngine:
                     (
                         fused_mech_id,
                         fr.formula_string,
-                        fr.canonical_key,
+                        out_canonical_key,
                         src_row.get("reversible", 1),
                         src_row.get("family"),
-                        src_row.get("duplicate", 0),
+                        out_duplicate,
                         fr.kinetics_type,
                         src_row.get("pressure_dependent", 0),
                         src_row.get("has_third_body", 0),
                         fr.A_si,
-                        fr.A_si,
-                        "SI",
+                        fr.A_orig,
+                        fr.A_units,
                         fr.n,
                         fr.Ea_si,
-                        fr.Ea_si,
-                        "J/mol",
+                        fr.Ea_orig,
+                        fr.Ea_units,
                         fr.kinetics_data_json,
                         f"Fused ({fr.treatment.value}) from {fr.source_mech_ids}",
                     ),
@@ -859,8 +1100,8 @@ class FusionEngine:
 
             # ── Stoichiometry: copy from first-available source mechanism ──
             self._copy_stoichiometry(
-                conn, rxn_id, fr.canonical_key,
-                src_mid, rxn_lookup, fused_sp, source_rows,
+                conn, rxn_id, fr.canonical_key, fr.occurrence_index,
+                src_mid, rxn_lookup, fused_sp_by_key, source_rows,
             )
 
     def _copy_stoichiometry(
@@ -868,20 +1109,31 @@ class FusionEngine:
         conn: sqlite3.Connection,
         new_rxn_id: int,
         canonical_key: str,
+        occurrence_index: int,
         src_mid: int,
-        rxn_lookup: Dict[Tuple[int, str], dict],
-        fused_sp: Dict[str, int],
+        rxn_lookup: Dict[Tuple[int, str, int], dict],
+        fused_sp_by_key: Dict[str, int],
         source_rows: Dict[int, Dict[str, Any]],
     ) -> None:
-        """Copy stoichiometry rows from source mechanism into the fused reaction."""
-        src_row = rxn_lookup.get((src_mid, canonical_key))
+        """Copy stoichiometry rows from source mechanism into the fused reaction.
+
+        M12 (review.md): species without an InChI key all matched the same
+        (single) fused_sp[None] entry -- or nothing, once None collisions
+        started overwriting each other -- silently dropping stoichiometry
+        rows and mass-imbalancing the fused mechanism. Re-derives each
+        stoich row's species' fusion key (real inchi_key, or this module's
+        per-mechanism unresolved sentinel) and looks it up in the same
+        {fusion_key: fused_species_id} map _insert_species built, so it's
+        unaffected by any name disambiguation applied there (B4). M9:
+        occurrence_index disambiguates CHEMKIN DUPLICATE reactions."""
+        src_row = rxn_lookup.get((src_mid, canonical_key, occurrence_index))
         if not src_row:
             return
         src_rxn_id = src_row["id"]
 
         stoich_rows = conn.execute(
             """
-            SELECT s.stoich_coeff, s.role, sp.inchi_key
+            SELECT s.stoich_coeff, s.role, sp.inchi_key, sp.name
               FROM stoichiometry s
               JOIN species sp ON sp.id = s.species_id
              WHERE s.reaction_id = ?
@@ -890,10 +1142,14 @@ class FusionEngine:
         ).fetchall()
 
         for srow in stoich_rows:
-            ik = srow["inchi_key"]
-            fused_sp_id = fused_sp.get(ik)
+            ik = srow["inchi_key"] or _unresolved_key(src_mid, srow["name"])
+            fused_sp_id = fused_sp_by_key.get(ik)
             if fused_sp_id is None:
-                log.debug("Stoich: species inchi_key=%s not found in fused mechanism", ik)
+                log.warning(
+                    "Stoich: species inchi_key=%s name=%s not found in fused "
+                    "mechanism -- reaction %s will be mass-imbalanced",
+                    srow["inchi_key"], srow["name"], canonical_key,
+                )
                 continue
             conn.execute(
                 "INSERT INTO stoichiometry (reaction_id, species_id, stoich_coeff, role) VALUES (?,?,?,?)",

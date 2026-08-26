@@ -1,0 +1,14 @@
+! Edge mechanism snapshot (saveEdgeSpecies=True) — fixture for W7a tests.
+ELEMENTS
+    H C N
+END
+
+SPECIES
+    C4H10(8)    ! butane, considered but stayed on the edge
+    C4H9(10)    ! pruned
+    CH4(12)     ! never showed measurable flux
+    C2H3(13)    ! never showed measurable flux
+END
+
+REACTIONS    KCAL/MOLE
+END

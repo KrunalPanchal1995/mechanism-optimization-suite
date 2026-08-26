@@ -218,18 +218,40 @@ def insert_simulation_run(
     converged:            bool,
     cpu_time_s:           Optional[float] = None,
     error_msg:            Optional[str]   = None,
+    extra_json:           Optional[str]   = None,
 ) -> int:
-    cur = conn.execute(
-        """INSERT INTO simulation_runs
-           (mechanism_id, sim_type, T_K, P_atm, phi,
-            fuel_name, fuel_composition, oxidizer_composition,
-            result, converged, cpu_time_s, error_msg, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (mechanism_id, sim_type, T_K, P_atm, phi,
-         fuel_name, fuel_composition, oxidizer_composition,
-         result, int(converged), cpu_time_s, error_msg,
-         _now()),
-    )
+    """
+    ``extra_json`` (Phase-6 / Future.md pt. 6) carries sim-type-specific
+    payloads that don't fit the scalar ``result`` column — e.g. JSR/PFR full
+    species mole-fraction dicts and PFR axial profiles. NULL for IDT/LFS.
+    Column is added by ``migrations.run_phase6_migrations`` and is a no-op
+    on databases that haven't run that migration (falls back gracefully).
+    """
+    try:
+        cur = conn.execute(
+            """INSERT INTO simulation_runs
+               (mechanism_id, sim_type, T_K, P_atm, phi,
+                fuel_name, fuel_composition, oxidizer_composition,
+                result, converged, cpu_time_s, error_msg, extra_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (mechanism_id, sim_type, T_K, P_atm, phi,
+             fuel_name, fuel_composition, oxidizer_composition,
+             result, int(converged), cpu_time_s, error_msg, extra_json,
+             _now()),
+        )
+    except sqlite3.OperationalError:
+        # extra_json column not migrated into this DB yet — fall back.
+        cur = conn.execute(
+            """INSERT INTO simulation_runs
+               (mechanism_id, sim_type, T_K, P_atm, phi,
+                fuel_name, fuel_composition, oxidizer_composition,
+                result, converged, cpu_time_s, error_msg, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (mechanism_id, sim_type, T_K, P_atm, phi,
+             fuel_name, fuel_composition, oxidizer_composition,
+             result, int(converged), cpu_time_s, error_msg,
+             _now()),
+        )
     conn.commit()
     return cur.lastrowid
 
@@ -267,7 +289,7 @@ def insert_exp_dataset(
         (name, sim_type, fuel_name, source_ref, filepath, _now()),
     )
     conn.commit()
-    if cur.lastrowid:
+    if cur.rowcount != 0:
         return cur.lastrowid
     # dataset already existed → return existing id
     row = conn.execute(

@@ -93,7 +93,9 @@ class MechanismLoader:
         filepath = rec["filepath"]
         meta     = json.loads(rec["metadata_json"] or "{}")
 
-        if fmt == "cantera_yaml":
+        if fmt in ("cantera_yaml", "reduced"):
+            # 'reduced' = a materialize_subset() skeletal/lumped/QSSA mechanism;
+            # its filepath points at the companion YAML written at materialise time.
             logger.debug("Loading Cantera YAML: %s", filepath)
             return ct.Solution(filepath)
 
@@ -127,6 +129,29 @@ class MechanismLoader:
         finally:
             conn.close()
 
+    @staticmethod
+    def _ck2yaml_convert_mech(mech_path: str, thermo_path: Optional[str], yaml_path: Path) -> None:
+        """cantera.ck2yaml.convert_mech -- confirmed present on Cantera 3.0.1."""
+        from cantera import ck2yaml
+        ck2yaml.convert_mech(
+            mech_path, thermo_file=thermo_path, out_name=str(yaml_path), quiet=True,
+        )
+
+    @staticmethod
+    def _ck2yaml_convert(mech_path: str, thermo_path: Optional[str], yaml_path: Path) -> None:
+        """cantera.ck2yaml.convert -- seen on some other Cantera 3.x builds."""
+        from cantera.ck2yaml import convert
+        convert(
+            input=mech_path, thermo=thermo_path, transport=None, surface=None,
+            out_name=str(yaml_path), quiet=True,
+        )
+
+    @staticmethod
+    def _ck2yaml_module_convert(mech_path: str, thermo_path: Optional[str], yaml_path: Path) -> None:
+        """Older Cantera 2.x module-level ck2yaml.convert."""
+        from cantera import ck2yaml  # type: ignore[attr-defined]
+        ck2yaml.convert(input=mech_path, thermo_file=thermo_path, out_name=str(yaml_path))
+
     def _convert_chemkin_to_yaml(
         self,
         mech_path:   str,
@@ -136,9 +161,17 @@ class MechanismLoader:
         Convert a CHEMKIN mechanism to Cantera YAML.
         The result is cached by a hash of the input file(s).
         """
+        # M20: the cache key must capture (a) the mechanism content, (b) the
+        # thermo content AND whether a thermo path was requested at all (a
+        # requested-but-missing thermo is a different input than no thermo), and
+        # (c) the Cantera version -- ck2yaml output format changes across
+        # versions, so a cache built by another Cantera must not be reused.
+        import cantera as _ct
         hash_src = _file_hash(mech_path)
+        hash_src += f"|thermo_arg={thermo_path or ''}"
         if thermo_path and os.path.exists(thermo_path):
-            hash_src += _file_hash(thermo_path)
+            hash_src += "|thermo=" + _file_hash(thermo_path)
+        hash_src += f"|cantera={_ct.__version__}"
         cache_key  = hashlib.md5(hash_src.encode()).hexdigest()[:12]
         yaml_path  = self._cache_dir / f"chemkin_{cache_key}.yaml"
 
@@ -147,59 +180,80 @@ class MechanismLoader:
             return yaml_path
 
         logger.info("Converting CHEMKIN → YAML: %s", mech_path)
+        # M20: convert into a unique temp file and os.replace() into place only
+        # on success, so a crash / kill mid-conversion can never leave a
+        # truncated YAML permanently cached at the final path.
+        tmp_yaml = yaml_path.with_name(f".{yaml_path.stem}.{os.getpid()}.tmp.yaml")
+        # Cantera's ck2yaml entry point has changed name across versions
+        # (convert_mech on 3.0.1, convert on some other 3.x builds, module-path
+        # ck2yaml.convert on older 2.x). Try each in turn rather than assuming
+        # one -- confirmed empirically that only convert_mech exists here.
+        last_exc: Optional[Exception] = None
         try:
-            # Cantera ≥ 3.0 API
-            from cantera.ck2yaml import convert
-            convert(
-                input       = mech_path,
-                thermo      = thermo_path,
-                transport   = None,       # D6: transport out of scope
-                surface     = None,
-                out_name    = str(yaml_path),
-                quiet       = True,
-            )
-        except ImportError:
-            # Fallback: older Cantera uses ct.ck2yaml module path
-            try:
-                from cantera import ck2yaml  # type: ignore[attr-defined]
-                ck2yaml.convert(
-                    input       = mech_path,
-                    thermo_file = thermo_path,
-                    out_name    = str(yaml_path),
-                )
-            except Exception as exc:
+            for attempt in (self._ck2yaml_convert_mech, self._ck2yaml_convert,
+                            self._ck2yaml_module_convert):
+                try:
+                    attempt(mech_path, thermo_path, tmp_yaml)
+                    last_exc = None
+                    break
+                except (ImportError, AttributeError) as exc:
+                    last_exc = exc
+                    continue
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"CHEMKIN→YAML conversion failed: {exc}\n"
+                        f"  mechanism : {mech_path}\n"
+                        f"  thermo    : {thermo_path}"
+                    ) from exc
+            if last_exc is not None:
                 raise RuntimeError(
                     f"ck2yaml conversion failed for {mech_path}.\n"
-                    "Please convert to Cantera YAML manually with:\n"
+                    "None of the known cantera.ck2yaml entry points "
+                    "(convert_mech/convert/module-convert) exist on this Cantera "
+                    "install. Please convert to Cantera YAML manually with:\n"
                     f"  ck2yaml --input={mech_path} "
                     f"{'--thermo=' + thermo_path if thermo_path else ''} "
                     f"--output={yaml_path}\n"
-                    f"Original error: {exc}"
-                ) from exc
-        except Exception as exc:
-            raise RuntimeError(
-                f"CHEMKIN→YAML conversion failed: {exc}\n"
-                f"  mechanism : {mech_path}\n"
-                f"  thermo    : {thermo_path}"
-            ) from exc
+                    f"Last error: {last_exc}"
+                ) from last_exc
+
+            os.replace(tmp_yaml, yaml_path)
+        finally:
+            if tmp_yaml.exists():
+                try:
+                    tmp_yaml.unlink()
+                except OSError:
+                    pass
 
         logger.info("Saved converted YAML: %s", yaml_path)
         return yaml_path
 
     def _convert_cti_to_yaml(self, cti_path: str) -> Path:
         """Convert a CTI file to Cantera YAML."""
-        cache_key = hashlib.md5(_file_hash(cti_path).encode()).hexdigest()[:12]
+        import cantera as _ct
+        hash_src = _file_hash(cti_path) + f"|cantera={_ct.__version__}"
+        cache_key = hashlib.md5(hash_src.encode()).hexdigest()[:12]
         yaml_path = self._cache_dir / f"cti_{cache_key}.yaml"
 
         if yaml_path.exists():
             return yaml_path
 
         logger.info("Converting CTI → YAML: %s", cti_path)
+        # M20: atomic write -- convert to a temp file and os.replace() on success
+        # so a crash mid-conversion can't cache a truncated YAML forever.
+        tmp_yaml = yaml_path.with_name(f".{yaml_path.stem}.{os.getpid()}.tmp.yaml")
         try:
             from cantera.ctml2yaml import convert as ctml_convert  # type: ignore
-            ctml_convert(cti_path, str(yaml_path))
+            ctml_convert(cti_path, str(tmp_yaml))
+            os.replace(tmp_yaml, yaml_path)
         except Exception as exc:
             raise RuntimeError(f"CTI→YAML conversion failed: {exc}") from exc
+        finally:
+            if tmp_yaml.exists():
+                try:
+                    tmp_yaml.unlink()
+                except OSError:
+                    pass
 
         return yaml_path
 

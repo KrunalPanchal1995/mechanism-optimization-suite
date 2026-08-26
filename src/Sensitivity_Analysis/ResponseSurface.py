@@ -269,100 +269,126 @@ class ResponseSurface(object):
 		del self.X
 	
 	def MatPolyFitTransform(self):
+		"""
+		Build the polynomial feature B-matrix from self.X.
+
+		BUG FIX (order 3, 4, 5): ported from the sibling MUQ-SAC/ResponseSurface.py fix.
+		Original loops used row.index(value), which returns the FIRST occurrence of
+		that value in the row. When two or more row elements are equal (common when
+		zeta samples cluster near the same value), row.index() always returns the same
+		start index, producing duplicate monomials and the wrong number of B-matrix
+		columns. Replaced with index-based (ii/jj/kk/ll/mm) range loops, i <= j <= k...
+		"""
 		BTrsMatrix = []
-		for i in self.X:
+		for outer_row in self.X:
 			tow = self.order
-			row = i
-			row_ = []
-			row_.append(1)
-			if tow > 0:		
-				for i in row:				
-					row_.append(i)
-				tow = tow - 1
+			row = list(outer_row)
+			n = len(row)
+			row_ = [1]
 
 			if tow > 0:
-				for i,j in enumerate(row): 
-					for k in row[i:]:					
-						row_.append(j*k)
-				tow = tow - 1
-
-			if tow > 0:		
-				for i in row:
-					for j in row[row.index(i):]: 
-						for k in row[row.index(j):]:					
-							row_.append(i*j*k)
-				tow = tow - 1					
+				for v in row:
+					row_.append(v)
+				tow -= 1
 
 			if tow > 0:
-				for i,j in enumerate(row):
-					for j in row[row.index(i):]: 
-						for k in row[row.index(j):]:					
-							for l in row[row.index(k):]:
-								row_.append(i*j*k*l)
-				tow = tow - 1
+				for i, j in enumerate(row):
+					for k in row[i:]:
+						row_.append(j * k)
+				tow -= 1
 
 			if tow > 0:
-				for i in row:
-					for j in row[row.index(i):]: 
-						for k in row[row.index(j):]:					
-							for l in row[row.index(k):]:
-								for m in row[row.index(l):]:
-									row_.append(i*j*k*l*m)
-				tow = tow - 1
+				for ii in range(n):
+					for jj in range(ii, n):
+						for kk in range(jj, n):
+							row_.append(row[ii] * row[jj] * row[kk])
+				tow -= 1
+
+			if tow > 0:
+				for ii in range(n):
+					for jj in range(ii, n):
+						for kk in range(jj, n):
+							for ll in range(kk, n):
+								row_.append(row[ii] * row[jj] * row[kk] * row[ll])
+				tow -= 1
+
+			if tow > 0:
+				for ii in range(n):
+					for jj in range(ii, n):
+						for kk in range(jj, n):
+							for ll in range(kk, n):
+								for mm in range(ll, n):
+									row_.append(row[ii] * row[jj] * row[kk] * row[ll] * row[mm])
+				tow -= 1
 			BTrsMatrix.append(row_)
 		return BTrsMatrix
-	
+
 	def evaluate(self,x):
-		BZeta = x
+		# M23: this MUST sum the same monomials, in the same order, that
+		# MatPolyFitTransform builds for the fit (range(n)-nested, i<=j<=k...).
+		# The original order-3/4/5 branches used row.index()/enumerate-vs-slice
+		# mixing, which produced the WRONG monomials (and duplicates when zeta
+		# values repeat) -- only the fit half was corrected in 2026-07. Now
+		# evaluation and fit are consistent for any responseOrder up to 5.
+		BZeta = list(x)
 		coeff = self.coeff
-		tow = self.order
-		row = BZeta
-		val = coeff[0]
+		n     = len(BZeta)
+		tow   = self.order
+		val   = coeff[0]
 		count = 1
-		if tow > 0:		
-			for i in BZeta:				
-				val+=coeff[count]*i
-				count +=1
-			tow = tow - 1
 
+		# order 1: [x_i]
 		if tow > 0:
-			for i,j in enumerate(BZeta): 
-				for k in BZeta[i:]:
-					if count < len(coeff):					
-						val+=coeff[count]*j*k
-						count +=1
-			tow = tow - 1
+			for ii in range(n):
+				if count < len(coeff):
+					val += coeff[count] * BZeta[ii]
+					count += 1
+			tow -= 1
 
-		if tow > 0:		
-			for i,j in enumerate(BZeta):
-				for k in BZeta[BZeta.index(j):]: 
-					for m in row[row.index(k):]:
-						if count < len(coeff):					
-							val+=coeff[count]*j*k*m
-							count +=1
-			tow = tow - 1					
-
+		# order 2: [x_i * x_j,  i <= j]
 		if tow > 0:
-			for i,j in enumerate(BZeta):
-				for k,l in enumerate(BZeta[i:]): 
-					for m,n in enumerate(BZeta[k:]):					
-						for o in BZeta[m:]:
+			for ii in range(n):
+				for jj in range(ii, n):
+					if count < len(coeff):
+						val += coeff[count] * BZeta[ii] * BZeta[jj]
+						count += 1
+			tow -= 1
+
+		# order 3: [x_i * x_j * x_k,  i <= j <= k]
+		if tow > 0:
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						if count < len(coeff):
+							val += coeff[count] * BZeta[ii] * BZeta[jj] * BZeta[kk]
+							count += 1
+			tow -= 1
+
+		# order 4
+		if tow > 0:
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						for ll in range(kk, n):
 							if count < len(coeff):
-								val+=coeff[count]*j*l*n*o
-								count +=1
-			tow = tow - 1
+								val += (coeff[count] * BZeta[ii] * BZeta[jj]
+								        * BZeta[kk] * BZeta[ll])
+								count += 1
+			tow -= 1
 
+		# order 5
 		if tow > 0:
-			for i,j in enumerate(BZeta):
-				for k,l in enumerate(BZeta[i:]): 
-					for m,n in enumerate(BZeta[k:]):					
-						for o,p in enumerate(BZeta[m:]):
-							for q in BZeta[o:]:
-								if count<len(coeff):
-									val+=coeff[count]*q*p*n*l*j
-									count +=1
-			tow = tow - 1
-			
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						for ll in range(kk, n):
+							for mm in range(ll, n):
+								if count < len(coeff):
+									val += (coeff[count] * BZeta[ii] * BZeta[jj]
+									        * BZeta[kk] * BZeta[ll] * BZeta[mm])
+									count += 1
+			tow -= 1
+
 		return val
 	
 	def evaluateResponse(self,x,cov_x=None):

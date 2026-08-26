@@ -756,6 +756,42 @@ class TestChemkinWriter:
         # Reaction formula stored in DB should appear
         assert "NC7H16+O2<=>CO2+H2O" in content or "NC7H16" in content
 
+    def test_bare_third_body_M_on_both_sides(self, tmp_path):
+        """Regression (found stress-testing fusion on Keromnes/Li/Davis,
+        2026-07-14): a bare "+M" third body used to be appended only ONCE,
+        to the tail of the whole equation string -- "H2<=>2H+M" (M on the
+        product side only) instead of "H2+M<=>2H+M". ck2yaml rejects this
+        outright ("Third bodies do not match: 'None' and 'M'")."""
+        from rmip.io.chemkin_writer import ChemkinWriter
+
+        db = str(tmp_path / "tb.db")
+        conn = _make_db(db)
+        mid = _insert_mechanism(conn, "TBMech")
+        sp1 = _insert_species(conn, mid, "H2", "INCHI_H2", formula="H2")
+        sp2 = _insert_species(conn, mid, "H", "INCHI_H", formula="H")
+        cur = conn.execute(
+            """
+            INSERT INTO reactions
+                (mechanism_id, formula_string, canonical_key,
+                 reversible, kinetics_type, has_third_body,
+                 A_si, A_orig, n, Ea_si, Ea_orig)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (mid, "H2<=>2H", "CK_TB", 1, "third_body", 1,
+             4.58e13, 4.58e13, -1.4, 104400.0, 104400.0),
+        )
+        rxn_id = cur.lastrowid
+        _insert_stoich(conn, rxn_id, sp1, 1.0, "reactant")
+        _insert_stoich(conn, rxn_id, sp2, 2.0, "product")
+        conn.commit()
+
+        writer = ChemkinWriter(db, use_original_units=False)
+        out_path = str(tmp_path / "tb.inp")
+        writer.write(mid, out_path)
+
+        content = Path(out_path).read_text()
+        assert "H2+M<=>2H+M" in content, content
+
     def test_thermo_has_4_lines_per_species(self, tmp_path):
         from rmip.io.chemkin_writer import ChemkinWriter
 
@@ -771,6 +807,43 @@ class TestChemkinWriter:
                           if l.rstrip().endswith(("1", "2", "3", "4"))]
         # 2 species × 4 lines = 8 tagged lines
         assert len(lines_with_tag) == 8
+
+    def test_thermo_file_has_single_end(self, tmp_path):
+        """M-writer regression: _write_thermo() already appends its own
+        ["END", ""] terminator; the caller's [1:-1] slice used to only drop
+        the trailing "", leaving "END" in the body so a second "END" got
+        appended on top of it -- every separate thermo file had two END
+        lines."""
+        from rmip.io.chemkin_writer import ChemkinWriter
+
+        db, mid = self._make_writable_db(tmp_path)
+        writer = ChemkinWriter(db)
+        out_path    = str(tmp_path / "mech.inp")
+        thermo_path = str(tmp_path / "therm.dat")
+        writer.write(mid, out_path, thermo_path=thermo_path)
+
+        lines = Path(thermo_path).read_text().splitlines()
+        end_lines = [l for l in lines if l.strip() == "END"]
+        assert len(end_lines) == 1
+
+    def test_si_path_ea_round_trips_through_cal_mole_header(self, tmp_path):
+        """B15 regression: reactions with no A_orig (every fusion/optimize/
+        unify product, every yaml-sourced mechanism) are written via the
+        SI path, which used to multiply Ea_si (J/mol) by a kcal/mol factor
+        (1/4184) while still declaring a CAL/MOLE header -- every such Ea
+        read back 1000x too small. Round-trips write -> parse and checks
+        Ea_si survives."""
+        from rmip.io.chemkin_writer import ChemkinWriter
+        from rmip.io.chemkin_reader import load_chemkin
+
+        db, mid = self._make_writable_db(tmp_path)  # Ea_si=50000.0, no A_orig
+        writer = ChemkinWriter(db)
+        out_path = str(tmp_path / "mech.inp")
+        writer.write(mid, out_path)
+
+        _, rxn_list = load_chemkin(out_path)
+        assert len(rxn_list) == 1
+        assert rxn_list[0]["Ea_si"] == pytest.approx(50000.0, abs=1.0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1226,3 +1299,60 @@ class TestChemkinWriterRegression:
         from rmip.io.chemkin_writer import ChemkinWriter
         cw = ChemkinWriter("/fake/path.db", use_original_units=False)
         assert cw._use_orig is False
+
+    def test_null_A_si_raises_by_default(self, tmp_path):
+        """M7 (review.md): a reaction with no A_si and no A_orig used to be
+        exported as a fabricated `0.000000E+00` Arrhenius line, exit 0,
+        silently claiming the rate constant is exactly zero."""
+        from rmip.io.chemkin_writer import ChemkinWriter
+
+        db = str(tmp_path / "hollow.db")
+        conn = _make_db(db)
+        mid = _insert_mechanism(conn, "HollowMech")
+        sp1 = _insert_species(conn, mid, "A", "INCHI_A", formula="H2")
+        sp2 = _insert_species(conn, mid, "B", "INCHI_B", formula="O2")
+        cur = conn.execute(
+            """
+            INSERT INTO reactions
+                (mechanism_id, formula_string, canonical_key,
+                 reversible, kinetics_type, A_si, A_orig, n, Ea_si, Ea_orig)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+            """,
+            (mid, "A+B<=>C", "CK_HOLLOW", 1, "arrhenius", None, None, None, None, None),
+        )
+        rxn_id = cur.lastrowid
+        _insert_stoich(conn, rxn_id, sp1, 1.0, "reactant")
+        _insert_stoich(conn, rxn_id, sp2, 1.0, "reactant")
+        conn.commit()
+
+        writer = ChemkinWriter(db, use_original_units=False)
+        out_path = str(tmp_path / "hollow.inp")
+        with pytest.raises(ValueError, match="no usable A value"):
+            writer.write(mid, out_path)
+
+    def test_null_A_si_written_with_force(self, tmp_path):
+        from rmip.io.chemkin_writer import ChemkinWriter
+
+        db = str(tmp_path / "hollow_force.db")
+        conn = _make_db(db)
+        mid = _insert_mechanism(conn, "HollowMech")
+        sp1 = _insert_species(conn, mid, "A", "INCHI_A", formula="H2")
+        sp2 = _insert_species(conn, mid, "B", "INCHI_B", formula="O2")
+        cur = conn.execute(
+            """
+            INSERT INTO reactions
+                (mechanism_id, formula_string, canonical_key,
+                 reversible, kinetics_type, A_si, A_orig, n, Ea_si, Ea_orig)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+            """,
+            (mid, "A+B<=>C", "CK_HOLLOW", 1, "arrhenius", None, None, None, None, None),
+        )
+        rxn_id = cur.lastrowid
+        _insert_stoich(conn, rxn_id, sp1, 1.0, "reactant")
+        _insert_stoich(conn, rxn_id, sp2, 1.0, "reactant")
+        conn.commit()
+
+        writer = ChemkinWriter(db, use_original_units=False, force=True)
+        out_path = str(tmp_path / "hollow_force.inp")
+        writer.write(mid, out_path)  # must not raise
+        assert "0.000000E+00" in Path(out_path).read_text()

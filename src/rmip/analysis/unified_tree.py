@@ -79,7 +79,7 @@ _VALID_DECISIONS = frozenset({
 _CSV_FIELDNAMES = [
     "canonical_key", "formula_string", "status", "n_sources",
     "source_mech_ids", "default_decision", "decision",
-    "chosen_source_mech_id", "notes",
+    "chosen_source_mech_id", "notes", "occurrence_index",
 ]
 
 _BANDS_CSV_HEADER = [
@@ -197,9 +197,11 @@ class UnifiedTreeBuilder:
                 decision              = default_decision,
                 chosen_source_mech_id = None,
                 notes                 = "",
+                occurrence_index      = rc.occurrence_index,
             ))
 
         self._write_manifest(decisions, manifest_path)
+        self._write_manifest_meta(mode, anchor_mech_id, manifest_path)
         log.info("Manifest written → %s  (%d reactions)", manifest_path, len(decisions))
 
         plan = UnifiedTreePlan(
@@ -260,9 +262,12 @@ class UnifiedTreeBuilder:
 
         # Load decisions
         if plan is not None:
-            decisions = plan.decisions
+            decisions       = plan.decisions
+            mode            = plan.mode
+            anchor_mech_id  = plan.anchor_mech_id
         else:
             decisions = self._read_manifest(manifest_path)
+            mode, anchor_mech_id = self._read_manifest_meta(manifest_path)
 
         # Validate all decisions
         self._validate_decisions(decisions)
@@ -292,6 +297,17 @@ class UnifiedTreeBuilder:
             # ---------- Build reaction records ----------
             rxn_records: List[Dict[str, Any]]       = []
             bands:       List[UncertaintyBand]       = []
+            # M13 (review.md): `bands` used to be re-paired with decisions
+            # after the fact via `zip([d for d in decisions if d.decision ==
+            # "OPTIMIZE"], bands)` -- but an OPTIMIZE decision whose record
+            # build fails (e.g. _build_optimize_record's "no contributions
+            # found" case) is silently dropped from `bands` while still
+            # appearing in that re-derived list, shifting every subsequent
+            # pairing by one and writing the WRONG uncertainty band against
+            # the wrong reaction in the audit DB. Track the decision
+            # alongside its band in lockstep instead, so there is no
+            # separate list to fall out of sync.
+            band_decisions: List[ReactionDecision] = []
             n_keep = n_import = n_opt = n_pick = n_drop = 0
 
             for d in decisions:
@@ -299,7 +315,8 @@ class UnifiedTreeBuilder:
                     n_drop += 1
                     continue
 
-                rec = self._build_rxn_record(d, source_rows, band_estimator, tgrid)
+                rec = self._build_rxn_record(d, source_rows, band_estimator, tgrid,
+                                              anchor_mech_id)
                 if rec is None:
                     log.warning("Could not build record for %s — treating as DROP",
                                 d.canonical_key)
@@ -318,6 +335,7 @@ class UnifiedTreeBuilder:
                     b.canonical_key  = d.canonical_key
                     b.formula_string = d.formula_string
                     bands.append(b)
+                    band_decisions.append(d)
 
             # ---------- Collect needed species ----------
             needed_names = self._collect_needed_species(
@@ -332,7 +350,7 @@ class UnifiedTreeBuilder:
             # ---------- Insert unified mechanism ----------
             ts = datetime.now(timezone.utc).isoformat()
             meta = {
-                "mode":      plan.mode if plan else "unknown",
+                "mode":      mode,
                 "built_at":  ts,
                 "P_ref_atm": P_ref_atm,
                 "T_grid":    tgrid.to_dict(),
@@ -362,9 +380,9 @@ class UnifiedTreeBuilder:
             run_id = insert_unified_tree_run(
                 conn,
                 unified_mechanism_id  = unified_id,
-                mode                  = plan.mode if plan else "unknown",
+                mode                  = mode,
                 contributing_mech_ids = all_mech_ids_list,
-                anchor_mech_id        = plan.anchor_mech_id if plan else None,
+                anchor_mech_id        = anchor_mech_id,
                 manifest_path         = manifest_path,
                 n_keep_anchor         = n_keep,
                 n_import_single       = n_import,
@@ -374,10 +392,7 @@ class UnifiedTreeBuilder:
                 n_species             = len(sp_records),
             )
 
-            for d, band in zip(
-                [d for d in decisions if d.decision == "OPTIMIZE"],
-                bands,
-            ):
+            for d, band in zip(band_decisions, bands):
                 insert_reaction_decision(
                     conn, run_id,
                     canonical_key         = d.canonical_key,
@@ -457,24 +472,27 @@ class UnifiedTreeBuilder:
         source_rows: Dict[int, Dict[str, Any]],
         band_estimator: UncertaintyBandEstimator,
         tgrid: TemperatureGrid,
+        anchor_mech_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Build a reaction DB record dict for one decision."""
         decision = d.decision
 
         if decision in ("KEEP_ANCHOR", "IMPORT_SINGLE", "PICK_SOURCE"):
             # Copy verbatim from the chosen source
-            src_mid = self._pick_verbatim_source(d)
+            src_mid = self._pick_verbatim_source(d, anchor_mech_id)
             if src_mid is None:
                 log.warning("No valid source for decision %s on %s",
                             decision, d.canonical_key)
                 return None
             rxn_map = source_rows.get(src_mid, {}).get("reactions_by_key", {})
-            src_rxn = rxn_map.get(d.canonical_key)
+            src_rxn = rxn_map.get((d.canonical_key, d.occurrence_index))
             if src_rxn is None:
-                log.warning("Source mech %d missing reaction %s", src_mid, d.canonical_key)
+                log.warning("Source mech %d missing reaction %s (occurrence %d)",
+                            src_mid, d.canonical_key, d.occurrence_index)
                 return None
             return {
                 "canonical_key":          d.canonical_key,
+                "occurrence_index":       d.occurrence_index,
                 "formula_string":         d.formula_string or src_rxn.get("formula_string", ""),
                 "decision":               decision,
                 "source_mech_id":         src_mid,
@@ -501,14 +519,24 @@ class UnifiedTreeBuilder:
 
         return None  # DROP handled by caller
 
-    def _pick_verbatim_source(self, d: ReactionDecision) -> Optional[int]:
+    def _pick_verbatim_source(
+        self, d: ReactionDecision, anchor_mech_id: Optional[int] = None,
+    ) -> Optional[int]:
         """Return the mechanism ID to copy from for VERBATIM/COPY decisions."""
         if d.decision == "PICK_SOURCE" and d.chosen_source_mech_id is not None:
             return d.chosen_source_mech_id
-        # For KEEP_ANCHOR: anchor is the first source (set during plan())
-        # For IMPORT_SINGLE: there's exactly one source
+        if d.decision == "KEEP_ANCHOR":
+            if anchor_mech_id is not None and anchor_mech_id in d.source_mech_ids:
+                return anchor_mech_id
+            log.warning(
+                "KEEP_ANCHOR decision on %s but anchor_mech_id (%s) is unknown or "
+                "not among sources %s — falling back to lowest source id",
+                d.canonical_key, anchor_mech_id, d.source_mech_ids,
+            )
+        # For IMPORT_SINGLE: there's exactly one source.
+        # Fallback (anchor unresolved, or any other case): lowest ID.
         if d.source_mech_ids:
-            return min(d.source_mech_ids)  # lowest ID = most stable choice
+            return min(d.source_mech_ids)
         return None
 
     def _build_optimize_record(
@@ -527,7 +555,7 @@ class UnifiedTreeBuilder:
 
         for mid in d.source_mech_ids:
             rxn_map = source_rows.get(mid, {}).get("reactions_by_key", {})
-            rxn = rxn_map.get(d.canonical_key)
+            rxn = rxn_map.get((d.canonical_key, d.occurrence_index))
             if rxn is None:
                 continue
             contributions.append(ReactionKinetics(
@@ -571,10 +599,11 @@ class UnifiedTreeBuilder:
         # Pick representative source row for metadata
         src_mid = min(d.source_mech_ids)
         rxn_map = source_rows.get(src_mid, {}).get("reactions_by_key", {})
-        src_rxn = rxn_map.get(d.canonical_key, {})
+        src_rxn = rxn_map.get((d.canonical_key, d.occurrence_index), {})
 
         return {
             "canonical_key":       d.canonical_key,
+            "occurrence_index":    d.occurrence_index,
             "formula_string":      d.formula_string or src_rxn.get("formula_string", ""),
             "decision":            "OPTIMIZE",
             "source_mech_id":      src_mid,
@@ -617,7 +646,7 @@ class UnifiedTreeBuilder:
         for rec in rxn_records:
             src_mid = rec["source_mech_id"]
             rxn_map = source_rows.get(src_mid, {}).get("reactions_by_key", {})
-            src_rxn = rxn_map.get(rec["canonical_key"])
+            src_rxn = rxn_map.get((rec["canonical_key"], rec.get("occurrence_index", 0)))
             if src_rxn is None:
                 continue
             rxn_id = src_rxn.get("id")
@@ -867,7 +896,7 @@ class UnifiedTreeBuilder:
 
             # Copy stoichiometry from the reference source reaction
             rxn_map = source_rows.get(src_mid, {}).get("reactions_by_key", {})
-            src_rxn = rxn_map.get(ck)
+            src_rxn = rxn_map.get((ck, rec.get("occurrence_index", 0)))
             if src_rxn is None:
                 continue
             self._copy_stoichiometry(conn, rxn_id, src_rxn["id"], sp_name_to_id)
@@ -909,7 +938,18 @@ class UnifiedTreeBuilder:
         conn: sqlite3.Connection,
         mech_ids: List[int],
     ) -> Dict[int, Dict[str, Any]]:
-        """Load raw DB rows for all source mechanisms."""
+        """Load raw DB rows for all source mechanisms.
+
+        M9 (review.md): `reactions_by_key` used to be keyed on plain
+        canonical_key, so two CHEMKIN DUPLICATE rows sharing one
+        canonical_key within a mechanism collided -- every ReactionDecision
+        referencing that canonical_key (whether it should have resolved to
+        occurrence 0 or 1) silently picked up the same last-read row's
+        kinetics. Keyed on (canonical_key, occurrence_index) instead, in
+        `id` (insertion/file) order -- must match GraphComparator's own
+        occurrence counting (`_load_all_reactions`) since plan() sources
+        `ReactionDecision.occurrence_index` from there.
+        """
         placeholders = ",".join("?" * len(mech_ids))
         data: Dict[int, Dict[str, Any]] = {
             mid: {"species": [], "reactions_by_key": {}}
@@ -925,13 +965,17 @@ class UnifiedTreeBuilder:
             data[mid]["species"].append(dict(row))
 
         rxn_rows = conn.execute(
-            f"SELECT * FROM reactions WHERE mechanism_id IN ({placeholders})",
+            f"SELECT * FROM reactions WHERE mechanism_id IN ({placeholders}) "
+            f"ORDER BY mechanism_id, id",
             mech_ids,
         ).fetchall()
+        occurrence_counts: Dict[Tuple[int, str], int] = {}
         for row in rxn_rows:
             mid = row["mechanism_id"]
             ck  = row["canonical_key"] or row["formula_string"]
-            data[mid]["reactions_by_key"][ck] = dict(row)
+            occ = occurrence_counts.get((mid, ck), 0)
+            occurrence_counts[(mid, ck)] = occ + 1
+            data[mid]["reactions_by_key"][(ck, occ)] = dict(row)
 
         return data
 
@@ -955,6 +999,45 @@ class UnifiedTreeBuilder:
             for row in reader:
                 decisions.append(ReactionDecision.from_dict(row))
         return decisions
+
+    @staticmethod
+    def _manifest_meta_path(manifest_path: str) -> str:
+        return manifest_path + ".meta.json"
+
+    @classmethod
+    def _write_manifest_meta(
+        cls, mode: str, anchor_mech_id: Optional[int], manifest_path: str,
+    ) -> None:
+        """
+        Persist plan()-level info (mode, anchor_mech_id) that decisions.csv's
+        per-reaction rows can't carry, so a later build() invoked from a
+        separate process (the real `rmip unify-build` CLI path — manifest_path
+        only, no in-memory UnifiedTreePlan) can still resolve KEEP_ANCHOR
+        decisions to the correct anchor mechanism instead of guessing.
+        """
+        with open(cls._manifest_meta_path(manifest_path), "w", encoding="utf-8") as fh:
+            json.dump({"mode": mode, "anchor_mech_id": anchor_mech_id}, fh)
+
+    @classmethod
+    def _read_manifest_meta(
+        cls, manifest_path: str,
+    ) -> Tuple[str, Optional[int]]:
+        """Read the (mode, anchor_mech_id) sidecar written by plan(). Missing
+        sidecar (e.g. a manifest from before this fix) degrades gracefully to
+        ("unknown", None) — the same fallback behaviour as before this fix."""
+        meta_path = cls._manifest_meta_path(manifest_path)
+        try:
+            with open(meta_path, encoding="utf-8") as fh:
+                meta = json.load(fh)
+            return meta.get("mode", "unknown"), meta.get("anchor_mech_id")
+        except (FileNotFoundError, json.JSONDecodeError):
+            log.warning(
+                "No manifest metadata sidecar found at %s — anchor_mech_id "
+                "unknown, KEEP_ANCHOR resolution will fall back to lowest "
+                "source id",
+                meta_path,
+            )
+            return "unknown", None
 
     # -------------------------------------------------------------------------
     # Internal — decision validation

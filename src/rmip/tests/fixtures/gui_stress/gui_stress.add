@@ -1,0 +1,6 @@
+dataset_001:
+  solver: cantera
+  ign_delay_def: OH
+  ign_cond: max
+  specific_cond: ''
+  mol_wt: 2

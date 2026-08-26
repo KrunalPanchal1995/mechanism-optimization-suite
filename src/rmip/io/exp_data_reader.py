@@ -193,6 +193,108 @@ class ExpDataReader:
         finally:
             conn.close()
 
+    def load_respecth_xml(
+        self,
+        xml_path: str,
+        *,
+        out_dir:       Optional[str] = None,
+        fuel_list:     Optional[List[str]] = None,
+        input_fuel:    Optional[Dict[str, str]] = None,
+        stoichiometry: Optional[Dict[str, float]] = None,
+        solver:        str = "cantera",
+        emit_legacy:   bool = True,
+        dataset_prefix: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Ingest ReSpecTh / PrIMe (RKD) XML — **bridging both** experimental-data
+        subsystems (Future.md pt. 2):
+
+          * Endpoint A (legacy): the existing ``xml2csv`` converter writes the
+            pipe-delimited ``.target`` / ``.add`` / ``.bib`` / ``.csv`` artefacts
+            that ``run_script.py`` and the GUI consume.
+          * Endpoint B (this DB): the converted ``.target`` is re-parsed into
+            rmip-canonical points (IDT [s], LFS [m/s], speciation [mole
+            fraction]; P [atm]; T [K]) and loaded into ``exp_datasets`` /
+            ``exp_data_points``.
+
+        Parameters
+        ----------
+        xml_path : str
+            A ReSpecTh ``.xml`` file *or* a directory of them.
+        out_dir : str, optional
+            Where to write the legacy artefacts.  Defaults to the XML directory
+            (for a directory input) or the CWD (for a single-file input).
+        fuel_list / input_fuel / stoichiometry / solver :
+            Passed through to ``xml2csv`` (fuel identity + solver tag).
+        emit_legacy : bool
+            If False, the legacy artefacts are still produced (they are the seam
+            we re-parse) but this flag is reserved for callers that only want the
+            DB rows; it currently has no effect on artefact creation.
+        dataset_prefix : str, optional
+            Prepended to each DB dataset name to disambiguate re-imports.
+
+        Returns
+        -------
+        dict with keys ``dataset_ids`` (list[int]), ``n_points`` (int),
+        ``conversion`` (the xml2csv summary), and the legacy artefact paths.
+        """
+        from rmip.io.respecth_reader import (
+            convert_respecth,
+            datasets_from_target_file,
+        )
+
+        summary = convert_respecth(
+            xml_path, out_dir,
+            fuel_list=fuel_list, input_fuel=input_fuel,
+            stoichiometry=stoichiometry, solver=solver,
+        )
+        target_path = summary.get("target_path")
+        if not target_path or not Path(target_path).exists():
+            logger.warning("xml2csv produced no .target file (%s) — nothing to load",
+                           summary.get("warnings"))
+            return {"dataset_ids": [], "n_points": 0, "conversion": summary,
+                    **{k: summary.get(k) for k in
+                       ("target_path", "add_path", "bib_path", "csv_path")}}
+
+        default_fuel = "+".join(fuel_list) if fuel_list else None
+        parsed = datasets_from_target_file(target_path, default_fuel_name=default_fuel)
+
+        conn = self._connect()
+        dataset_ids: List[int] = []
+        total_points = 0
+        try:
+            for ds in parsed:
+                if not ds.points:
+                    continue
+                name = f"{ds.dataset_id}_{ds.sim_type}"
+                if dataset_prefix:
+                    name = f"{dataset_prefix}_{name}"
+                ds_id = insert_exp_dataset(
+                    conn,
+                    name       = name,
+                    sim_type   = ds.sim_type,
+                    fuel_name  = ds.fuel_name,
+                    source_ref = "ReSpecTh/PrIMe XML",
+                    filepath   = str(Path(target_path).resolve()),
+                )
+                insert_exp_data_points(conn, ds_id, ds.points)
+                dataset_ids.append(ds_id)
+                total_points += len(ds.points)
+                logger.info("Loaded %d %s points into dataset '%s' (id=%d)",
+                            len(ds.points), ds.sim_type, name, ds_id)
+        finally:
+            conn.close()
+
+        return {
+            "dataset_ids": dataset_ids,
+            "n_points":    total_points,
+            "conversion":  summary,
+            "target_path": summary.get("target_path"),
+            "add_path":    summary.get("add_path"),
+            "bib_path":    summary.get("bib_path"),
+            "csv_path":    summary.get("csv_path"),
+        }
+
     def get_points(self, dataset_id: int) -> List[Dict[str, Any]]:
         """Return all experimental data points for a dataset."""
         conn = self._connect()

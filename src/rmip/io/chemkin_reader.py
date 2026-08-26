@@ -70,9 +70,10 @@ ReactionDict = Dict[str, Any]
 def load_chemkin(
     mech_path:   str,
     thermo_path: Optional[str] = None,
-    transport_path: Optional[str] = None,  # ignored — D6
+    transport_path: Optional[str] = None,  # honored — merged onto species (Phase-3)
     dict_path: Optional[str] = None,
     check_duplicates: bool = False,
+    allow_pseudo_species: bool = False,
 ) -> Tuple[List[SpeciesDict], List[ReactionDict]]:
     """
     Parse a CHEMKIN mechanism using RMG-Py.
@@ -90,6 +91,13 @@ def load_chemkin(
         RMG species dictionary .txt path (for resonance structure generation).
     check_duplicates : bool
         Flag duplicate reactions during RMG-Py loading.
+    allow_pseudo_species : bool
+        Only affects the built-in pure-Python parser fallback (RMG-Py isn't
+        installed here). Mirrors ck2yaml's --permissive: drop undeclared
+        reaction participants (e.g. chemiluminescence bookkeeping
+        pseudo-species like "HV") with a warning instead of keeping them
+        with only a loud error log (M1, review.md — see
+        ChemkinParser.__init__'s docstring for the full rationale).
 
     Returns
     -------
@@ -133,11 +141,43 @@ def load_chemkin(
             "RMG-Py not available; using built-in CHEMKIN parser. "
             "For full resonance structure support, install RMG-Py."
         )
-        parser = ChemkinParser()
+        parser = ChemkinParser(allow_pseudo_species=allow_pseudo_species)
         species_list, rxn_list = parser.parse(mech_path, thermo_path=thermo_path)
+
+    # Merge Lennard-Jones transport from a CHEMKIN transport file, if supplied
+    # (Phase-3 follow-on — previously ignored). Matched to species by name.
+    if transport_path:
+        _merge_chemkin_transport(species_list, transport_path)
 
     log.info("  Raw: %d species, %d reactions", len(species_list), len(rxn_list))
     return species_list, rxn_list
+
+
+def _merge_chemkin_transport(species_list: List[SpeciesDict], transport_path: str) -> None:
+    """Attach transport records from a CHEMKIN transport file onto species dicts."""
+    try:
+        from rmip.io.transport_io import parse_chemkin_transport
+        records = parse_chemkin_transport(transport_path)   # {name: TransportData}
+    except Exception as exc:                                 # noqa: BLE001
+        log.warning("Could not parse transport file %s: %s", transport_path, exc)
+        return
+    n = 0
+    for sp in species_list:
+        td = records.get(sp.get("name"))
+        if td is None:
+            continue
+        sp["transport"] = {
+            "transport_geometry": td.geometry,
+            "well_depth_K":       td.well_depth_K,
+            "diameter_A":         td.diameter_A,
+            "dipole_D":           td.dipole_D,
+            "polarizability_A3":  td.polarizability_A3,
+            "rot_relax":          td.rot_relax,
+            "transport_source":   "chemkin",
+        }
+        n += 1
+    log.info("  Merged transport for %d/%d species from %s",
+             n, len(species_list), transport_path)
 
 
 # ---------------------------------------------------------------------------

@@ -577,6 +577,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 class VolumeProfile(object):
@@ -944,6 +974,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -1331,6 +1391,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 	
 def doNonReactive(gas,inp_time,inp_vol):
@@ -1583,6 +1673,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 	
 def doNonReactive(gas,inp_time,inp_vol):
@@ -1805,6 +1925,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -2108,6 +2258,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 t0 = time.time()
@@ -2301,6 +2481,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 
@@ -2555,6 +2765,36 @@ def ignitionDelay(df,pList, species,cond="max",specified_value ="None;None",exp_
 				time_new = np.arange(min(time),max(time),10**(-8))
 				conc_new = f(time_new)
 				tau = fast_nearest_interp(target,conc_new,time_new)
+
+			elif unit == "unitless":
+				# "specific_cond: <frac>;unitless" (e.g. addendum entries with
+				# ign_delay_def: NH3, ign_cond: specific, specific_cond:
+				# 0.95;unitless) -- previously unhandled: every other branch
+				# here requires an absolute-concentration `unit`
+				# (molecule[/cm3]|mole/cm3), so a bare fractional target fell
+				# through every elif with `tau` never assigned, raising
+				# UnboundLocalError at the final `return tau`. Found
+				# 2026-07-22 running the ammonia campaign's Phase 6
+				# target-opt (first real exercise of an
+				# NH3-relative-concentration Tig target this session --
+				# this measurement type is the ONLY simulatable one in
+				# DATASET/AMMONIA/AMMONIA.target for a standard ground-state
+				# mechanism; every other row's ign_delay_def is OH*, an
+				# excited-state species none of this repo's 5 NH3
+				# mechanisms track). Interpreted as "fraction of the
+				# species' initial concentration CONSUMED" (target = 0.95 ->
+				# reached when 95% of the initial reactant has reacted away,
+				# i.e. 5% remains) -- the standard "time to X% fuel
+				# consumption" ignition-delay convention. Flagging this
+				# interpretation for the user in case the source literature
+				# actually means "95% remaining" instead.
+				time = df.index.to_numpy()
+				conc = df[species].to_numpy()
+				target_conc = conc[0] * (1.0 - target)
+				f = Akima1DInterpolator(time,conc)
+				time_new = np.arange(min(time),max(time),10**(-8))
+				conc_new = f(time_new)
+				tau = fast_nearest_interp(target_conc,conc_new,time_new)
 	return tau
 
 def getTimeProfile(t1,t2):
@@ -3194,7 +3434,7 @@ Su0 = flame.velocity[0] #m/s
 Su_file = open("output/Su.out",'w')
 Su_file.write("#T(K)	Su(cm/s)"+"\\n"+"{{}}	{{}}".format(To,Su0*(100)))
 Su_file.close()
-""".format(mech = mech_file,temperature = target.temperature,phi = target.phi,fuel= target.add["fuel"],pressure=target.pressure,species_conc = target.species_dict,width = target.add["width"],ratio = target.add["ratio"],slope = target.add["slope"],curve = target.add["curve"],loglevel = target.add["loglevel"],auto = target.add["auto"])
+""".format(mech = mech_file,temperature = target.temperature,phi = target.phi,fuel=repr(target.add["fuel"]),pressure=target.pressure,species_conc = target.species_dict,width = target.add["width"],ratio = target.add["ratio"],slope = target.add["slope"],curve = target.add["curve"],loglevel = target.add["loglevel"],auto = target.add["auto"])
 		
 		else:
 			if target.uniqueID not in os.listdir(startProfile_location[target.target]["CopyTo"]):

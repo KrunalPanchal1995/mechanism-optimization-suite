@@ -34,6 +34,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
+try:
+    # networkx's spring_layout uses "import scipy as sp" then sp.sparse for
+    # graphs with >500 nodes, but never imports the submodule — on scipy 1.8
+    # that raises AttributeError. Pre-importing scipy.sparse registers it.
+    import scipy.sparse  # noqa: F401
+except ImportError:
+    pass
+
 from rmip.database.schema import get_connection, get_reactions_for_mechanism, get_species_for_mechanism
 
 log = logging.getLogger("rmip.core.graph_builder")
@@ -96,6 +104,10 @@ class GraphBuilder:
         self,
         mech_id:              int,
         include_reverse_edges: bool = True,
+        assign_positions:      bool = True,
+        include_spring:        bool = True,
+        shell_gap_3d:          float = 2.0,
+        layer_gap_3d:          float = 1.0,
     ) -> nx.DiGraph:
         """
         Build and return the bipartite reaction network for mechanism *mech_id*.
@@ -106,6 +118,11 @@ class GraphBuilder:
             Database mechanism id.
         include_reverse_edges : bool
             If True, add reverse edges for reversible reactions.
+        assign_positions : bool
+            If True (default), compute preset layout positions for the graph.
+            ``build_union_graphs`` passes False because it recomputes a shared
+            union layout afterwards — skipping the per-graph layout avoids
+            paying for spring_layout once per mechanism on large mechanisms.
 
         Returns
         -------
@@ -141,9 +158,25 @@ class GraphBuilder:
         }
 
         # ---- Add reaction nodes + edges ----
+        # M9 (review.md): CHEMKIN DUPLICATE reactions (two rows sharing one
+        # canonical_key within a mechanism) used to collide wherever this
+        # module keys reactions by identity string alone -- cross-mechanism
+        # ghost-node matching, shared-layout positions, and global R-labels
+        # (_assign_global_reaction_labels) all collapsed both rows onto a
+        # single identity, so one DUPLICATE row silently vanished from the
+        # union graph and the two rows that DID survive could receive the
+        # SAME global R-label. occurrence_index (0 for the first row at a
+        # given canonical_key within this mechanism, 1 for the second, etc,
+        # in `id`/insertion order via get_reactions_for_mechanism's own
+        # ORDER BY id) disambiguates them; stamped once here so ghost nodes
+        # (which copy **src_data) inherit it automatically.
         rxn_rows = get_reactions_for_mechanism(self._conn, mech_id)
+        occurrence_counts: Dict[str, int] = {}
         for rx in rxn_rows:
             rnid = f"R_{rx['id']}"
+            occ_key = rx["canonical_key"] or f"cf:{_canon_formula(rx['formula_string'])}"
+            occ = occurrence_counts.get(occ_key, 0)
+            occurrence_counts[occ_key] = occ + 1
             G.add_node(rnid,
                 type             = "reaction",
                 db_id            = rx["id"],
@@ -158,6 +191,7 @@ class GraphBuilder:
                 has_third_body   = bool(rx["has_third_body"]),
                 mechanism_id     = mech_id,
                 canonical_key    = rx["canonical_key"],
+                occurrence_index = occ,
                 reaction_label   = rx["reaction_label"] if "reaction_label" in rx.keys() else None,
                 # M8 attributes (set by SensitivityFluxIntegrator)
                 sensitivity_score = None,
@@ -196,13 +230,19 @@ class GraphBuilder:
         )
         # Assign preset layout positions (spring, circle, bipartite, carbon-ring)
         # so single-panel mode also offers the preset layout dropdown.
-        self._assign_union_positions([G])
+        if assign_positions:
+            self._assign_union_positions([G], include_spring=include_spring,
+                                         shell_gap_3d=shell_gap_3d,
+                                         layer_gap_3d=layer_gap_3d)
         return G
 
     def build_union_graphs(
         self,
         mech_ids: List[int],
         include_reverse_edges: bool = True,
+        include_spring:        bool = True,
+        shell_gap_3d:          float = 2.0,
+        layer_gap_3d:          float = 1.0,
     ) -> List[nx.DiGraph]:
         """
         Build one graph per mechanism where every graph has the same node set
@@ -229,15 +269,21 @@ class GraphBuilder:
         list[nx.DiGraph]
             One graph per entry in *mech_ids*, same order.
         """
-        graphs = [self.build_graph(mid, include_reverse_edges) for mid in mech_ids]
+        graphs = [self.build_graph(mid, include_reverse_edges, assign_positions=False)
+                  for mid in mech_ids]
 
         def _sp_key(data: dict) -> str:
             ik = data.get("inchi_key")
             return f"ik:{ik}" if ik else f"nm:{data.get('name', '')}"
 
         def _rx_key(data: dict) -> str:
+            # M9 (review.md): include occurrence_index (stamped once per
+            # reaction node in build_graph, inherited by ghost copies) so
+            # CHEMKIN DUPLICATE rows sharing one canonical_key within a
+            # mechanism get distinct identities instead of colliding.
             ck = data.get("canonical_key")
-            return f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            base = f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            return f"{base}||occ:{data.get('occurrence_index', 0)}"
 
         # Build per-graph identity→node_id mappings
         sp_key_to_node: List[Dict[str, str]] = [{} for _ in graphs]
@@ -300,17 +346,30 @@ class GraphBuilder:
             )
 
         # Compute one shared layout and distribute positions to all graphs
-        self._assign_union_positions(graphs)
+        self._assign_union_positions(graphs, include_spring=include_spring,
+                                     shell_gap_3d=shell_gap_3d,
+                                     layer_gap_3d=layer_gap_3d)
         # Assign global union R-IDs so the same reaction carries the same label
         # in every panel regardless of per-mechanism sequential numbering.
         self._assign_global_reaction_labels(graphs)
         return graphs
 
-    def _assign_union_positions(self, graphs: List[nx.DiGraph]) -> None:
+    def _assign_union_positions(
+        self,
+        graphs: List[nx.DiGraph],
+        include_spring: bool = True,
+        shell_gap_3d: float = 2.0,
+        layer_gap_3d: float = 1.0,
+    ) -> None:
         """
         Build a compact true-union graph (one node per unique species / reaction,
         keyed by chemical identity), run ``spring_layout`` on it, and write
         ``pos_x`` / ``pos_y`` to *every* node in every per-mechanism graph.
+
+        ``include_spring=False`` skips the force-directed spring layout — by far
+        the dominant cost on large mechanisms (minutes for ~5000 union nodes) —
+        and reuses the carbon-ring coordinates for ``pos_x`` / ``pos_y``.  The
+        3D visualizer only consumes ``pos_*_3d``, so it passes False.
 
         Identity key:  inchi_key → "ik:<key>", else name → "nm:<name>"  (species)
                        canonical_key → "ck:<key>", else formula → "fs:<str>" (reaction)
@@ -327,8 +386,13 @@ class GraphBuilder:
             return f"ik:{ik}" if ik else f"nm:{data.get('name', '')}"
 
         def _rx_key(data: dict) -> str:
+            # M9 (review.md): include occurrence_index (stamped once per
+            # reaction node in build_graph, inherited by ghost copies) so
+            # CHEMKIN DUPLICATE rows sharing one canonical_key within a
+            # mechanism get distinct identities instead of colliding.
             ck = data.get("canonical_key")
-            return f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            base = f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            return f"{base}||occ:{data.get('occurrence_index', 0)}"
 
         def _node_key(data: dict) -> str:
             return _sp_key(data) if data.get("type") == "species" else _rx_key(data)
@@ -341,7 +405,8 @@ class GraphBuilder:
                     continue
                 k = _node_key(data)
                 if k not in union_G:
-                    union_G.add_node(k, node_type=data.get("type", "unknown"))
+                    union_G.add_node(k, node_type=data.get("type", "unknown"),
+                                     formula=data.get("formula"))
 
         for G in graphs:
             own_key = {
@@ -356,9 +421,16 @@ class GraphBuilder:
                     union_G.add_edge(sk, tk)
 
         # ── Spring layout on the union graph ─────────────────────────────────────
-        pos_spring = nx.spring_layout(
-            union_G, seed=42, k=2.0, iterations=150, scale=900
-        )
+        if include_spring:
+            # Force-directed layout cost grows ~O(n²·iter); above ~1500 union
+            # nodes drop to 50 iterations — positions converge enough for an
+            # overview and startup stays in tens of seconds, not minutes.
+            n_iter = 150 if union_G.number_of_nodes() <= 1500 else 50
+            pos_spring = nx.spring_layout(
+                union_G, seed=42, k=2.0, iterations=n_iter, scale=900
+            )
+        else:
+            pos_spring = {}
 
         # ── Circle layout: species first (alphabetical), then reactions ───────────
         sp_keys = sorted(
@@ -389,6 +461,14 @@ class GraphBuilder:
         # ── Carbon-ring layout (Phase 5C) ────────────────────────────────────────
         pos_cring = self._carbon_ring_positions(union_G)
 
+        # ── 3D stacked-disc layout (Phase 5C, flat rings by carbon number) ───────
+        # Both angular orderings are precomputed so the 3D visualizer can flip
+        # between them live without rebuilding the graph.
+        pos_3d = self._planetary_3d_positions(
+            union_G, shell_gap=shell_gap_3d, layer_gap=layer_gap_3d, order="alpha")
+        pos_3d_fam = self._planetary_3d_positions(
+            union_G, shell_gap=shell_gap_3d, layer_gap=layer_gap_3d, order="family")
+
         # ── Ghost importance: degree in union graph (higher = more connected) ─────
         ghost_imp = dict(union_G.degree())
 
@@ -398,10 +478,12 @@ class GraphBuilder:
         for G in graphs:
             for _, data in G.nodes(data=True):
                 k = _node_key(data)
-                xs, ys   = pos_spring.get(k, (0.0, 0.0))
+                xs, ys   = pos_spring.get(k, pos_cring.get(k, (0.0, 0.0)))
                 xc, yc   = pos_circle.get(k, (0.0, 0.0))
                 xb, yb   = pos_bipartite.get(k, (0.0, 0.0))
                 xr, yr   = pos_cring.get(k, (0.0, 0.0))
+                x3, y3, z3 = pos_3d.get(k, (0.0, 0.0, 0.0))
+                xf, yf, zf = pos_3d_fam.get(k, (0.0, 0.0, 0.0))
                 data["pos_x"]           = float(xs)
                 data["pos_y"]           = float(ys)
                 data["pos_x_circle"]    = float(xc)
@@ -410,6 +492,17 @@ class GraphBuilder:
                 data["pos_y_bipartite"] = float(yb)
                 data["pos_x_cring"]     = float(xr)
                 data["pos_y_cring"]     = float(yr)
+                data["pos_x_3d"]        = float(x3)
+                data["pos_y_3d"]        = float(y3)
+                data["pos_z_3d"]        = float(z3)
+                data["pos_x_3d_fam"]    = float(xf)
+                data["pos_y_3d_fam"]    = float(yf)
+                data["pos_z_3d_fam"]    = float(zf)
+                if data.get("type") == "species":
+                    name_part = k.split(":", 1)[-1] if ":" in k else k
+                    data["carbon_n"] = self._carbon_number(
+                        data.get("formula") or name_part
+                    )
                 data["ghost_importance"] = int(ghost_imp.get(k, 0))
 
     @staticmethod
@@ -458,9 +551,11 @@ class GraphBuilder:
         shell_map: Dict[str, int] = {}  # identity key → carbon number
 
         for k in sp_keys:
-            # Try to derive formula from node key
+            # Prefer the empirical formula stored on the union node (from the DB);
+            # fall back to the name portion of the identity key.
             name_part = k.split(":", 1)[-1] if ":" in k else k
-            cn = self._carbon_number(name_part)
+            formula = union_G.nodes[k].get("formula") or name_part
+            cn = self._carbon_number(formula)
             shell_map[k] = cn
 
         # Group keys by shell
@@ -494,6 +589,155 @@ class GraphBuilder:
 
         return pos
 
+    @staticmethod
+    def _fibonacci_sphere(n: int) -> List[Tuple[float, float, float]]:
+        """
+        Return *n* points uniformly distributed on the unit sphere using the
+        Fibonacci (golden-spiral) lattice.  Deterministic: same n → same points.
+        """
+        if n == 1:
+            return [(0.0, 0.0, 1.0)]
+        golden = math.pi * (3.0 - math.sqrt(5.0))   # golden angle [rad]
+        pts: List[Tuple[float, float, float]] = []
+        for i in range(n):
+            z = 1.0 - 2.0 * i / (n - 1)             # z ∈ [1, -1]
+            r_xy = math.sqrt(max(0.0, 1.0 - z * z))
+            theta = golden * i
+            pts.append((r_xy * math.cos(theta), r_xy * math.sin(theta), z))
+        return pts
+
+    _ELEMENT_RE = re.compile(r'([A-Z][a-z]?)(\d*)')
+
+    @classmethod
+    def _element_counts(cls, formula: str) -> Dict[str, int]:
+        """Parse an empirical formula into element counts ('C2H5OH' → C:2 H:6 O:1)."""
+        counts: Dict[str, int] = {}
+        for el, num in cls._ELEMENT_RE.findall(formula or ""):
+            counts[el] = counts.get(el, 0) + (int(num) if num else 1)
+        return counts
+
+    @classmethod
+    def _family_sort_key(cls, formula: str, name: str) -> tuple:
+        """
+        Angular ordering key that groups a ring into contiguous chemical-family
+        arcs: hydrocarbons/H-only species first, then oxygenates (by O count),
+        then N-containing species; each arc sub-sorted by H count then name.
+        """
+        els = cls._element_counts(formula)
+        n_O, n_N, n_H = els.get("O", 0), els.get("N", 0), els.get("H", 0)
+        bucket = 2 if n_N else (1 if n_O else 0)
+        return (bucket, n_O, n_N, n_H, name)
+
+    def _planetary_3d_positions(
+        self,
+        union_G: nx.DiGraph,
+        delta_r: float = 300.0,
+        shell_gap: float = 2.0,
+        layer_gap: float = 1.0,
+        order: str = "alpha",
+    ) -> Dict[str, Tuple[float, float, float]]:
+        """
+        Compute 3D "stacked-disc" (x, y, z) positions for all nodes in *union_G*.
+
+        Each carbon shell Cn is a flat ring — concentric circles seen from the
+        top, vertically separated layers seen from the side.  The earlier
+        nested-sphere layout always projected as one filled ball (points on a
+        sphere cover its entire disc on screen, burying the inner shells no
+        matter how large the radial gaps); flat rings in separate z-planes
+        keep every orbit visible from any camera angle.
+
+        Species are spaced uniformly around their ring; *order* controls the
+        angular ordering:
+
+        - ``"alpha"``  — alphabetical by identity key (stable, arbitrary)
+        - ``"family"`` — contiguous chemical-family arcs
+          (see :meth:`_family_sort_key`)
+
+        Reaction nodes sit at the centroid of their adjacent species.  A
+        centroid that collapses toward the vertical axis is pushed outward
+        radially; a reaction whose neighbours all lie on a single ring is
+        lifted by 0.4 layer heights so it does not clutter the species ring.
+
+        Parameters
+        ----------
+        delta_r : float
+            Base radial unit; the C0 core ring has radius ``0.5 * delta_r``.
+        shell_gap : float
+            Ring-radius spacing multiplier: the Cn (n ≥ 1) ring radius is
+            ``delta_r * (0.5 + shell_gap*n)``.  Plotly auto-fits the scene,
+            so only this *ratio* controls how spread-out the rings look.
+        layer_gap : float
+            Vertical spacing between consecutive shells in units of *delta_r*:
+            the Cn ring sits at ``z = layer_gap * delta_r * n``.
+        order : str
+            ``"alpha"`` or ``"family"`` — angular ordering within each ring.
+        """
+        pos: Dict[str, Tuple[float, float, float]] = {}
+
+        sp_keys = [k for k in union_G.nodes()
+                   if union_G.nodes[k].get("node_type") == "species"]
+        rx_keys = [k for k in union_G.nodes()
+                   if union_G.nodes[k].get("node_type") != "species"]
+
+        # Group species by carbon shell (formula preferred, name fallback)
+        shells: Dict[int, List[str]] = {}
+        for k in sp_keys:
+            name_part = k.split(":", 1)[-1] if ":" in k else k
+            formula = union_G.nodes[k].get("formula") or name_part
+            shells.setdefault(self._carbon_number(formula), []).append(k)
+
+        # Ring radius: C0 innermost ring (not a point — C0 species are many),
+        # then radius grows linearly with carbon number, spaced by shell_gap.
+        def _radius(cn: int) -> float:
+            return delta_r * (0.5 if cn == 0 else 0.5 + shell_gap * cn)
+
+        dz = layer_gap * delta_r
+
+        def _order_key(k: str):
+            if order == "family":
+                name_part = k.split(":", 1)[-1] if ":" in k else k
+                formula = union_G.nodes[k].get("formula") or name_part
+                return self._family_sort_key(formula, k)
+            return k
+
+        for cn, keys in shells.items():
+            r = _radius(cn)
+            z = dz * cn
+            sorted_keys = sorted(keys, key=_order_key)
+            n = len(sorted_keys)
+            for i, k in enumerate(sorted_keys):
+                theta = 2.0 * math.pi * i / n
+                pos[k] = (r * math.cos(theta), r * math.sin(theta), z)
+
+        # Reactions at centroid of adjacent species
+        for rx_k in rx_keys:
+            nbrs = list(union_G.predecessors(rx_k)) + list(union_G.successors(rx_k))
+            sp_pos = [pos[nb] for nb in nbrs if nb in pos]
+            if not sp_pos:
+                pos[rx_k] = (0.0, 0.0, 0.0)
+                continue
+            cx = sum(p[0] for p in sp_pos) / len(sp_pos)
+            cy = sum(p[1] for p in sp_pos) / len(sp_pos)
+            cz = sum(p[2] for p in sp_pos) / len(sp_pos)
+            norm_xy = math.hypot(cx, cy)
+            mean_rxy = sum(math.hypot(p[0], p[1]) for p in sp_pos) / len(sp_pos)
+            if norm_xy < 0.25 * mean_rxy and mean_rxy > 0:
+                # Centroid collapsed toward the vertical axis (neighbours
+                # spread around the ring) — push outward radially, or along
+                # +x if the direction itself is degenerate.
+                if norm_xy > 1e-9:
+                    scale = (0.5 * mean_rxy) / norm_xy
+                    cx, cy = cx * scale, cy * scale
+                else:
+                    cx, cy = 0.5 * mean_rxy, 0.0
+            # All neighbours on one ring → lift off that ring's plane so the
+            # reaction diamonds hover between layers instead of on top of them.
+            if len({round(p[2], 6) for p in sp_pos}) == 1:
+                cz += 0.4 * dz
+            pos[rx_k] = (cx, cy, cz)
+
+        return pos
+
     def _assign_global_reaction_labels(self, graphs: List[nx.DiGraph]) -> None:
         """
         Overwrite ``reaction_label`` on every reaction node (own and ghost) in
@@ -506,8 +750,13 @@ class GraphBuilder:
         mechanism.
         """
         def _rx_key(data: dict) -> str:
+            # M9 (review.md): include occurrence_index (stamped once per
+            # reaction node in build_graph, inherited by ghost copies) so
+            # CHEMKIN DUPLICATE rows sharing one canonical_key within a
+            # mechanism get distinct identities instead of colliding.
             ck = data.get("canonical_key")
-            return f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            base = f"ck:{ck}" if ck else f"cf:{_canon_formula(data.get('formula_string', ''))}"
+            return f"{base}||occ:{data.get('occurrence_index', 0)}"
 
         # First-appearance order: own reactions from each graph in insertion order
         seen: set = set()

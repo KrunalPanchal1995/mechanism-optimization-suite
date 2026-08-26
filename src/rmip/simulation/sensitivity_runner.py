@@ -152,7 +152,7 @@ class CanteraSensitivityRunner:
         # ── Collect sensitivity coefficients ──
         coefficients: Dict[str, float] = {}
         for i, rxn in enumerate(gas.reactions()):
-            s = sim.sensitivity(r.T, i)
+            s = sim.sensitivity('temperature', i)
             if math.isfinite(s):
                 coefficients[rxn.equation] = s
 

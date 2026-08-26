@@ -16,16 +16,18 @@ Outputs (in ./mso_output/ by default):
 
 import os
 import sys
-import subprocess
 from pathlib import Path
 
+import yaml
+
 # ── Local imports ──────────────────────────────────────────────────────────────
-from io.mso_io       import (parse_yaml_metadata, parse_error_csvs_from_folder,
+from mso_io.mso_io       import (parse_yaml_metadata, parse_error_csvs_from_folder,
                            parse_cost_csv, parse_prs_stats_csv,
                            parse_sensitivity_csv, parse_convergence_csv)
-from io.mso_analysis import run_full_analysis
-from io.mso_plots    import generate_all_plots
-from io.mso_latex    import generate_latex_document
+from mso_io.mso_analysis import run_full_analysis
+from mso_io.mso_plots    import generate_all_plots
+from mso_io.mso_latex    import generate_latex_document
+from mso_io.latex_engine import compile_latex as _compile_latex_engine
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -167,20 +169,19 @@ def interactive_session():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def compile_latex(tex_path: Path, out_dir: Path):
-    """Run pdflatex twice for cross-references."""
-    try:
-        for _ in range(2):
-            r = subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode',
-                 '-output-directory', str(out_dir), str(tex_path)],
-                capture_output=True, text=True
-            )
-        if r.returncode == 0:
-            print(f"  ✓ PDF compiled: {tex_path.with_suffix('.pdf')}")
-        else:
-            print("  ✗ LaTeX compilation errors — inspect the .log file.")
-    except FileNotFoundError:
-        print("  ✗ pdflatex not found; .tex file saved but not compiled.")
+    """Compile via the shared tectonic/latexmk/pdflatex ladder
+    (mso_io.latex_engine) -- this used to hard-require pdflatex and silently
+    produce no PDF on a tectonic-only machine (this one, as of 2026-08)."""
+    pdf, engine, log_tail = _compile_latex_engine(tex_path, out_dir)
+    if pdf:
+        print(f"  ✓ PDF compiled ({engine}): {pdf}")
+    elif engine == "none":
+        print("  ✗ No LaTeX engine found on PATH (tried tectonic/latexmk/pdflatex); "
+              ".tex file saved but not compiled.")
+    else:
+        print(f"  ✗ LaTeX compilation errors ({engine}) — inspect the .log file.")
+        if log_tail:
+            print(log_tail[-1000:])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -188,7 +189,15 @@ def compile_latex(tex_path: Path, out_dir: Path):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    cfg = interactive_session()
+    # Non-interactive path for programmatic callers (mso_studio.core.mso_report):
+    # `run_report.py --config cfg.yaml` loads the same cfg dict
+    # interactive_session() would have built, from a YAML file, and skips
+    # every input() prompt. Interactive usage (`run_report.py` with no args)
+    # is unchanged.
+    if len(sys.argv) >= 3 and sys.argv[1] == '--config':
+        cfg = yaml.safe_load(Path(sys.argv[2]).read_text())
+    else:
+        cfg = interactive_session()
 
     # Create output structure
     out   = Path(cfg['output_dir'])

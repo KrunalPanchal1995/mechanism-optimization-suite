@@ -950,6 +950,98 @@ class TestCanteraYAMLWriter:
         with pytest.raises(ValueError, match="not found"):
             writer.write(9999, str(tmp_path / "x.yaml"))
 
+    def test_nasa7_data_blocks_low_temperature_first(self, tmp_path):
+        """M8 (review.md): the two NASA7 `data:` blocks are positionally
+        paired with `temperature-ranges: [Tmin, Tmid, Tmax]` -- the first
+        block must be the LOW-temperature (Tmin-Tmid) polynomial and the
+        second the HIGH-temperature (Tmid-Tmax) one. These were swapped,
+        which is what produced the "discontinuity in cp/R/h/RT/s/R at
+        Tmid" warnings seen throughout this writer's Cantera round-trip
+        validation for every multi-range species it ever exported --
+        confirmed by round-tripping real, physically continuous N2
+        coefficients (from this repo's own FFCM1.yaml) and checking no
+        such warning fires."""
+        ct = pytest.importorskip("cantera")
+        import warnings
+
+        db_path = str(tmp_path / "n2.db")
+        conn = _make_db(db_path)
+        m1 = _insert_mech(conn, "N2Mech")
+        # Real GRI/FFCM1-style N2 NASA-7 coefficients (continuous at Tmid).
+        low  = [3.53100528, -1.23660988e-04, -5.02999433e-07,
+                2.43530612e-09, -1.40881235e-12, -1046.97628, 2.96747038]
+        high = [2.95257637, 1.3969004e-03, -4.92631603e-07,
+                7.86010195e-11, -4.60755204e-15, -923.948688, 5.87188762]
+        _insert_species(conn, m1, "N2", inchi_key="IK_N2", formula="N2",
+                        tmin=200.0, tmid=1000.0, tmax=6000.0,
+                        coeffs_low=low, coeffs_high=high)
+        # "N" also needs continuous low/high coefficients (not this file's
+        # default fake discontinuous ones) or its own genuinely-discontinuous
+        # test data would mask whether N2's block order is actually correct.
+        _insert_species(conn, m1, "N", inchi_key="IK_N", formula="N",
+                        tmin=200.0, tmid=1000.0, tmax=6000.0,
+                        coeffs_low=low, coeffs_high=high)
+        r1 = _insert_reaction(conn, m1, "N2 <=> 2 N", canonical_key="R1")
+        conn.commit()
+
+        from rmip.io.cantera_writer import CanteraYAMLWriter
+        writer = CanteraYAMLWriter(db_path)
+        yaml_path = str(tmp_path / "n2.yaml")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            writer.write(m1, yaml_path)
+            discontinuities = [w for w in caught if "discontinuity" in str(w.message)]
+        assert discontinuities == []
+
+        # Also verify the raw YAML text: the first data row must start with
+        # the low-T leading coefficient (3.531...), not the high-T one.
+        text = Path(yaml_path).read_text()
+        data_idx = text.index("- name: N2")
+        data_block = text[data_idx:data_idx + 400]
+        first_row_start = data_block.index("data:") + len("data:")
+        assert "3.531" in data_block[first_row_start:first_row_start + 60]
+
+    def test_two_letter_element_case_round_trips_through_cantera(self, tmp_path):
+        """M6 (review.md): `el.upper()` turned "Ar" into "AR" in the
+        `elements:` declaration while `composition:` (built from the same
+        regex with no case transform) kept "Ar" -- Cantera's element lookup
+        is case-sensitive, so any mechanism with a 2-letter element (Ar, He,
+        Cl) failed to load with "element not found: AR" (confirmed
+        empirically against GRI-wetCO). Round-trips an Ar-containing
+        mechanism through ct.Solution() to catch this class of bug for
+        real, not just by inspecting the YAML text."""
+        ct = pytest.importorskip("cantera")
+
+        db_path = str(tmp_path / "ar.db")
+        conn = _make_db(db_path)
+        m1 = _insert_mech(conn, "ArMech")
+        s_ar = _insert_species(conn, m1, "AR", inchi_key="IK_AR", formula="Ar")
+        s_h2 = _insert_species(conn, m1, "H2", inchi_key="IK_H2", formula="H2")
+        s_h  = _insert_species(conn, m1, "H",  inchi_key="IK_H",  formula="H")
+        # Ar only needs to appear in the SPECIES/composition block to
+        # exercise the elements-case bug -- keep the reaction itself
+        # unrelated to avoid any separate third-body-pattern reconstruction.
+        # Cantera's YAML equation parser requires whitespace around the
+        # arrow and stoich coefficients (unlike CHEMKIN's free-form
+        # tokenizer) -- "H2 <=> 2 H", not "H2<=>2H".
+        r1 = _insert_reaction(conn, m1, "H2 <=> 2 H", canonical_key="R1")
+        _add_stoich(conn, r1, s_h2, 1.0, "reactant")
+        _add_stoich(conn, r1, s_h,  2.0, "product")
+        conn.commit()
+
+        from rmip.io.cantera_writer import CanteraYAMLWriter
+        writer = CanteraYAMLWriter(db_path)
+        yaml_path = str(tmp_path / "ar.yaml")
+        writer.write(m1, yaml_path)
+
+        text = Path(yaml_path).read_text()
+        elements_line = next(l for l in text.splitlines() if l.strip().startswith("elements:"))
+        assert "Ar" in elements_line
+        assert "AR" not in elements_line
+
+        gas = ct.Solution(yaml_path)  # must not raise "element not found"
+        assert "AR" in gas.species_names or "Ar" in [s for s in gas.species_names]
+
 
 # ===========================================================================
 # 8. MissingSpeciesPredictor
@@ -1096,6 +1188,33 @@ class TestCLIPhase4:
             "--out", str(tmp_path / "seed"),
         ])
         assert rc == 0
+
+    def test_fuse_cli(self, tmp_path):
+        """rmip fuse runs end-to-end (B5 regression: fusion_result.n_species
+        doesn't exist on FusionResult -- real fields are
+        n_species_universal/partial/unique -- so this crashed with
+        AttributeError AFTER committing the fused mechanism but BEFORE
+        writing union_spec.json/mso_bounds.json on every invocation)."""
+        db_path, m1, m2 = _make_two_mech_db(tmp_path)
+        from rmip.cli import main
+        out_dir = str(tmp_path / "fusion_out")
+        rc = main([
+            "fuse",
+            "--db", db_path,
+            "--mechanisms", str(m1), str(m2),
+            "--name", "test_fused",
+            "--out", out_dir,
+        ])
+        assert rc == 0
+        assert (Path(out_dir) / "union_spec.json").exists()
+        assert (Path(out_dir) / "mso_bounds.json").exists()
+
+        conn = sqlite3.connect(db_path)
+        row = conn.execute(
+            "SELECT id FROM mechanisms WHERE format='fused'"
+        ).fetchone()
+        conn.close()
+        assert row is not None
 
     def test_export_yaml_cli(self, tmp_path):
         """rmip export --format yaml writes a YAML file."""

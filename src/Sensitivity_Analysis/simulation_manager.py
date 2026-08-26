@@ -104,7 +104,10 @@ def run_sampling_direct(sample,rxn,data,generator,length):
 class Worker():
 	def __init__(self, workers):
 		self.pool = multiprocessing.Pool(processes=workers)
-		self.pool1 = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
+		# See simulation_manager2_0.py's byte-identical Worker.__init__ for why
+		# `self.pool1` was removed: a second, completely unused
+		# ProcessPoolExecutor, never referenced again and never shut down --
+		# every Worker(...) instantiation leaked `workers` more OS processes.
 		self.progress = []
 		self.parallized_zeta = []
 		self.parallel_zeta_dict = {}

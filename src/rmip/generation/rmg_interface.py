@@ -265,12 +265,14 @@ class RMGInterface:
 
         log.info("Launching RMG: %s", " ".join(cmd))
         try:
+            from rmip.simulation.subprocess_util import rmg_subprocess_env
             proc = subprocess.run(
                 cmd,
                 cwd=str(out_dir),
                 capture_output=True,
                 text=True,
                 timeout=timeout_s,
+                env=rmg_subprocess_env(python_exe),
             )
         except FileNotFoundError:
             raise RuntimeError(
@@ -317,11 +319,12 @@ class RMGInterface:
         int: mechanism_id of the loaded RMG mechanism
         """
         from rmip.core.parser import MechanismParser
+        from rmip.config import RMIPConfig
 
         log.info("Loading RMG output: %s", chemkin_path)
-        parser = MechanismParser(self._db_path)
-        mech_id = parser.parse_and_store(
-            mechanism_path=chemkin_path,
+        parser = MechanismParser(RMIPConfig(db_path=self._db_path))
+        mech_id = parser.parse(
+            mech_path=chemkin_path,
             thermo_path=thermo_path,
             glossary_path=smiles_csv,
             name=db_name,

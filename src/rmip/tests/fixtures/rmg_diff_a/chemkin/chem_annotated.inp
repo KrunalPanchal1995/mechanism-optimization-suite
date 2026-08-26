@@ -1,0 +1,20 @@
+! RMG run A (fixture, "version A") — W7d reproducibility-diff tests.
+ELEMENTS
+    H O Ar
+END
+
+SPECIES
+    H2(1)
+    O2(2)
+    OH(3)
+    H2O(4)
+    HO2(5)
+    H(6)
+    AR
+END
+
+REACTIONS    KCAL/MOLE
+H2(1)+O2(2)=OH(3)+OH(3)          1.000e+13 0.000 48.000
+OH(3)+H2(1)=H2O(4)+H(6)          2.000e+13 0.000 5.000
+H(6)+O2(2)+M=HO2(5)+M            1.000e+17 -0.800 0.000
+END

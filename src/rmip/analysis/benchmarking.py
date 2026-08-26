@@ -405,20 +405,24 @@ class MechanismBenchmarker:
         import pandas as pd
 
         exp_vals = [p["value"] for p in exp_points]
-        regimes  = [
-            Regime.LTC if (p["T_K"] or 1500) < 850 else
-            (Regime.NTC if (p["T_K"] or 1500) < 1000 else Regime.HTC)
-            for p in exp_points
-        ] if sim_type == "IDT" else [Regime.ALL] * len(exp_points)
 
         all_score_rows = []
+        all_regimes_seen: List[Regime] = []
         conn = self._connect()
         try:
             for mid in mechanism_ids:
                 sim_vals = all_sim_results.get(mid, [])
 
-                for regime in ([Regime.LTC, Regime.NTC, Regime.HTC, Regime.ALL]
-                               if sim_type == "IDT" else [Regime.ALL]):
+                # Prefer the mechanism's own detected NTC onset (Future.md pt. 7:
+                # HTT/LTT replaces the fixed LTC/NTC/HTC thresholds) when available;
+                # fall back to the fixed 850/1000 K split otherwise. Each mechanism
+                # can have its own onset, so regimes are computed per-mechanism.
+                regimes, regime_set = self._regimes_for_mechanism(
+                    conn, mid, exp_points, sim_type
+                )
+                all_regimes_seen.extend(regimes)
+
+                for regime in regime_set:
                     if regime == Regime.ALL:
                         idx = list(range(len(exp_vals)))
                     else:
@@ -446,13 +450,61 @@ class MechanismBenchmarker:
                         "log_rmse":     log_rmse,
                     })
 
-            # Compute ranks within each regime
-            self._update_ranks(conn, dataset_id, mechanism_ids, regimes, sim_type)
+            # Compute ranks within each regime (union across all mechanisms,
+            # since HTT/LTT-detected mechanisms and fixed-threshold mechanisms
+            # may contribute different regime labels to the same dataset).
+            self._update_ranks(conn, dataset_id, mechanism_ids, all_regimes_seen, sim_type)
             conn.commit()
         finally:
             conn.close()
 
         return pd.DataFrame(all_score_rows)
+
+    def _regimes_for_mechanism(
+        self,
+        conn:       sqlite3.Connection,
+        mechanism_id: int,
+        exp_points: List[Dict],
+        sim_type:   str,
+    ) -> Tuple[List[Regime], List[Regime]]:
+        """
+        Classify each exp point into a regime for one mechanism.
+
+        Returns (per_point_regimes, regime_buckets_to_score). Prefers the
+        mechanism's own detected NTC onset (``ntc_runs``, Future.md pt. 7 —
+        HTT/LTT) over the fixed 850/1000 K LTC/NTC/HTC thresholds; falls back
+        to the fixed thresholds when no NTC run has been stored.
+        """
+        if sim_type != "IDT":
+            return [Regime.ALL] * len(exp_points), [Regime.ALL]
+
+        onset = self._ntc_onset_for_mechanism(conn, mechanism_id)
+        if onset is not None:
+            regimes = [
+                Regime.HTT if (p["T_K"] or 0.0) > onset else Regime.LTT
+                for p in exp_points
+            ]
+            return regimes, [Regime.HTT, Regime.LTT, Regime.ALL]
+
+        regimes = [
+            Regime.LTC if (p["T_K"] or 1500) < 850 else
+            (Regime.NTC if (p["T_K"] or 1500) < 1000 else Regime.HTC)
+            for p in exp_points
+        ]
+        return regimes, [Regime.LTC, Regime.NTC, Regime.HTC, Regime.ALL]
+
+    @staticmethod
+    def _ntc_onset_for_mechanism(
+        conn:         sqlite3.Connection,
+        mechanism_id: int,
+    ) -> Optional[float]:
+        """Return the most recent T_NTC_onset for a mechanism, or None."""
+        try:
+            from rmip.database.schema_phase6 import get_latest_ntc_run
+            run = get_latest_ntc_run(conn, mechanism_id)
+        except sqlite3.OperationalError:
+            return None   # ntc_runs table not migrated into this DB yet
+        return run["T_NTC_onset"] if run and run.get("T_NTC_onset") is not None else None
 
     @staticmethod
     def _error_metrics(

@@ -11,9 +11,11 @@ What it does
 4. Produces a ranked DataFrame and a RankingReport.
 
 Regime definitions (IDT only — LFS is treated as regime ALL):
-  LTC : T_K < 850
-  NTC : 850 ≤ T_K < 1000
-  HTC : T_K ≥ 1000
+  LTC : T_K < 850                (fixed-threshold fallback)
+  NTC : 850 ≤ T_K < 1000         (fixed-threshold fallback)
+  HTC : T_K ≥ 1000               (fixed-threshold fallback)
+  HTT : T_K > T_NTC_onset        (Future.md pt. 7 — used instead of LTC/NTC/HTC
+  LTT : T_K < T_NTC_onset          whenever the mechanism has a stored NTC run)
 
 MRE formula (per regime)
 -------------------------
@@ -67,6 +69,10 @@ REGIME_DEFINITIONS: Dict[str, Tuple[float, float]] = {
     "ALL": (0.0,    1e9),
 }
 
+# All regime labels that can appear in a RankingReport (fixed-threshold set
+# plus the detected-onset HTT/LTT set — at most one set is used per mechanism).
+_ALL_REGIME_LABELS: Tuple[str, ...] = ("LTC", "NTC", "HTC", "HTT", "LTT", "ALL")
+
 
 def _classify_regime(T_K: float) -> str:
     if T_K < 850.0:
@@ -75,6 +81,35 @@ def _classify_regime(T_K: float) -> str:
         return "NTC"
     else:
         return "HTC"
+
+
+def _ntc_onset_for_mechanism(conn: sqlite3.Connection, mechanism_id: int) -> Optional[float]:
+    """Return the most recent T_NTC_onset for a mechanism, or None (Future.md pt. 7)."""
+    try:
+        from rmip.database.schema_phase6 import get_latest_ntc_run
+        run = get_latest_ntc_run(conn, mechanism_id)
+    except sqlite3.OperationalError:
+        return None   # ntc_runs table not migrated into this DB yet
+    return run["T_NTC_onset"] if run and run.get("T_NTC_onset") is not None else None
+
+
+def _regimes_and_bounds_for_mechanism(
+    conn: sqlite3.Connection, mechanism_id: int, sim_type: str,
+) -> Tuple[List[str], Dict[str, Tuple[float, float]]]:
+    """
+    Return (regime_labels, bounds) for one mechanism. Prefers the detected
+    NTC onset (HTT/LTT) over the fixed LTC/NTC/HTC thresholds when a
+    ``ntc_runs`` row exists for this mechanism.
+    """
+    if sim_type != "IDT":
+        return ["ALL"], {"ALL": (0.0, 1e9)}
+
+    onset = _ntc_onset_for_mechanism(conn, mechanism_id)
+    if onset is not None:
+        bounds = {"HTT": (onset, 1e9), "LTT": (0.0, onset), "ALL": (0.0, 1e9)}
+        return ["HTT", "LTT", "ALL"], bounds
+
+    return ["LTC", "NTC", "HTC", "ALL"], dict(REGIME_DEFINITIONS)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,9 +156,12 @@ class RankingReport:
     # ── Convenience accessors ─────────────────────────────────────────────
 
     def best_per_regime(self) -> Dict[str, Optional[RegimeScore]]:
-        """Return the rank-1 mechanism for each regime."""
+        """Return the rank-1 mechanism for each regime actually present in this report."""
         out: Dict[str, Optional[RegimeScore]] = {}
-        for regime in ("LTC", "NTC", "HTC", "ALL"):
+        regimes_present = {s.regime for s in self.scores}
+        for regime in _ALL_REGIME_LABELS:
+            if regime not in regimes_present:
+                continue
             regime_scores = [s for s in self.scores if s.regime == regime and s.rank is not None]
             out[regime] = min(regime_scores, key=lambda s: s.rank) if regime_scores else None
         return out
@@ -143,7 +181,7 @@ class RankingReport:
             f"  Mechanisms: {self.mechanism_ids}",
             "",
         ]
-        for regime in ("LTC", "NTC", "HTC", "ALL"):
+        for regime in _ALL_REGIME_LABELS:
             regime_scores = self.scores_for_regime(regime)
             if not regime_scores:
                 continue
@@ -249,23 +287,29 @@ class PerformanceRanker:
         )
 
         all_scores: List[RegimeScore] = []
-        regimes = ["LTC", "NTC", "HTC", "ALL"] if sim_type == "IDT" else ["ALL"]
 
-        for mid in mechanism_ids:
-            sim_rows = sim_rows_by_mech.get(mid, [])
-            if not sim_rows:
-                log.warning("No simulation_runs found for mechanism_id=%d sim_type=%s", mid, sim_type)
+        with sqlite3.connect(self._db_path) as conn2:
+            conn2.row_factory = sqlite3.Row
+            for mid in mechanism_ids:
+                sim_rows = sim_rows_by_mech.get(mid, [])
+                if not sim_rows:
+                    log.warning("No simulation_runs found for mechanism_id=%d sim_type=%s", mid, sim_type)
 
-            for regime in regimes:
-                score = self._compute_score(
-                    mechanism_id=mid,
-                    mechanism_name=mech_names.get(mid, f"mech_{mid}"),
-                    regime=regime,
-                    sim_type=sim_type,
-                    sim_rows=sim_rows,
-                    exp_points=exp_points,
-                )
-                all_scores.append(score)
+                # Prefer this mechanism's detected NTC onset (HTT/LTT) over the
+                # fixed LTC/NTC/HTC thresholds — Future.md pt. 7.
+                regimes, bounds = _regimes_and_bounds_for_mechanism(conn2, mid, sim_type)
+
+                for regime in regimes:
+                    score = self._compute_score(
+                        mechanism_id=mid,
+                        mechanism_name=mech_names.get(mid, f"mech_{mid}"),
+                        regime=regime,
+                        sim_type=sim_type,
+                        sim_rows=sim_rows,
+                        exp_points=exp_points,
+                        bounds=bounds[regime],
+                    )
+                    all_scores.append(score)
 
         # Rank within each regime (lower MRE = better)
         self._assign_ranks(all_scores)
@@ -306,9 +350,10 @@ class PerformanceRanker:
         sim_type:       str,
         sim_rows:       List[dict],
         exp_points:     List[dict],
+        bounds:         Optional[Tuple[float, float]] = None,
     ) -> RegimeScore:
         """Match sim rows to exp points and compute MRE/RMSE for one regime."""
-        T_lo, T_hi = REGIME_DEFINITIONS[regime]
+        T_lo, T_hi = bounds if bounds is not None else REGIME_DEFINITIONS[regime]
         # Filter sim rows to this regime
         sim_in_regime = [
             r for r in sim_rows

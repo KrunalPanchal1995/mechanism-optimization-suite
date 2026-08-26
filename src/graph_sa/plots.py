@@ -251,3 +251,140 @@ def render_full_highlighted(
     fig.savefig(out_png, dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return out_png
+
+
+# =============================================================================
+# postprocess() -- "process the results" flag entry point
+# =============================================================================
+# Same shared CLI contract as src/MUQ-SAC/VisualAid.py's postprocess() (see
+# that file's docstring for the full rationale) via
+# mso_io.postprocess_base. graph_sa_run.py already persists everything this
+# needs: ``graph_sa.db`` (the RMIP-format SQLite mechanism graph),
+# ``sensitive_reactions.csv`` / ``sensitive_species.csv`` (the matched-score
+# tables), and the two PNGs render_subgraph/render_full_highlighted already
+# produced. postprocess() relocates the CSVs (always tracked) and, when the
+# DB is present, re-derives ``matched`` from the CSV + re-matches it against
+# the DB via the same ``graph_sa.sa_bridge`` functions graph_sa_run.py itself
+# calls, then re-renders both figures -- no reimplementation of the
+# formula-matching or graph-building logic.
+
+import os as _os  # noqa: E402
+import sys as _sys  # noqa: E402
+import sqlite3 as _sqlite3  # noqa: E402
+import pandas as _pd  # noqa: E402
+
+_this_dir_pp = _os.path.dirname(_os.path.abspath(__file__))
+_src_dir_pp = _os.path.normpath(_os.path.join(_this_dir_pp, ".."))
+if _src_dir_pp not in _sys.path:
+    _sys.path.append(_src_dir_pp)
+try:
+    from mso_io.postprocess_base import (  # noqa: E402
+        PostProcessResult, add_postprocess_args, default_out_dir, discover,
+        formats_from_args, write_manifest, write_table,
+    )
+except ImportError:  # pragma: no cover
+    PostProcessResult = None
+
+_GRAPH_SA_PATTERNS = {
+    "db": "**/graph_sa.db",
+    "reactions_csv": "**/sensitive_reactions.csv",
+    "species_csv": "**/sensitive_species.csv",
+}
+
+
+def postprocess(run_dir, out_dir=None, journal=False, csv_only=False,
+                 formats=("png",), intermediate=False):
+    """Regenerate graph-SA plots/tables from an existing (or still-running)
+    ``graph_sa_run.py`` run directory. Never raises on missing files.
+    Returns a :class:`mso_io.postprocess_base.PostProcessResult`."""
+    if PostProcessResult is None:
+        raise ImportError("mso_io.postprocess_base not importable -- is src/ on sys.path?")
+
+    run_dir = _os.path.abspath(run_dir)
+    out_dir = str(default_out_dir(run_dir, out_dir))
+    found = discover(run_dir, _GRAPH_SA_PATTERNS)
+    result = PostProcessResult(run_dir=run_dir, out_dir=out_dir, partial=bool(intermediate))
+    figures_dir = _os.path.join(out_dir, "figures")
+    tables_dir = _os.path.join(out_dir, "tables")
+
+    rxn_df = None
+    for key, label in (("reactions_csv", "sensitive_reactions"), ("species_csv", "sensitive_species")):
+        for src_path in found[key]:
+            df = _pd.read_csv(src_path)
+            result.tables.append(write_table(df, label, tables_dir))
+            if key == "reactions_csv":
+                rxn_df = df
+
+    if found["db"] and rxn_df is not None and not csv_only:
+        try:
+            from graph_sa.sa_bridge import build_sensitive_subgraph, match_scores_to_db
+            from rmip.core.graph_builder import GraphBuilder
+
+            db_path = str(found["db"][0])
+            conn = _sqlite3.connect(db_path)
+            conn.row_factory = _sqlite3.Row
+            mech_row = conn.execute("SELECT id, name FROM mechanisms LIMIT 1").fetchone()
+            if mech_row is None:
+                raise ValueError("graph_sa.db has no mechanisms row")
+            mech_id = mech_row["id"]
+
+            score_col = "score_norm" if "score_norm" in rxn_df.columns else "score"
+            formula_col = "formula" if "formula" in rxn_df.columns else rxn_df.columns[1]
+            scores = dict(zip(rxn_df[formula_col].astype(str), rxn_df[score_col].astype(float)))
+            matched, _unmatched = match_scores_to_db(conn, mech_id, scores)
+
+            gb = GraphBuilder(db_path)
+            G = gb.build_graph(mech_id)
+            subG = build_sensitive_subgraph(G, matched)
+
+            sub_png = _os.path.join(figures_dir, "sensitive_subgraph.png")
+            _os.makedirs(figures_dir, exist_ok=True)
+            render_subgraph(subG, sub_png, title=f"{mech_row['name']} — sensitive reactions & species")
+            result.figures.append(sub_png)
+
+            full_png = _os.path.join(figures_dir, "full_graph_sensitive.png")
+            render_full_highlighted(G, full_png, title=f"{mech_row['name']} — full mechanism")
+            result.figures.append(full_png)
+        except Exception as exc:
+            result.skipped.append(f"figure regeneration: {type(exc).__name__}: {exc}")
+    elif not found["db"]:
+        result.skipped.append(
+            f"figure regeneration: no graph_sa.db found under {run_dir}"
+            + (" (graph build not yet complete)" if intermediate else ""))
+    elif rxn_df is None:
+        result.skipped.append(f"figure regeneration: no sensitive_reactions.csv found under {run_dir}")
+
+    if journal and rxn_df is not None:
+        journal_dir = _os.path.join(out_dir, "journal_data")
+        result.journal_tables.append(
+            write_table(rxn_df.sort_values(rxn_df.columns[-1], ascending=False)
+                        if len(rxn_df) else rxn_df, "journal_sensitive_reactions", journal_dir))
+
+    write_manifest(result, out_dir)
+    return result
+
+
+def _main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="graph_sa plots: static renderers for the sensitivity "
+                     "graph analysis, plus --postprocess to regenerate "
+                     "plots/tables from an existing graph_sa_run.py run directory.")
+    add_postprocess_args(parser)
+    args = parser.parse_args()
+    if not args.postprocess:
+        parser.error("nothing to do -- pass --postprocess RUN_DIR")
+    result = postprocess(
+        args.postprocess, out_dir=args.out, journal=args.journal,
+        csv_only=args.csv_only, formats=formats_from_args(args),
+        intermediate=args.intermediate,
+    )
+    print(f"[graph_sa.plots.postprocess] {len(result.figures)} figure(s), "
+          f"{len(result.tables)} table(s), {len(result.journal_tables)} journal table(s) "
+          f"-> {result.out_dir}")
+    for note in result.skipped:
+        print(f"  skipped: {note}")
+
+
+if __name__ == "__main__":
+    _main()

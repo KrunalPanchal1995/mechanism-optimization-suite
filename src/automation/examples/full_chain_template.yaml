@@ -1,0 +1,119 @@
+# ===========================================================================
+# FULL-CHAIN TEMPLATE — edit params -> factorial optimization -> per-case
+# mechanism comparison -> LaTeX reports, across all three fuels.
+#
+# This is a TEMPLATE: change the sweep values, thread counts and terminal
+# counts to your actual study before launching. Then:
+#
+#   python3.9 _automation/run_tasks.py my_study.yaml --validate   # check first!
+#   python3.9 _automation/run_tasks.py my_study.yaml --daemon     # run for days
+#   python3.9 _automation/run_tasks.py my_study.yaml --status     # check progress
+#
+# RULES THE RUNNER ENFORCES (it refuses to start otherwise):
+#   * every optimize/compare task states BOTH max_terminals AND parallel_threads
+#   * max_terminals x parallel_threads <= system_thread_cap per task
+#   * every edited key must already exist in the file it edits (typo guard)
+# At dispatch time the runner also defers launches that would push the LIVE
+# total committed threads (across all tasks in this file) over the cap.
+# ===========================================================================
+
+version: 1
+
+settings:
+  system_thread_cap: 150
+  poll_minutes_busy: 8      # sleep between scans while work is running
+  poll_minutes_idle: 30     # sleep when waiting for new_mech.yaml etc.
+
+# ---------------------------------------------------------------------------
+# Locations: everything is declared here, nothing is built into the runner.
+# *_opt  = where optimizations run (contains target.opt, cases appear here)
+# *_cmp  = where mechanism comparisons run (ref_config gets copied per case)
+# ---------------------------------------------------------------------------
+locations:
+  butadiene_opt:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/1_3_Butadiene/HTC
+    target_opt: target.opt
+  butadiene_cmp:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/1_3_Butadiene/MRE_2/CMS-ES
+    ref_config: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/1_3_Butadiene/MRE_2/GA/powerMeanWMRE_1_0_1_1200_GEN_PM_POLISH_0_1/MSO_CONFIG.yaml
+
+  nheptane_opt:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/n_Heptane_159/HTC
+    target_opt: target.opt
+  nheptane_cmp:
+    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/n-Heptane/Threshold_0_05/MRE_2/CMS-ES
+    ref_config: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/n-Heptane/Threshold_0_05/MRE_2/GA/powerMeanWMRE_1_0_1_1200_GEN_PM_POLISH_0_1/MSO_CONFIG.yaml
+
+
+#  mb_opt:
+#    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MB/STAGE_1_HTC_D_0_05_CORRELATION_AWARE_6_CASES
+#    target_opt: target.opt
+#  mb_cmp:
+#    dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/MB/THRESHOLD_0_05/MRE_6_CSE
+#    ref_config: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON/MB/THRESHOLD_0_05/MRE_6_CORRELATED/powerMeanWMRE_1_0_1_1200_GEN/MSO_CONFIG.yaml
+
+tasks:
+  # =========================================================================
+  # 1) OPTIMIZATION SWEEP (factorial design)
+  #    sweep  = full cross-product grid (here 5 x 3 = 15 runs per fuel)
+  #    linked = parameters tied to a swept parameter's value
+  #    fixed  = constants applied to every run
+  # Each run gets its OWN isolated copy of target.opt (target_auto_*.opt) so
+  # concurrent runs can never race on a shared file.
+  # =========================================================================
+  - id: opt_sweep
+    type: optimize
+    locations: [butadiene_opt, nheptane_opt] #, mb_opt]
+    sweep:
+      Stats.pm_p_start: [1, 2, 3, 4, 5, 10]        # <-- EDIT: your levels
+      Stats.pm_p: [0.01, 0.05, 0.09, 0.1, 0.11, 0.15, 0.20, 0.25, 0.3, 0.5, 1, 2, 4]            # <-- EDIT: your levels
+      Stats.pm_anneal_gens: [500,1200,2000]
+    linked:
+      Stats.pm_p_polish: "{Stats.pm_p}"        # polish follows p_final
+    fixed:
+      #Stats.pm_anneal_gens: 1200
+    # Folder the optimization code will create for each run — placeholder
+    # values are formatted with dots->underscores (0.05 -> 0_05):
+    output_folder_template: "powerMeanWMRE_{Stats.pm_p_start}_{Stats.pm_p}_{Stats.pm_anneal_gens}_GEN_PM_POLISH_{Stats.pm_p_polish}"
+    max_terminals: 70          # REQUIRED. 45 x 2 = 90 <= 160
+    parallel_threads: 1        # REQUIRED. Written into each run's .opt copy
+                               # (key Counts.parallel_threads) + OMP/MKL env.
+    stagger_seconds: 20        # pause between launches
+    skip_if_output_exists: true   # don't relaunch cases already done/being run
+    done_marker: new_mech.yaml    # per-case completion signal
+    cleanup_intermediates: true   # delete the 5 pre-authorized big files from a
+                                  # case folder ONCE its new_mech.yaml exists
+
+  # =========================================================================
+  # 2) MECHANISM COMPARISON — chained per case: each case's comparison starts
+  #    as soon as THAT case's new_mech.yaml appears (no waiting for the whole
+  #    sweep). Folder-name collisions at the destination get a "_" prefix.
+  # =========================================================================
+  - id: cmp
+    type: compare
+    depends_on: opt_sweep
+    pairs:
+      - {from: butadiene_opt, to: butadiene_cmp}
+      - {from: nheptane_opt,  to: nheptane_cmp}
+     # - {from: mb_opt,        to: mb_cmp}
+    config_edits:
+      # applied to the per-case copy of ref_config; {case_dir} = the source
+      # optimization case folder
+      simulations.stage1_htc.mechanism: "{case_dir}/new_mech.yaml"
+    collision_prefix: "_"
+    max_terminals: 8           # REQUIRED. 8 x 19 = 152 <= 160
+    parallel_threads: 18       # REQUIRED. Written ONCE per compare location
+                               # into the base target.opt referenced by the
+                               # ref_config's base_opt_file (never per-case).
+    done_marker: PLOTS/HTC/nominal_s1/combined_nominal_vs_s1.pdf
+
+  # =========================================================================
+  # 3) LATEX REPORTS — one .tex + .csv per comparison location. Objective
+  #    values = sum of Error_Function over all ERROR_METRICS condition CSVs.
+  # =========================================================================
+  - id: reports
+    type: report
+    depends_on: cmp
+    locations: [butadiene_cmp, nheptane_cmp] #, mb_cmp]
+    output_dir: /data2/KRUNAL/FINALIZED_STAGE_OPTIMIZATION_2026/MSO_A_FACTOR/p_PRS/MECHANISM_COMPARISON
+    case_glob: "*powerMeanWMRE_*"

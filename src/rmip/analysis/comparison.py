@@ -98,20 +98,40 @@ class ComparisonEngine:
     ) -> Dict[str, Any]:
         """
         Cross-reference species by inchi_key.
+
+        Species with no inchi_key (glossary didn't resolve them) used to be
+        filtered out of the SQL query entirely -- silently vanishing from
+        every count with no warning (B3, review.md). They're now kept and
+        fall back to a per-mechanism name-based key, so they show up as
+        "unique" (using the raw name, not the fake key) instead of
+        disappearing; they can never cross-match another mechanism's
+        inchi_key-resolved species, which is the correct conservative
+        behaviour for an identifier we don't actually trust.
+
         Returns:
           universal  — inchi_keys present in ALL mechanisms
           partial    — inchi_keys present in ≥2 but not all
-          unique     — {mech_id: [inchi_keys only in that mech]}
+          unique     — {mech_id: [names/inchi_keys only in that mech]}
           matched_by_inchi — {inchi_key: {mech_id: sp_row}}
+          n_unresolved_species, species_resolution_coverage_pct
         """
         # Load species for each mechanism
         sp_sets: Dict[int, Dict[str, sqlite3.Row]] = {}
+        n_total = 0
+        n_unresolved = 0
         for mid in mech_ids:
             rows = self._conn.execute(
-                "SELECT * FROM species WHERE mechanism_id=? AND inchi_key IS NOT NULL",
-                (mid,),
+                "SELECT * FROM species WHERE mechanism_id=?", (mid,),
             ).fetchall()
-            sp_sets[mid] = {r["inchi_key"]: r for r in rows}
+            keyed: Dict[str, sqlite3.Row] = {}
+            for r in rows:
+                n_total += 1
+                key = r["inchi_key"]
+                if key is None:
+                    n_unresolved += 1
+                    key = f"\0unresolved\0{mid}\0{r['name']}"
+                keyed[key] = r
+            sp_sets[mid] = keyed
 
         all_keys = set().union(*[set(s.keys()) for s in sp_sets.values()])
 
@@ -122,14 +142,32 @@ class ComparisonEngine:
 
         for key in all_keys:
             present = [mid for mid in mech_ids if key in sp_sets[mid]]
-            entry   = {mid: dict(sp_sets[mid][mid]) for mid in present if mid in sp_sets and key in sp_sets[mid]}
+            entry   = {mid: dict(sp_sets[mid][key]) for mid in present}
             matched[key] = entry
+            display_key = key.split("\0")[-1] if key.startswith("\0unresolved\0") else key
             if len(present) == len(mech_ids):
                 universal.append(key)
             elif len(present) == 1:
-                unique[present[0]].append(key)
+                unique[present[0]].append(display_key)
             else:
                 partial.append(key)
+
+        # 0%-resolved is only fatal if the name-fallback *also* found no
+        # cross-mechanism matches -- if it did (e.g. self-compare against an
+        # unglossaried copy), the report is real and informative, just
+        # conservative. This is the true B3 failure mode: universal=0,
+        # unique=0/0 (arithmetically impossible for non-empty mechanisms),
+        # exit 0 -- which can no longer happen now that nothing is dropped,
+        # except when there's truly nothing to report.
+        if n_total and n_unresolved == n_total and not universal and not partial:
+            raise RuntimeError(
+                "compare: 0% of species resolved an inchi_key (glossary hit "
+                "rate 0%) and no cross-mechanism matches were found even by "
+                "name fallback -- this comparison has no signal. Check the "
+                "glossary path used to parse these mechanisms."
+            )
+
+        coverage_pct = 100.0 * (n_total - n_unresolved) / n_total if n_total else 0.0
 
         return {
             "n_total_unique_species": len(all_keys),
@@ -140,6 +178,8 @@ class ComparisonEngine:
             "partial":      partial,
             "unique":       {str(mid): v for mid, v in unique.items()},
             "matched_by_inchi": matched,
+            "n_unresolved_species": n_unresolved,
+            "species_resolution_coverage_pct": round(coverage_pct, 2),
         }
 
     # ------------------------------------------------------------------
@@ -151,29 +191,72 @@ class ComparisonEngine:
     ) -> Dict[str, Any]:
         """
         Cross-reference reactions by canonical_key.
+
+        Same B3 fix as _compare_species: reactions with no canonical_key
+        (depends on species inchi_key resolution) used to be filtered out
+        of the SQL query entirely. They now fall back to a per-mechanism
+        formula-string key so they show up as "unique" instead of vanishing.
+
+        M9 (review.md): CHEMKIN DUPLICATE reactions (two rows sharing one
+        canonical_key within a mechanism) used to collide in the
+        `{canonical_key: row}` shape this built, silently dropping all but
+        the last-read duplicate -- so a mechanism with a DUPLICATE-marked
+        reaction under-reported its own reaction count here and could
+        spuriously mark a real duplicate as "unique" (only one occurrence
+        visible to match against another mechanism). Keyed on
+        (canonical_key, occurrence_index) instead, same convention as
+        graph_comparator.py's `_load_all_reactions`: occurrence_index counts
+        repeats of the same canonical_key within one mechanism, in `id`
+        (insertion/file) order, and cross-mechanism pairing matches
+        occurrence 0 to occurrence 0, etc.
         """
-        rx_sets: Dict[int, Dict[str, sqlite3.Row]] = {}
+        rx_sets: Dict[int, Dict[Tuple[str, int], sqlite3.Row]] = {}
+        n_total = 0
+        n_unresolved = 0
         for mid in mech_ids:
             rows = self._conn.execute(
-                "SELECT * FROM reactions WHERE mechanism_id=? AND canonical_key IS NOT NULL",
-                (mid,),
+                "SELECT * FROM reactions WHERE mechanism_id=? ORDER BY id", (mid,),
             ).fetchall()
-            rx_sets[mid] = {r["canonical_key"]: r for r in rows}
+            keyed: Dict[Tuple[str, int], sqlite3.Row] = {}
+            occurrence_counts: Dict[str, int] = {}
+            for r in rows:
+                n_total += 1
+                ck = r["canonical_key"]
+                if ck is None:
+                    n_unresolved += 1
+                    ck = f"\0unresolved\0{mid}\0{r['formula_string']}"
+                occ = occurrence_counts.get(ck, 0)
+                occurrence_counts[ck] = occ + 1
+                keyed[(ck, occ)] = r
+            rx_sets[mid] = keyed
 
         all_keys = set().union(*[set(s.keys()) for s in rx_sets.values()])
 
-        shared:  List[str] = []
+        shared:  List[Tuple[str, int]] = []
         unique:  Dict[int, List[str]] = {mid: [] for mid in mech_ids}
-        matched: Dict[str, Dict[int, Any]] = {}
+        matched: Dict[Tuple[str, int], Dict[int, Any]] = {}
 
         for key in all_keys:
+            ck = key[0]
             present = [mid for mid in mech_ids if key in rx_sets[mid]]
             entry   = {mid: dict(rx_sets[mid][key]) for mid in present}
             matched[key] = entry
+            display_key = ck.split("\0")[-1] if ck.startswith("\0unresolved\0") else ck
             if len(present) > 1:
                 shared.append(key)
             else:
-                unique[present[0]].append(key)
+                unique[present[0]].append(display_key)
+
+        # See _compare_species for why this is gated on "and not shared".
+        if n_total and n_unresolved == n_total and not shared:
+            raise RuntimeError(
+                "compare: 0% of reactions resolved a canonical_key and no "
+                "cross-mechanism matches were found even by formula-string "
+                "fallback -- this comparison has no signal. Check the "
+                "glossary path used to parse these mechanisms."
+            )
+
+        coverage_pct = 100.0 * (n_total - n_unresolved) / n_total if n_total else 0.0
 
         return {
             "n_total_unique_reactions": len(all_keys),
@@ -182,6 +265,8 @@ class ComparisonEngine:
             "shared":    shared,
             "unique":    {str(mid): v for mid, v in unique.items()},
             "matched":   matched,
+            "n_unresolved_reactions": n_unresolved,
+            "reaction_resolution_coverage_pct": round(coverage_pct, 2),
         }
 
     # ------------------------------------------------------------------
@@ -190,17 +275,21 @@ class ComparisonEngine:
 
     def _compute_kinetic_diffs(
         self,
-        matched:   Dict[str, Dict[int, Any]],
+        matched:   Dict[Tuple[str, int], Dict[int, Any]],
         mech_ids:  List[int],
     ) -> List[Dict[str, Any]]:
         """
         For each shared reaction, compute k at the T grid and relative difference.
         Returns list of dicts with comparison data.
+
+        `matched` is keyed by (canonical_key, occurrence_index) as of the M9
+        fix in `_compare_reactions` -- unpacked here since the output dict's
+        "canonical_key" field is a plain string, not the tuple.
         """
         diffs = []
         mids  = mech_ids
 
-        for canonical_key, mech_data in matched.items():
+        for (canonical_key, occurrence_index), mech_data in matched.items():
             present_ids = [mid for mid in mids if mid in mech_data]
             if len(present_ids) < 2:
                 continue
@@ -235,6 +324,7 @@ class ComparisonEngine:
 
             diffs.append({
                 "canonical_key": canonical_key,
+                "occurrence_index": occurrence_index,
                 "formula_string": formula,
                 "present_in_mechs": present_ids,
                 "params": {
@@ -396,6 +486,7 @@ class ComparisonEngine:
                 for i, T in enumerate(_T_GRID_K):
                     kin_rows.append({
                         "canonical_key": entry["canonical_key"],
+                        "occurrence_index": entry["occurrence_index"],
                         "formula":       entry["formula_string"],
                         "mech_ref":      cmp["mech_ref"],
                         "mech_cmp":      cmp["mech_cmp"],

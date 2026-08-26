@@ -362,3 +362,132 @@ def _shorten(label: str, max_len: int = 22) -> str:
         return s
     # Keep reactants side up to max_len chars
     return s[:max_len - 2] + "…"
+
+
+# =============================================================================
+# postprocess() -- "process the results" flag entry point
+# =============================================================================
+# Same shared CLI contract as src/MUQ-SAC/VisualAid.py's postprocess() (see
+# that file's docstring for the full rationale) via
+# mso_io.postprocess_base. forward_uq.py's own driving script persists
+# ``forward_uq_statistics.csv`` and ``sobol_indices.csv`` to disk (the two
+# tabular outputs plot_sobol_heatmap/plot_reaction_uncertainty_ranking/
+# plot_coverage_summary above are built from) -- postprocess() reloads those
+# and re-drives the existing plot_* functions with no reimplementation.
+# plot_ign_delay_bands/plot_parity_with_uncertainty additionally need a live
+# target_list + predictions dict that forward_uq.py does not persist to
+# disk -- skipped with a clear note, same degrade-honestly convention as
+# MUQ-SAC/VisualAid.py's NominalParityAnalyzer skip.
+
+import sys as _sys  # noqa: E402
+
+_this_dir_pp = os.path.dirname(os.path.abspath(__file__))
+_src_dir_pp = os.path.normpath(os.path.join(_this_dir_pp, ".."))
+if _src_dir_pp not in _sys.path:
+    _sys.path.append(_src_dir_pp)
+try:
+    from mso_io.postprocess_base import (  # noqa: E402
+        PostProcessResult, add_postprocess_args, default_out_dir, discover,
+        formats_from_args, write_manifest, write_table,
+    )
+except ImportError:  # pragma: no cover
+    PostProcessResult = None
+
+_UQ_PATTERNS = {
+    "statistics": "**/forward_uq_statistics.csv",
+    "sobol": "**/sobol_indices.csv",
+}
+
+
+def postprocess(run_dir, out_dir=None, journal=False, csv_only=False,
+                 formats=("png",), intermediate=False):
+    """Regenerate forward-UQ plots/tables from an existing (or
+    still-running) ``forward_uq.py`` run directory. Never raises on missing
+    files. Returns a :class:`mso_io.postprocess_base.PostProcessResult`."""
+    if PostProcessResult is None:
+        raise ImportError("mso_io.postprocess_base not importable -- is src/ on sys.path?")
+
+    run_dir = os.path.abspath(run_dir)
+    out_dir = str(default_out_dir(run_dir, out_dir))
+    found = discover(run_dir, _UQ_PATTERNS)
+    result = PostProcessResult(run_dir=run_dir, out_dir=out_dir, partial=bool(intermediate))
+    figures_dir = os.path.join(out_dir, "figures")
+    tables_dir = os.path.join(out_dir, "tables")
+
+    stats_df = None
+    if found["statistics"]:
+        stats_df = pd.read_csv(str(found["statistics"][0]))
+        result.tables.append(write_table(stats_df, "forward_uq_statistics", tables_dir))
+        if not csv_only:
+            try:
+                plot_coverage_summary(stats_df.to_dict("records"), figures_dir)
+                fname = os.path.join(figures_dir, "coverage_summary.pdf")
+                if os.path.exists(fname):
+                    result.figures.append(fname)
+            except Exception as exc:
+                result.skipped.append(f"coverage summary: {type(exc).__name__}: {exc}")
+    else:
+        result.skipped.append(
+            f"coverage summary: no forward_uq_statistics.csv found under {run_dir}"
+            + (" (UQ propagation not yet finished)" if intermediate else ""))
+
+    sobol_df = None
+    if found["sobol"]:
+        sobol_df = pd.read_csv(str(found["sobol"][0]))
+        result.tables.append(write_table(sobol_df, "sobol_indices", tables_dir))
+        if not csv_only:
+            try:
+                plot_sobol_heatmap(sobol_df, figures_dir)
+                plot_reaction_uncertainty_ranking(sobol_df, figures_dir)
+                for fname in ("sobol_heatmap.pdf", "reaction_uncertainty_ranking.pdf"):
+                    fpath = os.path.join(figures_dir, fname)
+                    if os.path.exists(fpath):
+                        result.figures.append(fpath)
+            except Exception as exc:
+                result.skipped.append(f"sobol plots: {type(exc).__name__}: {exc}")
+    else:
+        result.skipped.append(
+            f"sobol plots: no sobol_indices.csv found under {run_dir}"
+            + (" (Sobol analysis not yet run)" if intermediate else " (Sobol analysis may not have been requested)"))
+
+    result.skipped.append(
+        "ignition-delay bands / parity-with-uncertainty: need a live target_list + "
+        "predictions dict that forward_uq.py does not persist to disk -- not attempted")
+
+    if journal:
+        journal_dir = os.path.join(out_dir, "journal_data")
+        if stats_df is not None:
+            result.journal_tables.append(write_table(stats_df, "journal_forward_uq_statistics", journal_dir))
+        if sobol_df is not None:
+            top = (sobol_df.groupby("reaction")[["S1", "ST"]].mean()
+                   .sort_values("ST", ascending=False).reset_index())
+            result.journal_tables.append(write_table(top, "journal_sobol_ranking", journal_dir))
+
+    write_manifest(result, out_dir)
+    return result
+
+
+def _main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="forward_uq uq_plots: standalone plotting library, plus "
+                     "--postprocess to regenerate plots/tables from an "
+                     "existing forward_uq.py run directory.")
+    add_postprocess_args(parser)
+    args = parser.parse_args()
+    if not args.postprocess:
+        parser.error("nothing to do -- pass --postprocess RUN_DIR")
+    result = postprocess(
+        args.postprocess, out_dir=args.out, journal=args.journal,
+        csv_only=args.csv_only, formats=formats_from_args(args),
+        intermediate=args.intermediate,
+    )
+    print(f"[uq_plots.postprocess] {len(result.figures)} figure(s), "
+          f"{len(result.tables)} table(s), {len(result.journal_tables)} journal table(s) "
+          f"-> {result.out_dir}")
+    for note in result.skipped:
+        print(f"  skipped: {note}")
+
+
+if __name__ == "__main__":
+    _main()

@@ -1,0 +1,22 @@
+! RMG run B (fixture, "version B") — same input as run A, different RMG.
+! Differences vs A: OH renumbered to OH(7); HO2 not generated; H2O2(9) new;
+! reaction 2's A-factor changed 2e13 -> 3e13; HO2 reaction gone; OH+OH new.
+ELEMENTS
+    H O Ar
+END
+
+SPECIES
+    H2(1)
+    O2(2)
+    OH(7)
+    H2O(4)
+    H2O2(9)
+    H(6)
+    AR
+END
+
+REACTIONS    KCAL/MOLE
+H2(1)+O2(2)=OH(7)+OH(7)          1.000e+13 0.000 48.000
+OH(7)+H2(1)=H2O(4)+H(6)          3.000e+13 0.000 5.000
+OH(7)+OH(7)=H2O2(9)              1.000e+12 0.000 0.000
+END

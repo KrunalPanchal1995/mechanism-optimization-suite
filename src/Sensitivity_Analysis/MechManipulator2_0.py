@@ -89,6 +89,35 @@ class Manipulator:
 		select_dict = {}
 		N_rxns = len(self.rxn_list)
 
+		# Bug 17 (AMMONIA_CAMPAIGN_2026-07-22.md, bug.md): both branches below
+		# read self.selection with a HARDCODED stride of 3 per reaction,
+		# regardless of each reaction's actual n = len(activeParameters) (1 or
+		# 3) -- unlike the MUQ-SAC sibling, which walks with a dynamic
+		# n-per-reaction cursor and sanity-checks the total consumed against
+		# len(self.selection). Under correlation-based active-set reduction
+		# (the actively-evolving partial-PRS "2_0" path), self.selection can
+		# arrive narrower than this fixed-stride-3 assumption expects -- the
+		# MUQ-SAC sibling raises a clear ValueError in that case; THIS copy
+		# used to silently read past/short of the real data instead (worse:
+		# wrong statistics with no error at all, not just a crash). Loudly
+		# reject a length mismatch up front rather than attempt to redesign
+		# the indexing for a selection-array format this fix does not have
+		# enough context to characterize safely (see the dedicated bug.md
+		# note for the full investigation and why a deeper fix was
+		# deliberately not attempted here).
+		expected_selection_len = 3 * N_rxns
+		if len(self.selection) != expected_selection_len:
+			raise ValueError(
+				f"getRxnPerturbationDict: self.selection has "
+				f"{len(self.selection)} entries but this copy's fixed "
+				f"3-per-reaction stride expects {expected_selection_len} "
+				f"({N_rxns} reactions x 3). Check that self.selection's "
+				f"layout matches the pSelectionMatrix convention (3 flags "
+				f"per reaction, always) -- a narrower array (e.g. from "
+				f"correlation-based active-set reduction) would otherwise "
+				f"be silently misread instead of raising here."
+			)
+
 		if len(self.perturbation) == N_rxns:
 			# ── Compressed-diagonal format ─────────────────────────────────────
 			for j, rxn in enumerate(self.rxn_list):

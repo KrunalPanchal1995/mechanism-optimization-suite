@@ -19,6 +19,95 @@ import subprocess
 ###	   Uncertainty for arrhenius parameters		 ######
 ###	   of elementary reactions					  ######
 #############################################################
+
+def _canon_rxn_equation(equation):
+	"""
+	Order-independent, notation-independent canonical form of a reaction
+	equation string, used by reaction/PLOG's mechanism-membership check below.
+
+	Real bug (found 2026-07-17 while stress-testing forward_uq_gui/
+	gsa_prs_crosscheck.py against a real fused mechanism; byte-identical
+	copy of the same fix in src/MUQ-SAC/Uncertainty.py):
+	`MechanismParser.Parser(mechPath).rxnList` reads each reaction's
+	`equation:` string VERBATIM from the mechanism YAML file (e.g.
+	"O + H2 <=> H + OH", preserving whatever order the source CHEMKIN file
+	happened to list reactants in) -- but Cantera's OWN
+	`gas.reaction_equations()`, when loading that exact same file, reorders
+	reactant/product species internally and returns a DIFFERENT string for
+	the identical physical reaction (e.g. "H2 + O <=> H + OH"). Any
+	uncertainty XML whose `rxn=` attribute was populated from a live
+	`ct.Solution` (a natural, common thing to do) then fails this class's
+	exact-string membership check with a confusing "not in the mechanism"
+	AssertionError, even though the reaction is genuinely present.
+
+	Extended 2026-08-10 (WORKBENCH_AUDIT_2026-08-10.md, Round 2, defect B3;
+	byte-identical copy of the same fix in src/MUQ-SAC/Uncertainty.py) for
+	two more real mismatches confirmed against FFCM1.yaml/GRI_CO.yaml:
+
+	1. Stoichiometric-coefficient shorthand. A hand-written uncertainty XML
+	   duplicates repeated species explicitly ("OH+OH<=>O+H2O"), while
+	   Cantera's ck2yaml-style YAML output uses "N species" shorthand
+	   ("2 OH <=> O + H2O") -- confirmed in FFCM1.yaml/GRI_CO.yaml
+	   (`H2 + M <=> 2 H + M`, `2 H + M <=> H2 + M`). Each side is now
+	   expanded to one token per stoichiometric unit before sorting, so both
+	   spellings collapse identically.
+	2. Direction disagreement between mechanisms for a REVERSIBLE ("<=>")
+	   reaction. GRI_CO.yaml writes recombination as
+	   "2 H + M <=> H2 + M" (dissociation is the "reverse" direction) while
+	   FFCM1.yaml writes the same physical reaction as
+	   "H2 + M <=> 2 H + M" (dissociation is "forward") -- verified directly
+	   in both shipped mechanism files. Since "<=>" already declares the
+	   reaction reversible, which side a given mechanism happens to call
+	   "forward" carries no physical meaning here, so the two (now
+	   token-expanded) sides are additionally sorted AS A PAIR for
+	   reversible reactions only. Irreversible ("=>") equations are never
+	   side-swapped -- for those, reactant/product order is physically
+	   meaningful and must NOT be conflated with its reverse.
+	3. Falloff third-body notation. Cantera writes falloff/pressure-
+	   dependent reactions with the third body in parentheses,
+	   "H + O2 (+M) <=> HO2 (+M)" (confirmed live in FFCM1.yaml, Reaction
+	   15) -- while a hand-written uncertainty XML for the exact same
+	   reaction (DATASET/H2_O2_TEST/uncertainty/H2_uncertainty.xml,
+	   correctly flagged <type>pressure_dependent</type>) spells it with
+	   the plain-reactant third-body notation, "H+O2+M<=>HO2+M". Both are
+	   the same physical reaction; "(+M)"/"(+N2)"/etc. is normalized to
+	   "+ M"/"+ N2" before tokenizing so the two notations canonicalize
+	   identically instead of failing "not in the mechanism".
+	"""
+	eq = re.sub(r'\(\+\s*(\S+?)\)', r'+ \1', equation)
+	eq = " ".join(eq.split())
+	reversible = True
+	for arrow in (" <=> ", "<=>", " => ", "=>", " = ", "="):
+		if arrow in eq:
+			lhs, rhs = eq.split(arrow, 1)
+			# NOT a plain "'=>' not in arrow" substring check -- "<=>"
+			# itself contains "=>" as a substring, which would misclassify
+			# every reversible reaction as irreversible.
+			reversible = arrow not in (" => ", "=>")
+			break
+	else:
+		return eq.lower()
+
+	def _expand_side(side):
+		"""One token per stoichiometric unit, e.g. "2 OH" -> ["OH", "OH"]."""
+		tokens = []
+		for t in side.split("+"):
+			t = t.strip()
+			if not t:
+				continue
+			m = re.match(r'^(\d+)\s+(.+)$', t)
+			if m:
+				tokens.extend([m.group(2).strip()] * int(m.group(1)))
+			else:
+				tokens.append(t)
+		return " + ".join(sorted(tokens))
+
+	lhs_c, rhs_c = _expand_side(lhs), _expand_side(rhs)
+	if reversible:
+		lhs_c, rhs_c = sorted([lhs_c, rhs_c])
+	return lhs_c + " <=> " + rhs_c
+
+
 def run(sample,data,length):
 	A = UncertaintyExtractor(data)
 	a1 =2*np.random.random_sample(1)-1
@@ -1457,7 +1546,16 @@ class reaction(UncertaintyExtractor):
 		if self.rxn in RXN_LIST:
 			self.index = RXN_LIST.index(self.rxn)
 		else:
-			raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
+			# Fall back to an order-independent match (see _canon_rxn_equation's
+			# docstring) before giving up -- an exact-string miss here is very
+			# often the SAME reaction written with reactants/products in a
+			# different order, not a genuinely absent reaction.
+			canon_target = _canon_rxn_equation(self.rxn)
+			canon_list = [_canon_rxn_equation(r) for r in RXN_LIST]
+			if canon_target in canon_list:
+				self.index = canon_list.index(canon_target)
+			else:
+				raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		for item in Element:
 			if item.tag == "class":
@@ -2018,7 +2116,15 @@ class PLOG(UncertaintyExtractor):
 		if self.rxn in RXN_LIST:
 			self.index = RXN_LIST.index(self.rxn)
 		else:
-			raise AssertionError("Rxn not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
+			# See reaction.__init__'s identical fallback (above in this file)
+			# for why: an exact-string miss is very often the same physical
+			# reaction with reactants/products reordered.
+			canon_target = _canon_rxn_equation(self.rxn)
+			canon_list = [_canon_rxn_equation(r) for r in RXN_LIST]
+			if canon_target in canon_list:
+				self.index = canon_list.index(canon_target)
+			else:
+				raise AssertionError("Rxn not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		#self.rxn_Details = DATA["reactions"][self.index]
 		#print(self.rxn_Details)

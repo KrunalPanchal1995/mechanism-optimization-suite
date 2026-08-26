@@ -1,6 +1,6 @@
 #default python modules
 from tqdm import tqdm
-import os, shutil, re, math 
+import os, shutil, re, math
 import numpy as np
 import pandas as pd
 from pyDOE import *
@@ -10,6 +10,16 @@ import subprocess
 import time
 import sys
 import copy
+
+# Task 4C: thread cap from chem_data (os.cpu_count()-5, floor 1)
+try:
+    _chem_data_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    if _chem_data_dir not in sys.path:
+        sys.path.insert(0, _chem_data_dir)
+    from chem_data import thread_cap as _thread_cap
+except ImportError:
+    def _thread_cap():
+        return max((os.cpu_count() or 4) - 5, 1)
 try:
     import ruamel_yaml as yaml
 except ImportError:
@@ -59,7 +69,21 @@ def run_map_3(params,total):
 	#print(sys.path)
 	#import yamlwriter
 	location = str(params[1])
-	yamlwriter.dump_to_yaml(location,f"mechanism_{params[2]}.yaml",params[0])
+	# 2026-07-23 investigation (bug.md): this is the call site actually
+	# exercised by sens_3_params.py's brute-force SA -- getPerturbedMechLocation
+	# -> do_job_map_create_3 -> run_map_3 is how every
+	# Perturbed_Mech_SA_3P_BruteForce/{A_factor,n,Ea,*_neg}/mechanism_N.yaml
+	# file gets written, NOT run_map (make_dir_in_parallel, the method
+	# sens_3_params.py actually calls for per-case simulation directories,
+	# dispatches to run_map_opt instead, which never touches mechanism.yaml
+	# at all -- run_map itself turned out to be an unused-by-this-pipeline
+	# sibling function). _write_mechanism_yaml_verified was previously scoped
+	# to run_map only, leaving this -- the actual production write path --
+	# unprotected against yamlwriter.cpp's bare-ofstream silent-failure
+	# mechanism (confirmed by source read, see bug.md). Routed through the
+	# same verify/retry/fallback wrapper as cheap, safe defense-in-depth;
+	# behavior on the success path is identical (same extension, same args).
+	_write_mechanism_yaml_verified(location, f"mechanism_{params[2]}.yaml", params[0])
 	#yaml_string = yaml.dump(params[1],default_flow_style=False)
 	#with open(location+"/mechanism.yaml","w") as yamlfile:
 	#	yamlfile.write(yaml_string)
@@ -89,9 +113,78 @@ def run_map_opt(params,total):
 	#del params[1]
 	return (params[2],total)
 	
+def _write_mechanism_yaml_verified(location, filename, mech_dict,
+                                    max_retries=3, retry_delay_s=0.25):
+	"""Write mechanism.yaml via the compiled yamlwriter extension, but verify
+	the file actually landed on disk before letting run_map's caller proceed.
+
+	Root cause (bug.md, brute-force SA IndexError entry): yamlwriter.cpp's
+	dump_to_yaml() opens its output with a bare std::ofstream, never checks
+	is_open()/fail(), and never enables exceptions -- so on any write
+	failure (observed on real-scale mechanisms inside a forked
+	multiprocessing.Pool worker) it silently no-ops: no Python exception is
+	raised, no file is written, and run_map's caller sails on into
+	data_management.py::run_sim, which -- several steps and one Pool.join()
+	later -- raises a confusing FileNotFoundError/IndexError instead of
+	surfacing the real problem. This wrapper verifies the file actually
+	landed (non-empty) and retries a few times, then falls back to a
+	pure-Python YAML dump (same ruamel-backed `yaml` module already used
+	elsewhere in this file, e.g. run_direct_map) if the extension keeps
+	silently failing, and only raises RuntimeError if both paths fail.
+
+	Scope (updated 2026-07-23): used by run_map AND run_map_3 -- run_map_3
+	is the call site sens_3_params.py's brute-force SA actually exercises
+	(via getPerturbedMechLocation -> do_job_map_create_3), so it needed the
+	same protection; run_map itself turned out to be unused by that
+	pipeline (make_dir_in_parallel dispatches to run_map_opt instead, which
+	never writes mechanism.yaml at all -- see bug.md's 2026-07-23 entry).
+	run_map_2/run_map_opt/run_direct_map and their writers remain
+	untouched: run_map_2 uses the separate parallel_yaml_writer extension
+	(not yamlwriter), run_map_opt never writes mechanism.yaml, and
+	run_direct_map already does a pure-Python yaml.dump with no compiled
+	extension involved.
+	"""
+	out_path = os.path.join(location, filename)
+	attempts = []
+	for attempt in range(1, max_retries + 1):
+		try:
+			yamlwriter.dump_to_yaml(location, filename, mech_dict)
+		except Exception as exc:
+			attempts.append(f"attempt {attempt}: yamlwriter raised {exc!r}")
+		else:
+			if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+				return out_path
+			attempts.append(f"attempt {attempt}: yamlwriter returned normally but "
+			                 f"{out_path!r} is missing or empty")
+		time.sleep(retry_delay_s)
+
+	# Fallback: pure-Python YAML dump, mirroring run_direct_map's approach.
+	try:
+		yaml_string = yaml.dump(mech_dict, default_flow_style=False)
+		with open(out_path, "w") as yamlfile:
+			yamlfile.write(yaml_string)
+	except Exception as exc:
+		raise RuntimeError(
+			f"_write_mechanism_yaml_verified: could not write {out_path!r} -- "
+			f"both the compiled yamlwriter extension and the pure-Python YAML "
+			f"fallback failed. yamlwriter attempts: {attempts!r}; "
+			f"fallback error: {exc!r}"
+		) from exc
+
+	if not (os.path.exists(out_path) and os.path.getsize(out_path) > 0):
+		raise RuntimeError(
+			f"_write_mechanism_yaml_verified: {out_path!r} is still missing or "
+			f"empty after {max_retries} yamlwriter attempt(s) ({attempts!r}) "
+			f"and a pure-Python YAML fallback -- refusing to let the caller "
+			f"proceed into the downstream code path that produces the "
+			f"confusing IndexError."
+		)
+	return out_path
+
+
 def run_map(params,total):
 	location = str(params[2])
-	
+
 	sim1 = open(location+"/cantera_.py",'w').write(params[0])
 	sim2= open(location+"/FlameMaster.input",'w').write(params[0])
 	extract = open(location+"/extract.py",'w').write(params[3])
@@ -99,7 +192,7 @@ def run_map(params,total):
 	runScript = open(location+"/run","w").write(params[1])
 	#subprocess.call(["chmod","+x",location+"/run_convertor"])
 	subprocess.call(["chmod","+x",location+"/run"])
-	yamlwriter.dump_to_yaml(location,f"mechanism.yaml",params[-2])
+	_write_mechanism_yaml_verified(location, "mechanism.yaml", params[-2])
 	#yaml_string = yaml.dump(params[-2],default_flow_style=False)
 	#with open(location+"/mechanism.yaml","w") as yamlfile:
 	#	yamlfile.write(yaml_string)
@@ -149,11 +242,23 @@ def run_sampling_direct(sample,rxn,data,generator,length):
 class Worker():
 	def __init__(self, workers,path_to_yamlwriter=None):
 		self.pool = multiprocessing.Pool(processes=workers)
-		self.pool1 = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
+		# `self.pool1` (a second, completely unused ProcessPoolExecutor) used to be
+		# created here unconditionally and never referenced again anywhere in this
+		# class or file, and never shut down -- every Worker(...) instantiation
+		# leaked `workers` more OS processes on top of the ones self.pool actually
+		# uses. sens_3_params.py creates up to 11 Worker instances in one run (one
+		# per YAML-generation chunk/variant: A/n/Ea x forward/central-difference),
+		# so at a real parallel_threads count (target.opt templates default to
+		# 100) this could leak into the hundreds-to-thousands of never-terminated
+		# processes across a single SA run -- a concrete, independently-real
+		# resource exhaustion risk found while investigating the
+		# yamlwriter.so-inside-a-forked-Pool-worker mystery (bug.md).
 		self.progress = []
 		self.parallized_zeta = []
 		self.parallel_zeta_dict = {}
 		self.generator = []
+		# Task 4A: absolute path for progress file; caller sets this before do_job_async_
+		self.progress_file = None
 		sys.path.append(path_to_yamlwriter)  
 		#self.yamlwriter = import_module('yamlwriter')
 	def update_progress(self, total):
@@ -179,9 +284,10 @@ class Worker():
 		self.progress.append(result[0])
 		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
-		f = open('../progress','+a')
-		f.write(result[0]+"/run"+"\n")
-		f.close()
+		# Task 4A: use absolute progress_file path set by caller; fall back to sibling dir
+		progress_path = self.progress_file if self.progress_file else os.path.join(os.path.dirname(os.getcwd()), "progress")
+		with open(progress_path, 'a') as f:
+			f.write(result[0]+"/run"+"\n")
 		
 	def callback_create(self, future):
 		result = future.result()
@@ -317,7 +423,8 @@ class SM(object):
 			self.design_matrix_dict = design_matrix
 		self.file_type = target_data["Inputs"]["fileType"]
 		self.order = target_data["Stats"]["Order_of_PRS"]
-		self.parallel_threads = target_data["Counts"]["parallel_threads"]
+		# Task 4C: clamp to thread_cap() so we never pin all CPU cores
+		self.parallel_threads = min(int(target_data["Counts"]["parallel_threads"]), _thread_cap())
 		self.responseOrder = target_data["Stats"]["Order_of_PRS"]
 		self.mech_loc = target_data["Locations"]["mechanism"]
 		self.pre_file = target_data["Locations"]["Initial_pre_file"]
@@ -654,13 +761,14 @@ class SM(object):
 		###########################################
 		
 		X = Worker(allowed_count,self.build_path)
+		X.progress_file = os.path.join(nominalDir, "progress")  # Task 4A
 		file_n = []
 		length = []
 		for i in locations:
 			file_n.append("run")
 		args = list(zip(locations,file_n))
 		X.do_job_async_(args)
-		
+
 		del X
 		print("\tSimulations for all cases is Done!!")
 			
@@ -670,15 +778,24 @@ class SM(object):
 		seconds = dt%60
 		print("Performed {} Simulations....".format(len(locations)))
 		print("Time for performing simulations : {h:.4f} hours,  {m:.2f} minutes, {s:.2f} seconds\n................................................ \n".format(h = hours, m = minutes, s =seconds))
-		simulation_locations = open(nominalDir+"/locations",'+a')
+		# FUTURE-BUG-5 (audit 2026-07-19): dedupe against lines already on disk so
+		# re-running the nominal stage doesn't double-count `locations` entries.
+		_nominal_locations_path = nominalDir + "/locations"
+		_written = set()
+		if os.path.exists(_nominal_locations_path):
+			with open(_nominal_locations_path, "r") as _lf:
+				_written = set(_lf.read().splitlines())
 		sim_location = []
-		for loc in locations:
-			simulation_locations.write(loc+"/run\n")
-			sim_location.append(loc+"/run\n")
-		simulation_locations.close()
-		
+		with open(_nominal_locations_path, "a") as simulation_locations:
+			for loc in locations:
+				line = loc + "/run"
+				if line not in _written:
+					simulation_locations.write(line + "\n")
+					_written.add(line)
+				sim_location.append(line + "\n")
+
 		#os.chdir('..')
-		return sim_location	
+		return sim_location
 		
 	def make_dir_in_parallel(self,yaml_loc):
 		
@@ -767,6 +884,7 @@ class SM(object):
 				###########################################
 				
 				X = Worker(allowed_count,self.build_path)
+				X.progress_file = os.path.join(optDir, "progress")  # Task 4A
 				file_n = []
 				length = []
 				for i in locations:
@@ -783,13 +901,22 @@ class SM(object):
 				seconds = dt%60
 				print("Performed {} Simulations....".format(len(locations)))
 				print("Time for performing simulations : {h:.5f} hours,  {m:.3f} minutes, {s:.2f} seconds\n................................................ \n".format(h = hours, m = minutes, s =seconds))
-				simulation_locations = open(optDir+"/locations",'+a')
-				
-				for loc in locations:
-					simulation_locations.write(loc+"/run\n")
-					sim_location.append(loc+"/run\n")
-				simulation_locations.close()
-			
+				# FUTURE-BUG-5 (audit 2026-07-19): dedupe against what is already on
+				# disk (incl. earlier cases this run) so a restart / re-run does not
+				# duplicate entries in the `locations` file.
+				_opt_locations_path = optDir + "/locations"
+				_written = set()
+				if os.path.exists(_opt_locations_path):
+					with open(_opt_locations_path, "r") as _lf:
+						_written = set(_lf.read().splitlines())
+				with open(_opt_locations_path, "a") as simulation_locations:
+					for loc in locations:
+						line = loc + "/run"
+						if line not in _written:
+							simulation_locations.write(line + "\n")
+							_written.add(line)
+						sim_location.append(line + "\n")
+
 				os.chdir('..')
 		return sim_location
 

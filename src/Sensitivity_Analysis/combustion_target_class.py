@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,62 +12,79 @@ import statistics
 import pandas as pd
 import time
 from scipy.optimize import minimize
+
+# Task 2E: load MW/stoich from shared chem_data module; fall back to inline tables
+# if chem_data is not on the path (e.g., running from src/Sensitivity_Analysis/ directly).
+try:
+	_chem_data_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+	if _chem_data_dir not in sys.path:
+		sys.path.insert(0, _chem_data_dir)
+	from chem_data import DEFAULT_FUEL_MW as _DEFAULT_MW, DEFAULT_STOICH_O2 as _DEFAULT_NU, compute_nu_o2 as _compute_nu_o2
+	_HAS_CHEM_DATA = True
+except ImportError:
+	_HAS_CHEM_DATA = False
+
 class combustion_target():
-###Class definition and acquisition of input parameters.	
+###Class definition and acquisition of input parameters.
 	def __init__(self,data,addendum,index):
-		self.molecularWt = {}
-		self.molecularWt = {}
-		self.molecularWt["CO"] = 28
-		self.molecularWt["H2"] = 2
-		self.molecularWt["O2"] = 32
-		self.molecularWt["co"] = 28
-		self.molecularWt["h2"] = 2
-		self.molecularWt["o2"] = 32
-		self.molecularWt["CO2"] = 0
-		self.molecularWt["AR"] = 0
-		self.molecularWt["HE"] = 0
-		self.molecularWt["CO2"] = 0
-		self.molecularWt["Ar"] = 0
-		self.molecularWt["He"] = 0
-		self.molecularWt["N2"] = 0
-		self.molecularWt["H2O"] = 0
-		self.molecularWt["CH4"] = 16
-		self.molecularWt["NC7H16"] = 100.21
-		self.molecularWt["nc7h16"] = 100.21
-		self.molecularWt["C4H6"] = 54
-		self.molecularWt["OME3"] = 136
-		self.molecularWt["MB-C5H10O2"] = 86
-		self.molecularWt["CH2O"] = 30
-		self.molecularWt["NC12H26"] = 170
-		self.molecularWt["C7H8"] = 92
-		self.molecularWt["IC16H34"] = 226
-		self.stoichiometry = {}
-		self.stoichiometry["H2"] = 0.5
-		self.stoichiometry["CO"] = 0.5
-		self.stoichiometry["O2"] = 0.0
-		self.stoichiometry["N2"] = 0.0
-		self.stoichiometry["h2"] = 0.5
-		self.stoichiometry["co"] = 0.5
-		self.stoichiometry["o2"] = 0.0
-		self.stoichiometry["n2"] = 0.0
-		self.stoichiometry["HE"] = 0.0
-		self.stoichiometry["AR"] = 0.0
-		self.stoichiometry["He"] = 0.0
-		self.stoichiometry["Ar"] = 0.0
-		self.stoichiometry["H2O"] = 0.0
-		self.stoichiometry["CO2"] = 0.0
-		self.stoichiometry["CH4"] = 2.0
-		self.stoichiometry["NC7H16"] = 11
-		self.stoichiometry["nc7h16"] = 11
-		self.stoichiometry["C4H6"] = 5.5
-		self.stoichiometry["OME3"] = 6
-		self.stoichiometry["MB-C5H10O2"] = 6.5
-		self.stoichiometry["CH2O"] = 1
-		self.stoichiometry["NC12H26"] = 25
-		self.stoichiometry["C7H8"] = 11
-		self.stoichiometry["IC16H34"] = 33
-		self.stoichiometry["C12H23"] = 17.75
-		self.stoichiometry["C3H8"] = 5.0
+		# Task 2E: MW and stoichiometry tables now sourced from chem_data.py.
+		# Hard-coded fallback retained for backward compatibility when
+		# chem_data is unavailable.
+		if _HAS_CHEM_DATA:
+			self.molecularWt = dict(_DEFAULT_MW)
+			self.stoichiometry = dict(_DEFAULT_NU)
+		else:
+			self.molecularWt = {}
+			self.molecularWt["CO"] = 28
+			self.molecularWt["H2"] = 2
+			self.molecularWt["O2"] = 32
+			self.molecularWt["co"] = 28
+			self.molecularWt["h2"] = 2
+			self.molecularWt["o2"] = 32
+			self.molecularWt["CO2"] = 0
+			self.molecularWt["AR"] = 0
+			self.molecularWt["HE"] = 0
+			self.molecularWt["Ar"] = 0
+			self.molecularWt["He"] = 0
+			self.molecularWt["N2"] = 0
+			self.molecularWt["H2O"] = 0
+			self.molecularWt["CH4"] = 16
+			self.molecularWt["NC7H16"] = 100.21
+			self.molecularWt["nc7h16"] = 100.21
+			self.molecularWt["C4H6"] = 54
+			self.molecularWt["OME3"] = 136
+			self.molecularWt["MB-C5H10O2"] = 86
+			self.molecularWt["CH2O"] = 30
+			self.molecularWt["NC12H26"] = 170
+			self.molecularWt["C7H8"] = 92
+			self.molecularWt["IC16H34"] = 226
+			self.stoichiometry = {}
+			self.stoichiometry["H2"] = 0.5
+			self.stoichiometry["CO"] = 0.5
+			self.stoichiometry["O2"] = 0.0
+			self.stoichiometry["N2"] = 0.0
+			self.stoichiometry["h2"] = 0.5
+			self.stoichiometry["co"] = 0.5
+			self.stoichiometry["o2"] = 0.0
+			self.stoichiometry["n2"] = 0.0
+			self.stoichiometry["HE"] = 0.0
+			self.stoichiometry["AR"] = 0.0
+			self.stoichiometry["He"] = 0.0
+			self.stoichiometry["Ar"] = 0.0
+			self.stoichiometry["H2O"] = 0.0
+			self.stoichiometry["CO2"] = 0.0
+			self.stoichiometry["CH4"] = 2.0
+			self.stoichiometry["NC7H16"] = 11
+			self.stoichiometry["nc7h16"] = 11
+			self.stoichiometry["C4H6"] = 5.5
+			self.stoichiometry["OME3"] = 6
+			self.stoichiometry["MB-C5H10O2"] = 6.5
+			self.stoichiometry["CH2O"] = 1
+			self.stoichiometry["NC12H26"] = 25
+			self.stoichiometry["C7H8"] = 11
+			self.stoichiometry["IC16H34"] = 33
+			self.stoichiometry["C12H23"] = 17.75
+			self.stoichiometry["C3H8"] = 5.0
 		self.data = data
 		#print(self.data)
 		parameters = self.data.split('|')
@@ -172,9 +190,18 @@ class combustion_target():
 			if key.strip() == "Fuel":
 				#print(content.split("->"))
 				#print(content)
-				if "Multi" in self.fuel_type:
+				# Real generated .target files (e.g. DATASET/H2_O2_TEST/targets/
+				# H2_IDT.target) write the fuel spec as a dict even for a
+				# single-species "Mono" fuel, e.g. "x->{'a': 'H2'} = {'a': 0.0050}"
+				# -- the generator does not special-case Mono to a bare scalar.
+				# Dispatch on the ACTUAL content shape (does it start with "{"),
+				# not just the declared Fuel_type, so a real Mono target doesn't
+				# crash trying float() on a dict-repr string. A genuine bare-
+				# scalar Mono line (no "{") still takes the original branch.
+				_fuel_rhs = content.split("->")[1].split("=")[0].strip()
+				if "Multi" in self.fuel_type or _fuel_rhs.startswith("{"):
 					self.fuel_id = json.loads(content.split("=")[0].split("->")[1].replace("'",'"'))
-					self.fuel_x = json.loads(content.split("=")[1].replace("'",'"'))	
+					self.fuel_x = json.loads(content.split("=")[1].replace("'",'"'))
 					self.fuel_is = ""
 					for i in self.fuel_id:
 						self.species_dict[str(self.fuel_id[i])] = float(self.fuel_x[i])
@@ -187,10 +214,39 @@ class combustion_target():
 					self.fuel_dict[str(self.fuel_id)] = float(self.fuel_x)
 			
 			if "Oxidizer" in key:
-				self.oxidizer = content.split("->")[1].split("=")[0].strip(" ")
-				self.oxidizer_x = float(content.split("->")[1].split("=")[1])# to convert to percentage
-				self.species_dict[str(self.oxidizer)] = float(self.oxidizer_x)
-				actual_oxidizer = float(self.oxidizer_x)
+				# Same dict-shape dispatch as the Fuel field above (B4,
+				# Round-2 audit): no shipped .target currently writes a
+				# dict-valued Oxidizer, but generate_target_opt.py's writer
+				# does not special-case Oxidizer to a bare scalar any more
+				# than it did for Fuel, so a Multi oxidizer blend (e.g. an
+				# O2/N2/Ar custom oxidizer, as opposed to Bath_gas) would hit
+				# the same "ValueError: could not convert string to float"
+				# this dispatch already fixed for Fuel. actual_oxidizer
+				# collapses to the summed oxidizer mole fraction, matching
+				# how Fact (line ~524) uses a single scalar amount
+				# regardless of how many oxidizer species compose it.
+				#
+				# Unlike Fuel, this dispatches on content shape ALONE, not
+				# on self.fuel_type -- real data (DATASET/METHYL_BUTANOATE_2026/
+				# MB_LTC_no_dummy.target) has Fuel_type=Multi with a plain
+				# scalar Oxidizer ("x->O2 = 0.2035"): Fuel_type governs the
+				# FUEL field's own shape, not the Oxidizer field's, and
+				# gating on it here sent that real scalar through json.loads
+				# and crashed with JSONDecodeError (caught by
+				# test_write_curated_real_bridge_gates_clean going from pass
+				# to fail during this same fix -- corrected before commit).
+				_ox_rhs = content.split("->")[1].split("=")[0].strip()
+				if _ox_rhs.startswith("{"):
+					self.oxidizer = json.loads(content.split("=")[0].split("->")[1].replace("'",'"'))
+					self.oxidizer_x = json.loads(content.split("=")[1].replace("'",'"'))
+					for i in self.oxidizer:
+						self.species_dict[str(self.oxidizer[i])] = float(self.oxidizer_x[i])
+					actual_oxidizer = sum(float(v) for v in self.oxidizer_x.values())
+				else:
+					self.oxidizer = content.split("->")[1].split("=")[0].strip(" ")
+					self.oxidizer_x = float(content.split("->")[1].split("=")[1])# to convert to percentage
+					self.species_dict[str(self.oxidizer)] = float(self.oxidizer_x)
+					actual_oxidizer = float(self.oxidizer_x)
 			
 			
 			if "Bath_gas" in key:
@@ -480,7 +536,11 @@ class combustion_target():
 		for i in self.fuel_dict:
 			actual_fuel.append(self.fuel_dict[i])
 			st_fuel.append(1.0)
-			st_ox.append(self.stoichiometry[i])
+			# Task 2E: fix KeyError — use .get() with atom-balance fallback for unlisted fuels
+			nu_i = self.stoichiometry.get(i, 0.0)
+			if nu_i <= 0.0 and _HAS_CHEM_DATA:
+				nu_i = _compute_nu_o2(i)
+			st_ox.append(nu_i)
 		
 		totalfuel_st = 0
 		totalfuel = 0

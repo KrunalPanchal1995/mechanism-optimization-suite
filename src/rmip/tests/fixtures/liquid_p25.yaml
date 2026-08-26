@@ -1,0 +1,51 @@
+description: |-
+  W5c/P25 fixture: a gas phase plus an ideal-condensed solvent phase where
+  the water species' density is wrong by exactly 10x (99.7 instead of 997
+  kg/m^3), reproducing the P25 "solvent concentration ~10x below its known
+  pure value" report. The ethanol species is correct and must NOT be flagged.
+units: {length: cm, quantity: mol}
+
+phases:
+- name: gas
+  thermo: ideal-gas
+  elements: [N]
+  species: [N2]
+  state: {T: 300.0, P: 1 atm}
+- name: solvent
+  thermo: ideal-condensed
+  elements: [H, O, C]
+  species: [H2O(l), C2H5OH(l)]
+  standard-concentration-basis: unity
+  state: {T: 298.15, P: 1 atm, X: {H2O(l): 1.0}}
+
+species:
+- name: N2
+  composition: {N: 2}
+  thermo:
+    model: constant-cp
+    T0: 298.15
+    h0: 0.0 kJ/mol
+    s0: 191.6 J/mol/K
+    cp0: 29.1 J/mol/K
+- name: H2O(l)
+  composition: {H: 2, O: 1}
+  thermo:
+    model: constant-cp
+    T0: 298.15
+    h0: -285.8 kJ/mol
+    s0: 70.0 J/mol/K
+    cp0: 75.3 J/mol/K
+  equation-of-state:
+    model: constant-volume
+    density: 0.0997 g/cm^3   # WRONG by 10x — water is 0.997 g/cm^3 (P25)
+- name: C2H5OH(l)
+  composition: {C: 2, H: 6, O: 1}
+  thermo:
+    model: constant-cp
+    T0: 298.15
+    h0: -277.6 kJ/mol
+    s0: 160.7 J/mol/K
+    cp0: 112.0 J/mol/K
+  equation-of-state:
+    model: constant-volume
+    density: 0.789 g/cm^3    # correct

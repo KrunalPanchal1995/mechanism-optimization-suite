@@ -392,7 +392,26 @@ class UncertaintyBandEstimator:
         ktype: str,
         T_pts: List[float],
     ) -> Optional[List[float]]:
-        """Use Cantera to evaluate a Troe/Lindemann rate at P_ref."""
+        """Use Cantera to evaluate a Troe/Lindemann rate at P_ref.
+
+        M14 (review.md): this used to reference `ct.TroeFalloff` /
+        `ct.FalloffReaction(high_rate=..., low_rate=..., falloff=...)` /
+        `ct.NasaPoly2(...)` with a 14-element coefficient array -- all
+        Cantera-2 API shapes that either don't exist in Cantera >=3
+        (`ct.TroeFalloff`, the `high_rate`/`low_rate`/`falloff` kwargs) or
+        silently fail (`NasaPoly2` requires a 15-element array: [Tmid] + 7
+        low-T coeffs + 7 high-T coeffs, not 14). None of this was wrapped
+        in a try/except beyond the `import cantera` line itself, so any
+        Troe/Lindemann band request with use_cantera_for_falloff=True would
+        raise uncaught. Also fixed a genuine unit bug: this codebase's
+        Ea_si is J/mol (see chemkin_reader.py's `_arrhenius_params`), but
+        Cantera's Python `ct.Arrhenius(A, b, Ea)` constructor expects Ea in
+        J/**kmol** (confirmed against Cantera's own FalloffReaction
+        docstring example: -1700 cal/mol == -7112800 J/kmol passed to the
+        constructor) -- every falloff rate evaluated through this path was
+        off by a factor of exp(Ea/RT * 999/1000), i.e. wildly wrong except
+        coincidentally near Ea=0.
+        """
         try:
             import cantera as ct
         except ImportError:
@@ -405,10 +424,13 @@ class UncertaintyBandEstimator:
 
         A_hi  = high.get("A_si", 0.0)
         n_hi  = high.get("n", 0.0)
-        Ea_hi = high.get("Ea_si", 0.0)
+        Ea_hi = high.get("Ea_si", 0.0) * 1000.0   # J/mol -> J/kmol
         A_lo  = low.get("A_si", 0.0)
         n_lo  = low.get("n", 0.0)
-        Ea_lo = low.get("Ea_si", 0.0)
+        Ea_lo = low.get("Ea_si", 0.0) * 1000.0    # J/mol -> J/kmol
+
+        high_rate = ct.Arrhenius(A_hi, n_hi, Ea_hi)
+        low_rate  = ct.Arrhenius(A_lo, n_lo, Ea_lo)
 
         if ktype in ("troe", "falloff") and "alpha" in kdata:
             alpha = kdata["alpha"]
@@ -416,26 +438,25 @@ class UncertaintyBandEstimator:
             T2    = kdata.get("T2")
             T3    = kdata.get("T3", 1e-30)
             troe_params = [alpha, T3, T1] + ([T2] if T2 is not None else [])
-            rxn = ct.FalloffReaction(
-                reactants={"A": 1}, products={"B": 1},
-                high_rate=ct.Arrhenius(A_hi, n_hi, Ea_hi),
-                low_rate=ct.Arrhenius(A_lo, n_lo, Ea_lo),
-                falloff=ct.TroeFalloff(troe_params),
-            )
+            rate = ct.TroeRate(low=low_rate, high=high_rate, falloff_coeffs=troe_params)
         else:
-            rxn = ct.FalloffReaction(
-                reactants={"A": 1}, products={"B": 1},
-                high_rate=ct.Arrhenius(A_hi, n_hi, Ea_hi),
-                low_rate=ct.Arrhenius(A_lo, n_lo, Ea_lo),
-            )
+            rate = ct.LindemannRate(low=low_rate, high=high_rate)
 
-        # Build minimal solution to evaluate k(T, P)
+        try:
+            rxn = ct.Reaction(reactants={"A": 1}, products={"B": 1}, rate=rate)
+        except Exception:
+            log.debug("Could not build falloff Reaction for band evaluation", exc_info=True)
+            return None
+
+        # Build minimal solution to evaluate k(T, P). NasaPoly2's data array
+        # is [Tmid, low_coeffs(7), high_coeffs(7)] = 15 elements.
         sp_A = ct.Species("A", "C:1")
         sp_B = ct.Species("B", "C:1")
         sp_M = ct.Species("M", "N:2")
         for sp in [sp_A, sp_B, sp_M]:
             sp.thermo = ct.NasaPoly2(300, 5000, 1000,
-                                      [3.5, 0, 0, 0, 0, -745, 3.5,
+                                      [1000.0,
+                                       3.5, 0, 0, 0, 0, -745, 3.5,
                                        3.5, 0, 0, 0, 0, -745, 3.5])
         gas = ct.Solution(thermo="ideal-gas", kinetics="gas",
                           species=[sp_A, sp_B, sp_M],
@@ -468,7 +489,7 @@ class UncertaintyBandEstimator:
             return None
 
         try:
-            rxn = ct.ChebyshevReaction(
+            rxn = ct.Reaction(
                 reactants={"A": 1}, products={"B": 1},
                 rate=ct.ChebyshevRate(
                     temperature_range=(Tmin, Tmax),
@@ -477,13 +498,15 @@ class UncertaintyBandEstimator:
                 ),
             )
         except Exception:
+            log.debug("Could not build Chebyshev Reaction for band evaluation", exc_info=True)
             return None
 
         sp_A = ct.Species("A", "C:1")
         sp_B = ct.Species("B", "C:1")
         for sp in [sp_A, sp_B]:
             sp.thermo = ct.NasaPoly2(300, 5000, 1000,
-                                      [3.5, 0, 0, 0, 0, -745, 3.5,
+                                      [1000.0,
+                                       3.5, 0, 0, 0, 0, -745, 3.5,
                                        3.5, 0, 0, 0, 0, -745, 3.5])
         gas = ct.Solution(thermo="ideal-gas", kinetics="gas",
                           species=[sp_A, sp_B],

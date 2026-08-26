@@ -23,6 +23,16 @@ class DesignMatrix(object):
 		self.design = design
 		#self.n = ind
 		self.n = ind
+		# Same latent bug as MUQ-SAC/DesignMatrix.py (bug.md, 2026-07-22): two
+		# methods below (design_matrix's identity-perturbation rows and the
+		# zeroed nominal row) reference self.rxn_len, which was never
+		# assigned anywhere in this class -- calling either raised a bare
+		# AttributeError. This copy is unreached by any current entry point
+		# (MUQ-SAC_EXTENDED/ has no live caller -- confirmed via repo-wide
+		# grep, 2026-08-04), so fixed for correctness/parity rather than a
+		# reported failure. `ind` matches self.n above (the same reaction
+		# count).
+		self.rxn_len = ind if ind is not None else sample_length
 		allowed_count = int(0.70*multiprocessing.cpu_count())
 		self.allowed_count = allowed_count
 	

@@ -18,10 +18,16 @@ Usage::
 from rmip.simulation.base       import AbstractSimRunner, MechanismLoader
 from rmip.simulation.idt_runner import IDTRunner
 from rmip.simulation.lfs_runner import LFSRunner
+from rmip.simulation.muqsac_bridge import MuqsacBridge
+from rmip.simulation.jsr_runner import JSRRunner
+from rmip.simulation.pfr_runner import PFRRunner
 
 __all__ = [
     "AbstractSimRunner",
     "MechanismLoader",
     "IDTRunner",
     "LFSRunner",
+    "MuqsacBridge",
+    "JSRRunner",
+    "PFRRunner",
 ]

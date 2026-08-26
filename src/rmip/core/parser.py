@@ -75,6 +75,8 @@ class MechanismParser:
         dict_path:      Optional[str] = None,
         check_duplicates: bool         = False,
         variants_path:  Optional[str] = None,
+        allow_pseudo_species: bool = False,
+        transport_path: Optional[str] = None,
     ) -> int:
         """
         Parse and store a mechanism.
@@ -98,7 +100,21 @@ class MechanismParser:
         variants_path : str, optional
             Phase-5D species-variant override CSV.  Maps variant species names
             (e.g. OHEX) to their canonical equivalents (e.g. OH) so they share
-            the same InChIKey in the union graph.
+            the same InChIKey in the union graph. CAUTION (found during the
+            Keromnes/Li/Davis fusion session, 2026-07-14): mapping a real,
+            electronically-distinct species like OHEX onto OH's InChI key
+            makes them collide in GraphComparator._load_all_species's
+            `result[mid][ik] = d` (one InChI key per species per mechanism)
+            -- one silently overwrites the other WITHIN that one mechanism.
+            Only use this for names that are genuinely the same molecule
+            under a different alias, not electronically-excited states.
+        allow_pseudo_species : bool
+            CHEMKIN-parser-only (ignored for Cantera YAML). Mirrors
+            ck2yaml's --permissive: drop undeclared reaction participants
+            (e.g. chemiluminescence bookkeeping pseudo-species like "HV",
+            which is not a real species and has no SPECIES-block entry)
+            with a warning instead of keeping them with only a loud error
+            log (M1, review.md).
 
         Returns
         -------
@@ -125,8 +141,10 @@ class MechanismParser:
             from rmip.io.chemkin_reader import load_chemkin
             species_list, rxn_list = load_chemkin(
                 mech_path, thermo_path,
+                transport_path=transport_path,
                 dict_path=dict_path,
                 check_duplicates=check_duplicates,
+                allow_pseudo_species=allow_pseudo_species,
             )
         elif fmt in ("cantera_yaml", "cti"):
             from rmip.io.cantera_reader import load_cantera_yaml
@@ -263,6 +281,14 @@ class MechanismParser:
                 extra["variant_tag"]    = variant_tag
                 extra["canonical_name"] = canonical_name
 
+            # Lennard-Jones transport parsed from the source mechanism (Cantera
+            # ``transport:`` block or a CHEMKIN transport file) — persisted at
+            # parse time so writers can emit it (Phase-3 follow-on).
+            tp = sp.get("transport")
+            if tp:
+                self._ensure_transport_columns()
+                extra.update({k: v for k, v in tp.items() if v is not None})
+
             sp_id = insert_species(
                 self._conn,
                 mechanism_id     = mech_id,
@@ -289,6 +315,14 @@ class MechanismParser:
         self._conn.commit()
         log.debug("Inserted %d species for mech_id=%d", len(name_to_id), mech_id)
         return name_to_id
+
+    def _ensure_transport_columns(self) -> None:
+        """Idempotently add the species transport columns (once per parser)."""
+        if getattr(self, "_transport_cols_ready", False):
+            return
+        from rmip.database.migrations import _add_species_transport_columns
+        _add_species_transport_columns(self._conn)
+        self._transport_cols_ready = True
 
     def _insert_reactions(
         self,
@@ -369,6 +403,11 @@ class MechanismParser:
         if None in r_smiles or None in p_smiles:
             return None
 
+        r_coeffs = [c for _, c in rx.get("reactants", [])]
+        p_coeffs = [c for _, c in rx.get("products", [])]
+
         return self._canon.reaction_key(
-            r_smiles, p_smiles, reversible=rx.get("reversible", True)
+            r_smiles, p_smiles, reversible=rx.get("reversible", True),
+            reactant_coeffs=r_coeffs, product_coeffs=p_coeffs,
+            cancel_self_third_body=True,
         )

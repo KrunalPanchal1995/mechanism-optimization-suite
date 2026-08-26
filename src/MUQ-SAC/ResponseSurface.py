@@ -359,16 +359,16 @@ class ResponseSurface(object):
 											random_state=0).fit(self.X, self.Y)
 		self.gpr_score = self.gpr.score(self.X,self.Y)
 		self.gpr_yfit = self.gpr.predict(self.X)
-	
+
 	def create_Isotonic_response_surface(self):
 		self.huber = QuantileRegressor(quantile=0.8).fit(self.X, self.Y)
 		self.huber_yfit = self.huber.predict(self.X)
-	
+
 	def create_HuberRegressor_response_surface(self):
 		self.huber = HuberRegressor().fit(self.X, self.Y)
 		self.huber_yfit = self.huber.predict(self.X)
 		self.coeff = self.huber.coef_
-		rr = open(os.getcwd()+'/Data/ResponseSurface/huber_responsecoef_case-'+str(self.case_index)+'.csv','w')		
+		rr = open(os.getcwd()+'/Data/ResponseSurface/huber_responsecoef_case-'+str(self.case_index)+'.csv','w')
 		res = "Coefficients\n"
 		for i in self.coeff:
 			res +='{}\n'.format(float(i))
@@ -388,8 +388,8 @@ class ResponseSurface(object):
 			self.RMS_error.append(abs(self.Y[i]-self.resFramWrk[i])**2)
 			self.relative_error.append((abs(self.Y[i]-self.resFramWrk[i])/(self.Y[i]))*100)
 			TraError.append(1-np.exp(-(self.Y[i]-self.resFramWrk[i])))
-			simVSresp +='{},{},{},{}\n'.format(self.Y[i],self.resFramWrk[i],(self.Y[i]-self.resFramWrk[i])/self.Y[i],1-np.exp(-(self.Y[i]-self.resFramWrk[i])))	
-		fileResponse.write(simVSresp)		
+			simVSresp +='{},{},{},{}\n'.format(self.Y[i],self.resFramWrk[i],(self.Y[i]-self.resFramWrk[i])/self.Y[i],1-np.exp(-(self.Y[i]-self.resFramWrk[i])))
+		fileResponse.write(simVSresp)
 		fileResponse.close()
 		self.MaxError = max(self.error)
 		self.MeanError = statistics.mean(self.error)
@@ -444,7 +444,7 @@ class ResponseSurface(object):
 		# BUG FIX: was max(signed), now max(|signed|)
 		self.ytestMaxError  = max(abs(e) for e in self.error_testing_relative)
 		self.yTestMeanError = statistics.mean(self.error_testing_relative)
-		
+
 		if self.ytestMaxError > self.criteria:
 			self.selection = 0
 		else:
@@ -642,24 +642,75 @@ class ResponseSurface(object):
 			Phi    = poly.transform(scores.reshape(1, -1))[0]
 			return float(Phi @ self.coeff)
 
-		BZeta = x
+		BZeta = list(x)
 		coeff = self.coeff
+		n     = len(BZeta)
 		tow   = self.order
 		val   = coeff[0]
 		count = 1
 
+		# M23: this must sum the SAME monomials, in the same order, that
+		# create_response_surface's BTrsMatrix builds for the fit -- up to
+		# self.order. Previously it stopped after order 2, so any order>=3 PRS
+		# was evaluated as if it were order-2 (the order 3/4/5 coefficients the
+		# fit produced were silently ignored -> wrong predictions/optimisation).
+		# NOTE: this raw-zeta (feature_map=None) path is the exact-legacy
+		# fallback -- new fits should set feature_map (see IdentifiablePRS.py)
+		# and go through the _poly_value_and_grad path above instead, but this
+		# branch must still be correct for every order since feature_map=None
+		# remains the default and is what every pre-2026-07-31 saved
+		# responsecoef_case-N.csv cache was fit with.
+
+		# order 1: linear terms  [x_i]
 		if tow > 0:
-			for i in BZeta:
-				val   += coeff[count] * i
-				count += 1
+			for ii in range(n):
+				if count < len(coeff):
+					val   += coeff[count] * BZeta[ii]
+					count += 1
 			tow -= 1
 
+		# order 2: [x_i * x_j,  i <= j]
 		if tow > 0:
-			for i, j in enumerate(BZeta):
-				for k in BZeta[i:]:
+			for ii in range(n):
+				for jj in range(ii, n):
 					if count < len(coeff):
-						val   += coeff[count] * j * k
+						val   += coeff[count] * BZeta[ii] * BZeta[jj]
 						count += 1
+			tow -= 1
+
+		# order 3: [x_i * x_j * x_k,  i <= j <= k]
+		if tow > 0:
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						if count < len(coeff):
+							val   += coeff[count] * BZeta[ii] * BZeta[jj] * BZeta[kk]
+							count += 1
+			tow -= 1
+
+		# order 4
+		if tow > 0:
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						for ll in range(kk, n):
+							if count < len(coeff):
+								val   += (coeff[count] * BZeta[ii] * BZeta[jj]
+								          * BZeta[kk] * BZeta[ll])
+								count += 1
+			tow -= 1
+
+		# order 5
+		if tow > 0:
+			for ii in range(n):
+				for jj in range(ii, n):
+					for kk in range(jj, n):
+						for ll in range(kk, n):
+							for mm in range(ll, n):
+								if count < len(coeff):
+									val   += (coeff[count] * BZeta[ii] * BZeta[jj]
+									          * BZeta[kk] * BZeta[ll] * BZeta[mm])
+									count += 1
 			tow -= 1
 
 		return val
@@ -957,7 +1008,7 @@ class ResponseSurface(object):
 			tow -= 1
 
 		return val
-	
+
 	def transformed_value_and_jacobian(self, x_full, case):
 		"""
 		Return the transformed model value, observed value, effective sigma,

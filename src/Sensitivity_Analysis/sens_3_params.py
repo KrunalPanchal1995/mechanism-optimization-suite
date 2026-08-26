@@ -63,6 +63,46 @@ import reaction_selection as rs
 from MechManipulator2_0 import Manipulator
 from copy import deepcopy
 
+# KRUNAL_JULY_23.md point 4 -- optional matplotlib customization for this
+# script's own two savefig call sites, driven by a GUI-authored PlotStyle
+# JSON (env var, not a CLI flag, so this script's own argv contract --
+# `python sens_3_params.py <input_file.yaml>` -- doesn't change). Self-
+# contained sys.path insert since this script relies on PYTHONPATH/cwd for
+# its OTHER imports above, which the GUI bridge sets up, but shouldn't be
+# required just to find mso_io.
+_SENS3P_SRC_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+if _SENS3P_SRC_DIR not in sys.path:
+    sys.path.insert(0, _SENS3P_SRC_DIR)
+try:
+    from mso_io.plot_style import PlotStyle as _PlotStyle, apply_style as _apply_plot_style, save_figure as _save_styled_figure
+    _HAS_PLOT_STYLE = True
+except ImportError:
+    _HAS_PLOT_STYLE = False
+
+_PLOT_STYLE = None
+_plot_style_json = os.environ.get("SENS3P_PLOT_STYLE_JSON", "").strip()
+if _HAS_PLOT_STYLE and _plot_style_json and os.path.exists(_plot_style_json):
+    try:
+        _PLOT_STYLE = _PlotStyle.load(_plot_style_json)
+    except Exception:
+        _PLOT_STYLE = None
+
+
+def _save_sa_figure(fig, ax, default_path, *, blank_labels=False):
+    """Save one of this script's SA figures, honoring _PLOT_STYLE if set.
+    blank_labels=True for the shared 3-panel figure, where a user-set
+    global xlabel/ylabel/title would otherwise clobber the three distinct
+    per-panel axis labels -- font size/grid/dpi/format still apply."""
+    if _PLOT_STYLE is None:
+        fig.savefig(default_path, bbox_inches="tight")
+        return default_path
+    style = _PLOT_STYLE
+    if blank_labels:
+        import dataclasses
+        style = dataclasses.replace(_PLOT_STYLE, xlabel="", ylabel="", title="")
+    _apply_plot_style(fig, ax, style)
+    return _save_styled_figure(fig, default_path, style)
+
 import combustion_target_class
 import data_management
 import simulation_manager2_0 as simulator
@@ -123,6 +163,7 @@ fT              = "fileType"
 add             = "addendum"
 
 if len(sys.argv) > 1:
+    sys.argv[1] = os.path.abspath(sys.argv[1])
     input_file = open(sys.argv[1], 'r')
     optInputs  = yaml.safe_load(input_file)
     log.info(f"  Input file '{sys.argv[1]}' loaded successfully.")
@@ -131,13 +172,20 @@ else:
     log.error("Usage: python SA_3P_BruteForce.py <input_file.yaml>")
     sys.exit(1)
 
-iFile                   = str(os.getcwd()) + "/" + str(sys.argv[1])
+iFile                   = sys.argv[1]
 dataCounts              = optInputs[count]
 binLoc                  = optInputs["Bin"]
 inputs                  = optInputs["Inputs"]
 locations               = optInputs["Locations"]
 startProfile_location   = optInputs[startProfile]
 stats_                  = optInputs["Stats"]
+
+# Paths under "Locations" are relative to the config file itself, not to
+# whatever cwd the caller happens to launch this script from.
+_config_dir = os.path.dirname(iFile)
+for _key in (unsrt, mech, thermoF, transF):
+    if _key in locations and not os.path.isabs(locations[_key]):
+        locations[_key] = os.path.join(_config_dir, locations[_key])
 global A_fact_samples
 A_fact_samples          = stats_["Sampling_of_PRS"]
 
@@ -936,7 +984,6 @@ for case_index, case in enumerate(temp_sim_opt_A):
         normalized_A = A_o / delta_a
 
         delta_n_val  = float(delta_dict[rxn]["delta_n"])
-        print(rxn,delta_dict[rxn]["delta_n"])
         normalized_n = 1.0 / delta_n_val              # n is not log-scaled
 
         delta_ea     = float(delta_dict[rxn]["delta_Ea"])
@@ -1013,13 +1060,13 @@ for case_index, case in enumerate(temp_sim_opt_A):
     log.info(f"    Generating SA plots ...")
 
     fig = plt.figure()
+    ax = fig.gca()
     y_pos = range(len(sort_alist))
-    plt.barh(y_pos, sorted(sort_alist, key=abs), alpha=0.51)
-    plt.yticks(y_pos, sort_rlist)
-    plt.xlabel(r'$S_i = \partial\ln(\eta)\,/\,\partial\zeta_\alpha$'
-               f'  [{scheme_tag}]')
-    plt.savefig(f'../Plots_SA/sensitivity_A_{case_index}_{scheme_tag}.png',
-                bbox_inches="tight")
+    ax.barh(y_pos, sorted(sort_alist, key=abs), alpha=0.51)
+    ax.set_yticks(y_pos, sort_rlist)
+    ax.set_xlabel(r'$S_i = \partial\ln(\eta)\,/\,\partial\zeta_\alpha$'
+                  f'  [{scheme_tag}]')
+    _save_sa_figure(fig, ax, f'../Plots_SA/sensitivity_A_{case_index}_{scheme_tag}.png')
     plt.close()
 
     fake_data = pd.DataFrame({
@@ -1038,8 +1085,8 @@ for case_index, case in enumerate(temp_sim_opt_A):
     ax1.set_xlabel(r'$\partial\ln(\eta)\,/\,\partial\zeta_\alpha$')
     ax2.set_xlabel(r'$\partial\ln(\eta)\,/\,\partial\zeta_n$')
     ax3.set_xlabel(r'$\partial\ln(\eta)\,/\,\partial\zeta_\epsilon\ (\times10^{-1})$')
-    fig.savefig(f'../Plots_SA/sensitivity_{case_index}_{scheme_tag}.png',
-                bbox_inches="tight")
+    _save_sa_figure(fig, ax1, f'../Plots_SA/sensitivity_{case_index}_{scheme_tag}.png',
+                    blank_labels=True)
     plt.close()
 
     # ── Text output files ─────────────────────────────────────────────────

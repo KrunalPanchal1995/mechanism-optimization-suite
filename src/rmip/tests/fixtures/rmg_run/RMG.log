@@ -1,0 +1,50 @@
+RMG execution initiated at Sat Jul 18 09:14:02 2026
+
+Reading input file "/scratch/ethane/input.py"...
+Adding species ethane(1) to model core
+Adding species O2(2) to model core
+Adding species N2 to model core
+Completed initial enlarge edge step.
+
+Conducting simulation of reaction system 1...
+At time 2.1000e-04 s, species C2H5(3) at rate ratio 4.82 exceeded the minimum rate for moving to model core of 0.1
+At time 2.1000e-04 s, species CH3(4) at 0.31 exceeded the minimum rate for simulation interruption of 0.2
+Adding species C2H5(3) to model core
+Added 1 new core species
+Created 5 new edge species
+Added 4 new core reactions
+Created 12 new edge reactions
+    The model core has 4 species and 4 reactions
+    The model edge has 5 species and 12 reactions
+
+Conducting simulation of reaction system 1...
+At time 8.4000e-04 s, species CH3(4) at rate ratio 1.93 exceeded the minimum rate for moving to model core of 0.1
+At time 9.0000e-04 s, species C2H4(5) at rate ratio 0.87 exceeded the minimum rate for moving to model core of 0.1
+At time 9.2000e-04 s, species C4H10(8) at 0.18 exceeded the minimum rate for simulation interruption of 0.2
+Adding species CH3(4) to model core
+Adding species C2H4(5) to model core
+Added 2 new core species
+Created 9 new edge species
+Added 7 new core reactions
+Created 21 new edge reactions
+    The model core has 6 species and 11 reactions
+    The model edge has 9 species and 21 reactions
+
+Conducting simulation of reaction system 1...
+At time 1.4000e-03 s, species H(6) was added to model core to avoid singularity
+At time 2.0000e-03 s, species C3H7(9) at rate ratio 0.42 was added to model core in model resurrection process
+Adding species H(6) to model core
+Adding species C3H7(9) to model core
+Species CH2(S)(11) was Forbidden and not added to Core...Removing from Edge.
+Pruning species C4H9(10) to make num_edge_species smaller than maximum_edge_species
+Added 2 new core species
+Created 6 new edge species
+Added 9 new core reactions
+Created 14 new edge reactions
+    The model core has 8 species and 20 reactions
+    The model edge has 12 species and 30 reactions
+
+MODEL GENERATION COMPLETED
+
+The final model core has 8 species and 20 reactions
+The final model edge has 12 species and 30 reactions

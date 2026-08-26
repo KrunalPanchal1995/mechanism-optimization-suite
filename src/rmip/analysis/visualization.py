@@ -240,6 +240,8 @@ class NetworkVisualizer:
         label_mode: str = "formula",
         threshold: float = 0.1,
         score: str = "importance",
+        reduction_result=None,
+        reduction_eps: float = 0.0,
     ) -> None:
         """
         Launch the Dash application.
@@ -258,6 +260,11 @@ class NetworkVisualizer:
         score : str
             Which score drives edge coloring: ``'importance'`` (default),
             ``'sa'``, or ``'flux'``.
+        reduction_result : ReductionResult, optional
+            Phase-5B reduction steps — adds a slider that dims removed
+            nodes/edges at each ε threshold.
+        reduction_eps : float
+            Initial ε for the reduction slider (default 0.0 = full mechanism).
 
         Requires: ``dash``, ``dash-cytoscape``.
         """
@@ -278,14 +285,22 @@ class NetworkVisualizer:
 
         if len(self._graphs) == 1:
             app.layout = self._single_layout(
-                html, dcc, cyto, label_mode, has_positions, threshold, score
+                html, dcc, cyto, label_mode, has_positions, threshold, score,
+                reduction_result=reduction_result, reduction_eps=reduction_eps,
             )
-            self._register_single_callbacks(app, dash, score)
+            self._register_single_callbacks(
+                app, dash, score,
+                reduction_result=reduction_result,
+            )
         else:
             app.layout = self._dual_layout(
-                html, dcc, cyto, label_mode, has_positions, threshold, score
+                html, dcc, cyto, label_mode, has_positions, threshold, score,
+                reduction_result=reduction_result, reduction_eps=reduction_eps,
             )
-            self._register_dual_callbacks(app, dash, score)
+            self._register_dual_callbacks(
+                app, dash, score,
+                reduction_result=reduction_result,
+            )
 
         log.info("Starting NetworkVisualizer on http://localhost:%d", port)
         app.run(debug=debug, port=port)
@@ -475,6 +490,71 @@ class NetworkVisualizer:
             },
         )
 
+    def _reduction_bar(self, html, dcc, reduction_result, reduction_eps: float):
+        """Return a slider bar for Phase-5B reduction overlay (or empty Div if None)."""
+        if reduction_result is None:
+            return html.Div()
+
+        steps = reduction_result.steps
+        n     = len(steps)
+        if n == 0:
+            return html.Div()
+
+        # Find closest step index to requested eps
+        init_idx = 0
+        for i, s in enumerate(steps):
+            if s.threshold <= reduction_eps + 1e-9:
+                init_idx = i
+
+        eps_vals = [s.threshold for s in steps]
+        marks    = {
+            i: f"{eps_vals[i]:.2f}"
+            for i in range(0, n, max(1, n // 10))
+        }
+        marks[n - 1] = f"{eps_vals[-1]:.2f}"
+
+        step0  = steps[0]
+        stepI  = steps[init_idx]
+        subtitle = (
+            f"{stepI.n_species}/{step0.n_species} sp, "
+            f"{stepI.n_reactions}/{step0.n_reactions} rxn retained  "
+            f"(ε = {stepI.threshold:.3f})"
+        )
+
+        return html.Div([
+            html.Div([
+                html.Span(
+                    f"Reduction overlay — {reduction_result.method}  "
+                    f"(seed: {', '.join(reduction_result.target_species[:5])}{'…' if len(reduction_result.target_species) > 5 else ''})",
+                    style={"fontFamily": "monospace", "fontSize": "11px",
+                           "color": "#555", "marginRight": "10px"},
+                ),
+                html.Span(
+                    subtitle,
+                    id="reduction-subtitle",
+                    style={"fontFamily": "monospace", "fontSize": "11px",
+                           "color": "#1565C0", "fontWeight": "600"},
+                ),
+            ], style={"margin": "2px 10px"}),
+            html.Div(
+                dcc.Slider(
+                    id="reduction-slider",
+                    min=0, max=n - 1, step=1,
+                    value=init_idx,
+                    marks=marks,
+                    tooltip={"placement": "bottom", "always_visible": False},
+                    updatemode="drag",
+                ),
+                style={"margin": "0 20px 4px 20px"},
+            ),
+        ], style={
+            "backgroundColor": "#E8F5E9",
+            "border":          "1px solid #A5D6A7",
+            "borderRadius":    "4px",
+            "margin":          "2px 10px",
+            "padding":         "4px 0",
+        })
+
     def _download_btn(self, html, panel_idx: int):
         return html.Button(
             "⬇ Download PNG",
@@ -562,11 +642,13 @@ class NetworkVisualizer:
     # ── Layout builders ──────────────────────────────────────────────────────
 
     def _single_layout(self, html, dcc, cyto, label_mode: str, has_positions: bool,
-                       threshold: float = 0.1, score: str = "importance"):
+                       threshold: float = 0.1, score: str = "importance",
+                       reduction_result=None, reduction_eps: float = 0.0):
         default_val = self._default_layout_value(has_positions)
         cyto_layout, elements = self._resolve_layout(
             default_val, self._G, label_mode, score
         )
+        graph_height = "72vh" if reduction_result is not None else "82vh"
         return html.Div([
             # ── title + controls row ──
             html.Div([
@@ -597,22 +679,27 @@ class NetworkVisualizer:
                 self._download_btn(html, 0),
             ], style={"margin": "6px 10px", "display": "flex", "alignItems": "center"}),
 
+            # ── Phase 5B reduction slider (only when --reduction-json supplied) ──
+            self._reduction_bar(html, dcc, reduction_result, reduction_eps),
+
             # ── graph ──
             cyto.Cytoscape(
                 id="graph-0",
                 elements=elements,
                 stylesheet=_default_stylesheet(threshold),
                 layout=cyto_layout,
-                style={"width": "100%", "height": "82vh"},
+                style={"width": "100%", "height": graph_height},
                 generateImage={},
             ),
         ])
 
     def _dual_layout(self, html, dcc, cyto, label_mode: str, has_positions: bool,
-                     threshold: float = 0.1, score: str = "importance"):
+                     threshold: float = 0.1, score: str = "importance",
+                     reduction_result=None, reduction_eps: float = 0.0):
         default_val = self._default_layout_value(has_positions)
         header = f"{self._titles[0]}  vs  {self._titles[1]}"
         graphs = self._graphs
+        graph_height = "68vh" if reduction_result is not None else "78vh"
 
         def panel(idx):
             cyto_layout, elems = self._resolve_layout(
@@ -637,7 +724,7 @@ class NetworkVisualizer:
                     elements=elems,
                     stylesheet=_default_stylesheet(threshold),
                     layout=cyto_layout,
-                    style={"width": "100%", "height": "78vh"},
+                    style={"width": "100%", "height": graph_height},
                     generateImage={},
                 ),
             ], style={"width": "50%", "padding": "0 5px", "boxSizing": "border-box"})
@@ -665,6 +752,9 @@ class NetworkVisualizer:
             # ── shared legend ──
             self._legend(html),
 
+            # ── Phase 5B reduction slider (shared across both panels) ──
+            self._reduction_bar(html, dcc, reduction_result, reduction_eps),
+
             # ── two panels ──
             html.Div([panel(0), panel(1)],
                      style={"display": "flex", "width": "100%"}),
@@ -672,7 +762,9 @@ class NetworkVisualizer:
 
     # ── Callback registration ─────────────────────────────────────────────────
 
-    def _register_single_callbacks(self, app, dash, score: str = "importance") -> None:
+    def _register_single_callbacks(
+        self, app, dash, score: str = "importance", reduction_result=None
+    ) -> None:
         graphs = self._graphs
         viz    = self
 
@@ -698,7 +790,33 @@ class NetworkVisualizer:
                 "options": {"full": True, "scale": 4},
             }
 
-    def _register_dual_callbacks(self, app, dash, score: str = "importance") -> None:
+        # Phase 5B — reduction slider callbacks (only when reduction data supplied)
+        if reduction_result is not None:
+            steps = reduction_result.steps
+
+            @app.callback(
+                dash.Output("graph-0", "stylesheet"),
+                dash.Output("reduction-subtitle", "children"),
+                dash.Input("reduction-slider", "value"),
+            )
+            def update_reduction_single(slider_idx):
+                idx    = max(0, min(int(slider_idx or 0), len(steps) - 1))
+                step   = steps[idx]
+                step0  = steps[0]
+                sheet  = _default_stylesheet_with_reduction(
+                    retained_species   = set(step.retained_species),
+                    retained_reactions = set(step.retained_reactions),
+                )
+                subtitle = (
+                    f"{step.n_species}/{step0.n_species} sp, "
+                    f"{step.n_reactions}/{step0.n_reactions} rxn retained  "
+                    f"(ε = {step.threshold:.3f})"
+                )
+                return sheet, subtitle
+
+    def _register_dual_callbacks(
+        self, app, dash, score: str = "importance", reduction_result=None
+    ) -> None:
         graphs = self._graphs
         viz    = self
 
@@ -738,6 +856,31 @@ class NetworkVisualizer:
                 "filename": "rmip_graph_1",
                 "options": {"full": True, "scale": 4},
             }
+
+        # Phase 5B — reduction slider callbacks (dual panel: updates both stylesheets)
+        if reduction_result is not None:
+            steps = reduction_result.steps
+
+            @app.callback(
+                dash.Output("graph-0", "stylesheet"),
+                dash.Output("graph-1", "stylesheet"),
+                dash.Output("reduction-subtitle", "children"),
+                dash.Input("reduction-slider", "value"),
+            )
+            def update_reduction_dual(slider_idx):
+                idx    = max(0, min(int(slider_idx or 0), len(steps) - 1))
+                step   = steps[idx]
+                step0  = steps[0]
+                sheet  = _default_stylesheet_with_reduction(
+                    retained_species   = set(step.retained_species),
+                    retained_reactions = set(step.retained_reactions),
+                )
+                subtitle = (
+                    f"{step.n_species}/{step0.n_species} sp, "
+                    f"{step.n_reactions}/{step0.n_reactions} rxn retained  "
+                    f"(ε = {step.threshold:.3f})"
+                )
+                return sheet, sheet, subtitle
 
 
 # ── Module-level helpers ────────────────────────────────────────────────────
@@ -956,3 +1099,101 @@ def _default_stylesheet(threshold: float = 0.1) -> List[Dict[str, Any]]:
              "opacity":      1.0,
          }},
     ]
+
+
+def _default_stylesheet_with_reduction(
+    retained_species:   "set[str]",
+    retained_reactions: "set[str]",
+    threshold: float = 0.1,
+) -> List[Dict[str, Any]]:
+    """
+    Return a stylesheet with Phase-5B reduction dimming rules appended.
+
+    Removed species and reactions are rendered at 10% opacity with a red
+    dashed border, matching PLAN.md §5B visualization spec.
+
+    The ``retained_species`` / ``retained_reactions`` sets contain species
+    *names* and reaction *formula_strings* respectively — these are stored as
+    node data attributes so Cytoscape can match them.
+    """
+    base = _default_stylesheet(threshold)
+
+    # Build comma-separated Cytoscape selectors for removed items.
+    # Cytoscape data selectors use exact string matching on data attributes.
+    # We inject per-name selectors that are NOT in the retained set.
+    # This is done server-side: the callback passes the full stylesheet
+    # (base + node-specific rules) so it can target individual nodes.
+    #
+    # Rather than generating one selector per removed node (which can be very
+    # long), we use a simpler approach: mark each node with a data attribute
+    # "retained" = "true"/"false" in the callback, then style via that.
+    # However, since we regenerate elements only on layout changes (not on
+    # slider), we use the stylesheet approach instead: nodes are annotated
+    # with their name/formula in data, and we build explicit selectors.
+    #
+    # For brevity, the stylesheet adds a broad "dim all" rule then overrides
+    # the retained nodes to be fully visible — this way only retained nodes
+    # are highlighted.
+
+    # These selectors use Cytoscape data attribute matching.
+    # species nodes: data(name) / reaction nodes: data(formula_string)
+    removed_sp_selectors  = []
+    removed_rx_selectors  = []
+
+    # We don't know the full species/reaction sets here, so use the inverse:
+    # rather than listing removed nodes, we dim everything by default via a
+    # special "reduced" class, then un-dim retained ones.
+    # The cleaner approach: extend the node data with a "reduced" flag,
+    # but that requires rebuilding elements. Instead we use an opaque approach:
+    # - Add "dim-all" rule first
+    # - Add per-name un-dim rules for retained nodes
+    # This produces a large stylesheet for large mechanisms but works correctly.
+
+    reduction_rules: List[Dict[str, Any]] = [
+        # Dim all nodes by default (reduced-mode base)
+        {"selector": "node",
+         "style": {
+             "opacity":      0.08,
+             "border-style": "dashed",
+             "border-color": "#E53935",
+             "border-width": 1.5,
+         }},
+        # Dim all edges
+        {"selector": "edge",
+         "style": {"opacity": 0.05, "line-color": "#CCCCCC",
+                   "target-arrow-color": "#CCCCCC"}},
+    ]
+
+    # Un-dim retained species nodes by name
+    for sp_name in sorted(retained_species):
+        safe = sp_name.replace("'", "\\'").replace('"', '\\"')
+        reduction_rules.append({
+            "selector": f'node[name = "{safe}"]',
+            "style":    {
+                "opacity":      1.0,
+                "border-style": "solid",
+                "border-color": "#000",
+                "border-width": 0,
+            },
+        })
+
+    # Un-dim retained reaction nodes by formula_string
+    for formula in sorted(retained_reactions):
+        safe = formula.replace('"', '\\"')
+        reduction_rules.append({
+            "selector": f'node[formula_string = "{safe}"]',
+            "style":    {
+                "opacity":      1.0,
+                "border-style": "solid",
+                "border-color": "#000",
+                "border-width": 0,
+            },
+        })
+
+    # Ghost nodes always dim further (already handled by base stylesheet)
+    reduction_rules.append({
+        "selector": "node[ghost = 'True']",
+        "style":    {"opacity": 0.05},
+    })
+
+    return base + reduction_rules

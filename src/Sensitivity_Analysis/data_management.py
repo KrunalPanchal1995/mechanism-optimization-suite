@@ -560,6 +560,37 @@ def extract_direct_simulation_values(case,loc,target_list,fuel):
 
 
 #function extracts output from the given text file based on the called location where it currently is. Called in the previous function.		
+def _log_missing_solver_output(path, filename):
+	"""(Round-2 audit fix, B8 -- WORKBENCH_AUDIT_2026-08-10.md; byte-identical
+	copy of the same fix in src/MUQ-SAC/data_management.py) Print a
+	diagnostic naming the case directory and, if present, the tail of the
+	adjacent solver log (the `solve` file each per-case run/ directory
+	captures its stdout+stderr into, one level above the `output/`
+	directory extract_output is passed) -- instead of the bare
+	FileNotFoundError this used to be, which gave zero indication of
+	*why* the run failed (solver non-convergence vs. a crashed
+	generated script vs. a missing binary all look identical as a plain
+	"file not found"). Confirmed real cause in a live FFCM1 campaign:
+	an unquoted fuel name in the generated cantera_.py
+	(make_input_file.py's `set_equivalence_ratio` template) raised
+	`NameError: name 'H2' is not defined` before any simulation ran --
+	invisible without the log tail this prints.
+	"""
+	case_dir = os.path.dirname(os.path.dirname(os.path.join(path, "")))
+	log_path = os.path.join(case_dir, "solve")
+	print(f"[extract_output] WARNING: {filename} missing in {path!r} "
+	      f"(case dir: {case_dir!r}) -- treating this case as failed "
+	      f"(eta=N/A) rather than aborting the run.")
+	if os.path.isfile(log_path):
+		try:
+			tail = open(log_path).readlines()[-10:]
+			print(f"[extract_output]   tail of {log_path}:")
+			for line in tail:
+				print(f"[extract_output]     {line.rstrip()}")
+		except OSError as exc:
+			print(f"[extract_output]   (could not read {log_path}: {exc})")
+
+
 def extract_output(case,fuel,path,index,input_=None,caseID=None):
 	eta = string = ETA = None
 	#print(case.target)
@@ -677,32 +708,56 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 		
 		else:
 			#print("Tig is the target and FlameMaster is the solver")
-			
-			out_file = open(path+"tau.out",'r').readlines()
-			string = path +"tau.out"
-			line = out_file[0].split("	")
-			#print(line)
-			if len(line) == 3:
-				#eta = np.log(float(line[2])*1000)
-				#print(float(line[1]))
-				eta = np.log(float(line[1])*1000*10)
-				ETA = float(line[1])*1000#us /micro seconds
+			string = path + "tau.out"
+			# (Round-2 audit fix, B8) This was the only branch in this
+			# function that opened its output file without first checking
+			# `"tau.out" in os.listdir(path)` the way every sibling branch
+			# above does -- a missing file (solver crash/non-convergence)
+			# raised a bare, undiagnosed FileNotFoundError that aborted the
+			# entire multi-hour optimization run over one bad case, instead
+			# of degrading to the same "N/A" sentinel every other branch
+			# already uses.
+			if "tau.out" in os.listdir(path):
+				out_file = open(path+"tau.out",'r').readlines()
+				line = out_file[0].split("	")
+				#print(line)
+				if len(line) == 3:
+					#eta = np.log(float(line[2])*1000)
+					#print(float(line[1]))
+					eta = np.log(float(line[1])*1000*10)
+					ETA = float(line[1])*1000#us /micro seconds
+				else:
+					eta = np.log(100*10000)
+					ETA = 100*10000
 			else:
-				eta = np.log(100*10000)
-				ETA = 100*10000
+				_log_missing_solver_output(path, "tau.out")
+				eta = "N/A"
+				ETA = eta
 			#return eta,string
 	elif case.target.strip() == "Fls":
 		if "cantera" in case.add["solver"]:
-			out_file = open(path+"Su.out",'r').readlines()
-			string = path +"Su.out"
-			line = out_file[1].split()
-			#print(line)
-			if len(line) == 2:
-				eta = np.log(float(line[1]))
-				ETA = float(line[1])	#cm/seconds
+			string = path + "Su.out"
+			# (Round-2 audit fix, B8) Same missing guard as the Tig branch
+			# above -- see that comment. This is the exact site that
+			# crashed on the real FFCM1 campaign's SA/nominal/case-7:
+			# make_input_file.py's generated cantera_.py had an unquoted
+			# fuel name (NameError before any simulation ran), so Su.out
+			# was never written, and this open() raised a bare
+			# FileNotFoundError with no indication of the real cause.
+			if "Su.out" in os.listdir(path):
+				out_file = open(path+"Su.out",'r').readlines()
+				line = out_file[1].split()
+				#print(line)
+				if len(line) == 2:
+					eta = np.log(float(line[1]))
+					ETA = float(line[1])	#cm/seconds
+				else:
+					eta = np.log(200)
+					ETA = 200
 			else:
-				eta = np.log(200)
-				ETA = 200
+				_log_missing_solver_output(path, "Su.out")
+				eta = "N/A"
+				ETA = eta
 		else:
 			#start = os.getcwd()
 			#print(path)

@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "cantera_version": "3.0.1",
+    "python": "3.9.7",
+    "executable": "/home/krithika/anaconda3/bin/python3",
+    "blessed_at": "2026-07-20T09:23:58"
+  },
+  "results": {
+    "h2o2-equilibrium-phi1": {
+      "ok": true,
+      "observables": {
+        "T_ad_K": 2387.6369000144755,
+        "X_H2O": 0.3243704004035619,
+        "X_OH": 0.0072848444747984804,
+        "X_O2": 0.005609423281890732
+      },
+      "error": null,
+      "wall_s": 0.015
+    },
+    "h2o2-idt-1100K-1atm": {
+      "ok": true,
+      "observables": {
+        "idt_s": 9.375e-05
+      },
+      "error": null,
+      "wall_s": 0.013
+    },
+    "h2o2-lfs-phi1-1atm": {
+      "ok": true,
+      "observables": {
+        "lfs_m_per_s": 2.3509438720861926
+      },
+      "error": null,
+      "wall_s": 0.346
+    },
+    "gri30-equilibrium-phi1": {
+      "ok": true,
+      "observables": {
+        "T_ad_K": 2225.5245834770044,
+        "X_CO2": 0.08536421734727112,
+        "X_H2O": 0.18346659345860125,
+        "X_CO": 0.00898793908321123
+      },
+      "error": null,
+      "wall_s": 0.084
+    },
+    "gri30-idt-1500K-1atm": {
+      "ok": true,
+      "observables": {
+        "idt_s": 0.0011075
+      },
+      "error": null,
+      "wall_s": 0.133
+    },
+    "gri30-lfs-phi1-1atm": {
+      "ok": true,
+      "observables": {
+        "lfs_m_per_s": 0.38050772172084346
+      },
+      "error": null,
+      "wall_s": 19.492
+    }
+  }
+}

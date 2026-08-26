@@ -466,11 +466,122 @@ class TestChemkinParserArrheniusVariants:
         # 47.7 kcal/mol = 47.7 * 4184 ≈ 199577 J/mol
         assert rx[0]["Ea_si"] == pytest.approx(47.7 * 4184.0, rel=0.01)
 
+    def test_ea_kjoules_per_mole_not_confused_with_joules(self, tmp_dir):
+        """M3 (review.md): "KJOULES/MOLE" contains "JOULES" as a substring,
+        so the header-unit detector used to match the JOULES branch first
+        and treat kJ/mol values as J/mol -- Ea off by 1000x."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 H2O  END
+            REACTIONS  KJOULES/MOLE
+            H2+O2=>H2O  1.0E+13  0.0  199.577
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "kjoules.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        # 199.577 kJ/mol = 199577 J/mol -- NOT 199.577 J/mol.
+        assert rx[0]["Ea_si"] == pytest.approx(199577.0, rel=0.01)
+
+    def test_molecules_units_warns(self, tmp_dir, caplog):
+        """M3: MOLECULES (A-factor per molecule, not per mole) isn't
+        converted by this parser -- must warn instead of silently treating
+        it as per-mole."""
+        import logging
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 H2O  END
+            REACTIONS  MOLECULES
+            H2+O2=>H2O  1.0E+13  0.0  1000.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "molecules.inp"), content)
+        parser = ChemkinParser()
+        with caplog.at_level(logging.WARNING, logger="rmip.io.chemkin_parser"):
+            parser.parse(path)
+        assert any("MOLECULES" in r.message for r in caplog.records)
+
+    def test_evolts_units_warns(self, tmp_dir, caplog):
+        """M3: EVOLTS (Ea in electron-volts) isn't converted -- must warn."""
+        import logging
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 H2O  END
+            REACTIONS  EVOLTS
+            H2+O2=>H2O  1.0E+13  0.0  1.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "evolts.inp"), content)
+        parser = ChemkinParser()
+        with caplog.at_level(logging.WARNING, logger="rmip.io.chemkin_parser"):
+            parser.parse(path)
+        assert any("EVOLTS" in r.message for r in caplog.records)
+
+    def test_bare_fortran_exponent_A_factor(self, tmp_dir):
+        """B6 (review.md): "1.7+13" (legal, common in legacy CHEMKIN files)
+        has no E/D marker, so the number regex used to split it into TWO
+        separate numbers ("1.7" and "+13") instead of one -- "1.7" got
+        glued onto the end of the equation string and A came out as 13.0
+        instead of 1.7e13 (12 orders of magnitude off), silently, exit 0."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 OH  END
+            REACTIONS
+            H2+O2<=>2OH  1.7+13  0.0  47780.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "fortran_exp.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        assert "1.7" not in rx[0]["formula_string"]  # not glued onto the equation
+        assert rx[0]["A_si"] == pytest.approx(1.7e13 / 1e6, rel=1e-6)  # cm3->m3
+        assert rx[0]["Ea_si"] == pytest.approx(47780.0 * 4.184, rel=1e-6)
+
+    def test_bare_fortran_exponent_negative(self, tmp_dir):
+        """Same as above but a negative bare exponent ("2.3-05")."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 OH  END
+            REACTIONS
+            H2+O2<=>2OH  2.3-05  0.0  1000.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "fortran_exp_neg.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        assert rx[0]["A_si"] == pytest.approx(2.3e-05 / 1e6, rel=1e-6)
+
+    def test_fortran_exponent_not_confused_with_species_plus(self, tmp_dir):
+        """The Fortran-exponent fix must not corrupt genuine '+' in species
+        formulas/equations (e.g. an ion species like HO2+) -- only a
+        sign+digits run immediately after a digit/period, before whitespace
+        or end-of-line, is a candidate exponent."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H2 O2 OH  END
+            REACTIONS
+            H2+O2<=>2OH  1.0E+13  0.0  1000.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "plus_species.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        assert rx[0]["A_si"] == pytest.approx(1.0e13 / 1e6, rel=1e-6)
+
 
 class TestChemkinParserDuplicate:
     """Test DUPLICATE keyword handling."""
 
     def test_duplicate_flag(self, tmp_dir):
+        """B7 (review.md): CHEMKIN spec places DUPLICATE AFTER the reaction
+        it marks (each member of a duplicate-reaction set gets its own
+        following DUPLICATE line) -- both reactions here are marked
+        duplicate. The old (buggy) behavior attached DUPLICATE to whatever
+        reaction came *next* instead, which this test used to assert as
+        correct (rx[0]["duplicate"] is False) -- that was pinning the bug."""
         content = """\
             ELEMENTS  H O  END
             SPECIES  H O2 OH  END
@@ -485,7 +596,47 @@ class TestChemkinParserDuplicate:
         parser = ChemkinParser()
         sp, rx = parser.parse(path)
         assert len(rx) == 2
-        assert rx[0]["duplicate"] is False  # first occurrence, no DUP before it
+        assert rx[0]["duplicate"] is True
+        assert rx[1]["duplicate"] is True
+
+    def test_duplicate_marks_only_the_line_it_follows(self, tmp_dir):
+        """A DUPLICATE line after only the SECOND of two otherwise-identical
+        reactions marks only that one -- confirms attachment is to the
+        immediately preceding reaction, not a blanket flag."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 OH  END
+            REACTIONS
+            H+O2<=>O+OH  1.0E+14  0.0  16000.0
+            H+O2<=>O+OH  5.0E+13  0.0  15000.0
+            DUPLICATE
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "dup2.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 2
+        assert rx[0]["duplicate"] is False
+        assert rx[1]["duplicate"] is True
+
+    def test_dup_abbreviation_recognized(self, tmp_dir):
+        """B7: the bare "DUP" abbreviation wasn't recognized at all and
+        became a phantom empty reaction row."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 OH  END
+            REACTIONS
+            H+O2<=>O+OH  1.0E+14  0.0  16000.0
+            DUP
+            H+O2<=>O+OH  5.0E+13  0.0  15000.0
+            DUP
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "dup3.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 2  # not 3 (no phantom row from the bare "DUP" line)
+        assert rx[0]["duplicate"] is True
         assert rx[1]["duplicate"] is True
 
 
@@ -586,6 +737,305 @@ class TestChemkinParserThirdBody:
         assert effs.get("O2") == 0.0 or effs.get("o2") == 0.0
         assert effs.get("N2") == 1.26 or effs.get("n2") == 1.26
         assert effs.get("AR") == 0.5 or effs.get("ar") == 0.5
+
+    def test_bare_m_never_stored_as_species(self, tmp_dir):
+        """M4 (review.md): a bare '+M' third body (no parens) used to be
+        stored as a literal reactant/product named "M" -- present here with
+        NO subsequent efficiency-override line, the case most likely to be
+        missed by a fix that only handles the has_third_body-via-aux-line
+        path."""
+        content = """\
+            ELEMENTS  H  END
+            SPECIES  H H2  END
+            REACTIONS
+            H2+M<=>2H+M  4.580E+19  -1.4000  104390.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "bare_m.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        r = rx[0]
+        names = {n for n, _ in r["reactants"]} | {n for n, _ in r["products"]}
+        assert "M" not in names
+        assert r["has_third_body"] is True
+
+    def test_bare_m_order_compensated_in_A_si_conversion(self, tmp_dir):
+        """M4: A off by 1e6 was the actual symptom -- once "M" is correctly
+        excluded from reactants, the stoichiometric order used for the
+        cm^3->m^3 SI conversion must be compensated by +1 (order=2:
+        H2 concentration x M concentration) or A_si silently comes out
+        1e6x too large (order=1, as if unimolecular)."""
+        content = """\
+            ELEMENTS  H  END
+            SPECIES  H H2  END
+            REACTIONS
+            H2+M<=>2H+M  4.580E+19  -1.4000  104390.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "bare_m_order.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        # cm^3/mol/s -> m^3/mol/s: /1e6 (order 2, i.e. bimolecular-equivalent
+        # including M) -- NOT /1 (order 1, which the bug produced by
+        # dropping M's contribution to stoichiometric order).
+        assert rx[0]["A_si"] == pytest.approx(4.580e19 / 1e6, rel=1e-6)
+
+    def test_parenthesized_falloff_main_line_not_compensated(self, tmp_dir):
+        """Sanity check that the M4 fix doesn't overcorrect: a parenthesized
+        "(+M)" falloff's main line is the high-pressure limit and must NOT
+        get the bare-M +1 order compensation (it never had M counted in its
+        reactants in the first place)."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2(+M)<=>HO2(+M)  4.650E+12  0.440  0.00
+            LOW / 1.740E+19  -1.23  0.00 /
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "falloff_main.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        # High-P limit is bimolecular (order 2 -- H + O2), same as if no
+        # third body were involved at all: cm^3/mol/s -> m^3/mol/s = /1e6.
+        assert rx[0]["A_si"] == pytest.approx(4.650e12 / 1e6, rel=1e-6)
+
+    def test_generic_M_falloff_keeps_collider_tag_in_formula_string(self, tmp_dir):
+        """M6 regression: _build_formula_string used to emit a collider tag
+        only for a *specific* collider (rxn.specific_collider, e.g. "(+AR)")
+        and never consulted rxn.third_body -- so a parenthesized *generic*-M
+        falloff like "H2O2(+M)<=>2OH(+M)" lost its tag entirely on export
+        ("H2O2 <=> 2 OH"), indistinguishable from a plain bimolecular
+        reaction sharing the same base equation, and (since formula_string
+        is a downstream join key, e.g. rop_runner.py) silently collidable
+        with one. A specific-collider falloff of the SAME base equation must
+        keep its own distinct tag."""
+        content = """\
+            ELEMENTS  H O AR  END
+            SPECIES  H2O2 OH AR  END
+            REACTIONS
+            H2O2(+M)<=>2OH(+M)  2.000E+12  0.900  48748.0
+            LOW / 2.490E+24  -2.300  48749.0 /
+            H2O2(+AR)<=>2OH(+AR)  2.000E+12  0.900  48748.0
+            LOW / 1.870E+25  -2.300  48749.0 /
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "generic_m_falloff.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 2
+        formulas = [r["formula_string"] for r in rx]
+        assert "H2O2 (+M) <=> 2 OH (+M)" in formulas
+        assert "H2O2 (+AR) <=> 2 OH (+AR)" in formulas
+        # The two falloff variants must be distinguishable -- this is the
+        # exact collision ck2yaml rejects as an "undeclared duplicate
+        # reaction" when they aren't.
+        assert len(set(formulas)) == 2
+
+    def test_bare_M_gets_no_parenthesized_tag(self, tmp_dir):
+        """The M6 fix must not touch bare "+M" reactions (no parens) --
+        they never had M parenthesized in the source, and already round-trip
+        correctly without a tag via chemkin_writer's has_third_body path
+        (see test_bare_third_body_M_on_both_sides in test_phase3.py)."""
+        content = """\
+            ELEMENTS  H  END
+            SPECIES  H H2  END
+            REACTIONS
+            H2+M<=>2H+M  4.580E+19  -1.4000  104390.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "bare_m_formula.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert rx[0]["formula_string"] == "H2 <=> 2 H"
+
+
+class TestChemkinParserKineticsDataMolSI:
+    """M5 (review.md): kinetics_data's inner A_si/Ea_si used to be raw
+    file-native numbers (cm/mol/s, cal/mol) despite the "_si" suffix --
+    inconsistent with this same reader's own top-level A_si/Ea_si columns
+    (which ARE mol-SI), and with cantera_reader.py/chemkin_reader.py's
+    kinetics_data (also mol-SI). Any consumer trusting kinetics_data's
+    "_si" naming (falloff/PLOG CHEMKIN export, uncertainty_bands.py) got
+    numbers off by 1e6-1e9."""
+
+    def test_plog_sub_rates_mol_si(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2<=>HO2  1.0E+12  0.0  0.0
+            PLOG / 0.1   1.230E+15  0.000  25000.0 /
+            PLOG / 10.0  4.560E+16  0.000  30000.0 /
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "plog_si.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        kdata = rx[0]["kinetics_data"]
+        # Bimolecular (order 2, H+O2 -- no M term): cm^3/mol/s -> m^3/mol/s
+        # is /1e6, matching the top-level A_si convention exactly.
+        assert kdata["arrhenius"][0]["A_si"] == pytest.approx(1.230e15 / 1e6, rel=1e-6)
+        assert kdata["arrhenius"][0]["Ea_si"] == pytest.approx(25000.0 * 4.184, rel=1e-6)
+        assert kdata["arrhenius"][1]["A_si"] == pytest.approx(4.560e16 / 1e6, rel=1e-6)
+
+    def test_troe_low_and_high_mol_si(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2(+M)<=>HO2(+M)  4.650E+12  0.440  0.00
+            LOW / 1.740E+19  -1.23  0.00 /
+            TROE / 0.7346  94.0  1756.0  5182.0 /
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "troe_si.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        kdata = rx[0]["kinetics_data"]
+        # High-P limit: order 2 (H+O2, no M) -> /1e6.
+        assert kdata["high"]["A_si"] == pytest.approx(4.650e12 / 1e6, rel=1e-6)
+        # Low-P limit: order 3 (H+O2+M) -> /1e12.
+        assert kdata["low"]["A_si"] == pytest.approx(1.740e19 / 1e12, rel=1e-6)
+        # Consistent with the top-level (representative = high-P) A_si.
+        assert rx[0]["A_si"] == pytest.approx(kdata["high"]["A_si"], rel=1e-6)
+
+
+class TestChemkinParserNoSpaceAfterSlash:
+    """M2 (review.md): _iter_numbers() splits on whitespace then strips
+    enclosing '/' per-token; "LOW/2.3E18" (no space after the slash) has
+    its '/' in the middle of the token, not at either end, so .strip("/,")
+    does nothing, the token fails to parse as a float, and the FIRST value
+    silently vanishes -- shifting every subsequent number in that sub-line
+    into the wrong field."""
+
+    def test_low_no_space_after_slash(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2(+M)<=>HO2(+M)  4.650E+12  0.440  0.00
+            LOW/2.300E+18  -0.90  -855.56/
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "low_nospace.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        kdata = rx[0]["kinetics_data"]
+        # kinetics_data's "low"/"high" are mol-SI (M5, review.md). LOW's
+        # order is reactant_order(2: H+O2)+1(M) = 3 -> cm^6/mol^2/s ->
+        # m^6/mol^2/s is /1e12. Pre-fix: A_si would be missing/None (first
+        # number dropped) or the wrong value (n, Ea shifted into A's slot).
+        assert kdata["low"]["A_si"] == pytest.approx(2.300e18 / 1e12, rel=1e-6)
+        assert kdata["low"]["n"] == pytest.approx(-0.90)
+        assert kdata["low"]["Ea_si"] == pytest.approx(-855.56 * 4.184, rel=1e-6)
+
+    def test_troe_no_space_after_slash(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2(+M)<=>HO2(+M)  4.650E+12  0.440  0.00
+            LOW / 2.300E+18  -0.90  -855.56 /
+            TROE/0.7346  94.0  1756.0  5182.0/
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "troe_nospace.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        kdata = rx[0]["kinetics_data"]
+        assert kdata["alpha"] == pytest.approx(0.7346)
+        assert kdata["T3"] == pytest.approx(94.0)
+        assert kdata["T1"] == pytest.approx(1756.0)
+        assert kdata["T2"] == pytest.approx(5182.0)
+
+    def test_plog_no_space_after_slash(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 HO2  END
+            REACTIONS
+            H+O2<=>HO2  1.0E+12  0.0  0.0
+            PLOG/0.1  1.0E+12  0.0  1000.0/
+            PLOG/10.0  2.0E+13  0.0  2000.0/
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "plog_nospace.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        kdata = rx[0]["kinetics_data"]
+        assert len(kdata["pressures"]) == 2
+        assert kdata["arrhenius"][0]["A_si"] is not None
+        assert kdata["arrhenius"][0]["n"] == pytest.approx(0.0)
+
+
+class TestChemkinParserIonSpecies:
+    """M1 (review.md): trailing '+' in ion species names must survive
+    equation tokenization instead of being truncated as if it were a
+    stoichiometric '+' separator."""
+
+    def test_trailing_plus_ion_species_preserved(self, tmp_dir):
+        content = """\
+            ELEMENTS  H O E  END
+            SPECIES  H O2 HO2+ E  END
+            REACTIONS
+            H+O2<=>HO2++E  1.0E+13  0.0  1000.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "ion.inp"), content)
+        parser = ChemkinParser()
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        product_names = {n for n, _ in rx[0]["products"]}
+        assert "HO2+" in product_names
+        assert "E" in product_names
+
+
+class TestChemkinParserReferentialCheck:
+    """M1: undeclared reaction participants used to be silently accepted."""
+
+    def test_undeclared_participant_logged_but_kept_by_default(self, tmp_dir, caplog):
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2  END
+            REACTIONS
+            H+O2<=>HO2  1.0E+13  0.0  1000.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "undeclared.inp"), content)
+        parser = ChemkinParser()  # allow_pseudo_species=False (default)
+        import logging
+        with caplog.at_level(logging.ERROR, logger="rmip.io.chemkin_parser"):
+            sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        # Default: kept (no silent data loss), but loudly logged.
+        product_names = {n for n, _ in rx[0]["products"]}
+        assert "HO2" in product_names
+        assert any("HO2" in r.message and "undeclared" in r.message.lower()
+                    for r in caplog.records)
+
+    def test_undeclared_participant_dropped_with_allow_pseudo_species(self, tmp_dir):
+        """Mirrors ck2yaml --permissive: chemiluminescence mechanisms often
+        reference a bookkeeping pseudo-species (e.g. "HV" for a photon) that
+        was never meant to be a real tracked species."""
+        content = """\
+            ELEMENTS  H O  END
+            SPECIES  H O2 OH O  END
+            REACTIONS
+            OH<=>O+HV  1.0E+06  0.0  0.0
+            END
+        """
+        path = _write_chemi(os.path.join(tmp_dir, "chemilum.inp"), content)
+        parser = ChemkinParser(allow_pseudo_species=True)
+        sp, rx = parser.parse(path)
+        assert len(rx) == 1
+        product_names = {n for n, _ in rx[0]["products"]}
+        assert "HV" not in product_names
+        assert "O" in product_names
 
 
 # =============================================================================
