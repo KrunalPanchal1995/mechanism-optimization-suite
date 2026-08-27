@@ -1,5 +1,20 @@
 # CHANGELOG — Mechanism Optimization Suite
 
+## 2026-08-27 — pilot_5case_case0 speedup: adaptive MaxSimulationTime + resume self-heal
+
+Branch: `three-param-pprs-visualaid`.
+
+Diagnosis of the pilot_5case_case0 run (5-case Partial-PRS validation, 6025 Chemkin Pro samples/case, single target `ign_phi1_0_p13_5`, τ_exp = 76.23 µs): after 13 h it was 61% done (~4.4 samples/min) because it is **license-bound**, not CPU-bound. Measured: 75.5% of samples hit `return code 99` FlexLM failures from `1055@cclicserver.iitm.ac.in` (70% retried ≥2× — each retry restarts the whole AURORA run under exponential backoff), and each successful run held a license seat ~5-6 min because `MaxSimulationTime` defaulted to 0.4 s ≈ 5250× the observed ignition delay. Workers idled at <2% CPU inside `cantera_.py` for 12-22 min per sample.
+
+Fixes:
+
+- `combustion_target_class.py` — Tig targets without an explicit addendum `MaxSimulationTime` now default to `max(0.01, 100 × observed_tau)` instead of a flat 0.4 s (observed is in µs). RCM/Fls/etc. keep 0.4 s; Tig rows without an observed value keep 0.4 s.
+- `run_script.py` — resume self-heal: a FIRST run interrupted mid-Phase-7 leaves `Opt/progress` (Worker callback) but never `Opt/locations` (only written by `make_dir_in_parallel`'s resumed-case branch), so restarting crashed with `FileNotFoundError: Opt/locations`. The resume path now reconstructs the locations list from the existing case dirs via `getDirectoryList` (same pattern as `simulation_manager2_0.make_dir_in_parallel`) and persists it.
+- `data_management.py` — soln2ck retry fix: `run_sim`'s soln2ck-line extraction grabbed the FIRST line of the `run` script containing `soln2ck_2.py`, which after the 2026-08-26 empty-folder fix is a *comment* ("# cleanup below only runs when BOTH soln2ck_2.py and cantera_.py succeeded") — so the retry path executed a no-op, never regenerated `mechanism.inp`/`thermo.dat` after a directory wipe, and the Chemkin preprocess failed rc=41 ("Failure Pre-processing input files") on all 2202 un-finished samples of the restarted pilot (lost files were batch-repaired by re-running soln2ck from the per-sample YAMLs). Now: comment lines are skipped, the command is split at the first `&&` (so the retry doesn't double-execute `cantera_.py`), and it runs only when `mechanism.inp`/`thermo.dat` are actually missing in the sample dir — the retry path is idempotent instead of always-regenerate.
+- Operational (data-side, in `/data/KRUNAL/pilot_5case_case0/`): `target.opt` `parallel_threads` 64 → 16 (the 64-way checkout storm was the cause of the 75% rc-99 rate; ~15-28 concurrent Chemkin jobs were observed maxing the seat pool), and all 6025 sample `cantera_.py` templates patched `endTime= 0.4` → `0.01`. Relaunched under tmux (`pilot`) with `CHEMKIN_LICENSE_RETRY_MAX=6 CHEMKIN_LICENSE_RETRY_DELAY=2 CHEMKIN_LICENSE_RETRY_BACKOFF=2`; resume reused the 3727 completed samples and Phase-8 re-ran the remaining 2298.
+
+Lesson for future runs: with a remote FlexLM server, more `parallel_threads` than the seat pool can serve is *slower* — checkout failures + backoff restarts dominate. Keep threads near the observed concurrent-license ceiling.
+
 ## 2026-08-26 — Merge t2 (MULTI-STAGE_OPTIMIZATION) + t3 (FINALIZED_MECH_OPT_SUITE) into `src/`, plus empty-output-folder and Ansys-license fixes
 
 Branch: `three-param-pprs-visualaid`. Rollback point: tag `pre-merge-20260826` (+ tarball `/home/krithika/src-backup-20260826.tgz`).

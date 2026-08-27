@@ -262,8 +262,21 @@ def run_sim(index, case, input_, caseID, path, total):
 				soln2ck_cmd = None
 				with open(run_script, "r") as f:
 					for line in f:
-						if "soln2ck_2.py" in line:
-							soln2ck_cmd = line.strip()
+						# 2026-08-27: skip comment lines -- the 2026-08-26
+						# empty-folder fix added a "# cleanup below only runs
+						# when BOTH soln2ck_2.py and cantera_.py succeeded"
+						# comment to the run template, and the old first-match
+						# extraction grabbed that comment as the command.
+						# Executing it (a no-op) meant mechanism.inp/thermo.dat
+						# were never regenerated after a directory wipe, so the
+						# Chemkin preprocess then failed rc=41 ("Failure
+						# Pre-processing input files") on 2202/6025 samples of
+						# pilot_5case_case0. Also split at the first '&&' so
+						# only the soln2ck command itself runs here -- the rest
+						# of the chain (cantera_.py + cleanup) would duplicate
+						# the cantera_1.py run below.
+						if "soln2ck_2.py" in line and not line.strip().startswith("#"):
+							soln2ck_cmd = line.strip().split("&&")[0].strip()
 							break
 				if soln2ck_cmd is None:
 					raise RuntimeError(
@@ -271,19 +284,28 @@ def run_sim(index, case, input_, caseID, path, total):
 						"its expected soln2ck_2.py command."
 					)
 
-				print(f"[INFO] Executing: {soln2ck_cmd}")
+				# Regenerate mechanism.inp/thermo.dat only when missing (a
+				# wiped or interrupted retry dir); a healthy dir already has
+				# them, and re-running soln2ck there would rewrite files the
+				# Chemkin preprocess is about to read.
+				_missing_ck_inputs = (
+					not os.path.isfile(os.path.join(workdir, "mechanism.inp"))
+					or not os.path.isfile(os.path.join(workdir, "thermo.dat"))
+				)
+				if _missing_ck_inputs:
+					print(f"[INFO] mechanism.inp/thermo.dat missing in {workdir} -- "
+					      f"regenerating via soln2ck")
+					with open(log_file,"a") as f:
 
-				with open(log_file,"a") as f:
-
-					subprocess.run(
-					    soln2ck_cmd,
-					    cwd=workdir,
-					    shell=True,
-					    check=True,
-					    env=env,
-					    stdout=f,
-					    stderr=subprocess.STDOUT,
-					)
+						subprocess.run(
+						    soln2ck_cmd,
+						    cwd=workdir,
+						    shell=True,
+						    check=True,
+						    env=env,
+						    stdout=f,
+						    stderr=subprocess.STDOUT,
+						)
 			else:
 				print(f"[INFO] solver={solver!r}: no soln2ck round-trip needed; "
 				      "running cantera directly.")

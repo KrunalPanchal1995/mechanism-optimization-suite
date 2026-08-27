@@ -1057,9 +1057,30 @@ else:
 	item("Progress file detected -- resuming from existing simulation locations")
 	progress = open(optDir+"/progress",'r').readlines()
 	FlameMaster_Execution_location = []
-	with open(optDir+"/locations") as infile:
-		for line in infile:
-			FlameMaster_Execution_location.append(line)
+	if os.path.isfile(optDir+"/locations"):
+		with open(optDir+"/locations") as infile:
+			for line in infile:
+				FlameMaster_Execution_location.append(line)
+	else:
+		# 2026-08-27 resume self-heal: a FIRST run interrupted mid-Phase-7
+		# leaves `progress` (Worker callback) but never `locations` --
+		# make_dir_in_parallel only writes that file in its resumed-case
+		# branch, which a first run never takes. Reconstruct the list from
+		# the existing case dirs exactly as that branch does
+		# (getDirectoryList chdir's into case-N and does not chdir back),
+		# then persist it so later resumes take the fast path. Hit live on
+		# pilot_5case_case0: restart crashed at this line with
+		# FileNotFoundError: Opt/locations.
+		item("locations file missing -- reconstructing from existing case dirs")
+		for case_index in case_dir:
+			try:
+				_, _, _, _, run_list, _ = SSM.getDirectoryList(case_index, case_index, yaml_loc_dict)
+				for key in sorted(run_list, key=lambda k: int(k) if str(k).isdigit() else k):
+					FlameMaster_Execution_location.append(run_list[key] + "/run\n")
+			finally:
+				os.chdir(optDir)
+		with open(optDir+"/locations", "w") as lf:
+			lf.writelines(FlameMaster_Execution_location)
 	#FlameMaster_Execution_location = open(optDir+"/locations",'r').readlines()
 	#missing_location = data_management.find_missing_location(FlameMaster_Execution_location, progress)
 

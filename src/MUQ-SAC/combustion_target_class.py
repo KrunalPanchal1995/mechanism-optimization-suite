@@ -475,7 +475,20 @@ class combustion_target():
 		if "MaxSimulationTime" not in self.add:
 			if "JSR" in self.target or "Flf" in self.target or "PFR" in self.target or "Flw" in self.target:
 				self.add["MaxSimulationTime"] = 10  # s
-			else:  # Tig, RCM, Fls, Flf_a, etc.
+			elif "Tig" in str(self.target) and self.observed:
+				# 2026-08-27: the old flat 0.4s default made AURORA integrate
+				# ~5000x past the ignition event for µs-scale HTT targets
+				# (pilot_5case_case0: tau_exp = 76 µs) -- ~5-6 min of solver
+				# time AND license-seat hold per sample, all of it wasted on
+				# post-ignition chemistry the tau extractor never reads.
+				# Scale the stop time to the observed ignition delay instead:
+				# 100x covers any perturbation within uncertainty bands
+				# (self.observed is in µs: see the "ms" -> *1000 conversion
+				# above), floored at 10 ms so µs-scale delays still give the
+				# solver room past the ignition spike. Tig rows without an
+				# observed value keep the legacy 0.4s.
+				self.add["MaxSimulationTime"] = max(0.01, 100.0 * self.observed * 1e-6)
+			else:  # RCM, Fls, Flf_a, etc.
 				self.add["MaxSimulationTime"] = 0.4  # s
 		if "species" not in self.add:
 			self.add["species"] = list(self.species_dict.keys())[0] if self.species_dict else "CO2"
