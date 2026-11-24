@@ -1,0 +1,110 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00100004</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2024-10-02</lastModificationDate>
+    <bibliographyLink>
+        <description>X. Zhang, S.P. Moosakutty, R.P. Rajan, M. Younes, S.M. Sarathy, Combustion and Flame 234 (2021), 111653</description>
+        <referenceDOI>10.1016/j.combustflame.2021.111653</referenceDOI>
+        <location>Main Article, Supp. Mat.</location>
+        <table>Table 1, mixture 4; Tabulated data are in Supp. Mat. 2. (Excel sheet): phi = 1.0 worksheet, 10% H2/90% NH3 table</table>
+        <figure>Figure 4., pink stars (10% H2)</figure>
+        <details>
+            <author>Zhang, Xiaoyuan and Moosakutty, Shamjad P. and Rajan, Rajitha P. and Younes, Mourad and Sarathy, S. Mani</author>
+            <journal>Combustion and Flame</journal>
+            <pages>111653</pages>
+            <title>Combustion chemistry of ammonia/hydrogen mixtures: Jet-stirred reactor measurements and comprehensive kinetic modeling</title>
+            <type>Journal Article</type>
+            <volume>234</volume>
+            <year>2021</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>stirred reactor (quartz)</kind>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"                        label="V"        sourcetype="reported"   units="cm3"           ><value>76</value></property>
+        <property name="pressure"                      label="p"        sourcetype="reported"   units="atm"           ><value>1</value></property>
+        <property name="residence time"                label="tau"      sourcetype="reported"   units="s"             ><value>1</value></property>
+        <property name="equivalence ratio"             label="phi"      sourcetype="reported"   units="unitless"      ><value>1.0</value></property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="ppm"     >1800</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="ppm"     >200</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="percent" >0.235</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" /><amount units="percent" >99.565</amount></component>
+        </property>
+        <property name="uncertainty"                   label="d_[H2O]"  sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+            <value>0.10</value>
+        </property>
+        <property name="uncertainty"                   label="d_[NH3]"  sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+            <value>0.10</value>
+        </property>
+        <property name="uncertainty"                   label="d_[NO]"   sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+            <value>0.10</value>
+        </property>
+        <property name="uncertainty"                   label="d_[N2O]"  sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+            <value>0.10</value>
+        </property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+            <value>0.000005</value>
+        </property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+            <value>0.000005</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="[H2O]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="composition"                   id="x3"   label="[NH3]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="composition"                   id="x4"   label="[NO]"   sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="composition"                   id="x5"   label="[N2O]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="evaluated standard deviation"  id="x7"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="evaluated standard deviation"  id="x8"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x9"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+
+        <dataPoint><x1>900</x1><x2>0.000000</x2><x3>0.001833</x3><x4>0.000000</x4><x5>0.000000</x5><x6>0.000037</x6><x7>0.000037</x7><x8>0.000093</x8><x9>0.000093</x9></dataPoint>
+        <dataPoint><x1>952</x1><x2>0.000000</x2><x3>0.001829</x3><x4>0.000000</x4><x5>0.000000</x5><x6>0.000037</x6><x7>0.000037</x7><x8>0.000093</x8><x9>0.000094</x9></dataPoint>
+        <dataPoint><x1>1000</x1><x2>0.000000</x2><x3>0.001783</x3><x4>0.000000</x4><x5>0.000000</x5><x6>0.000037</x6><x7>0.000037</x7><x8>0.000092</x8><x9>0.000092</x9></dataPoint>
+        <dataPoint><x1>1060</x1><x2>0.000072</x2><x3>0.001737</x3><x4>0.000000</x4><x5>0.000000</x5><x6>0.000063</x6><x7>0.000043</x7><x8>0.000089</x8><x9>0.000089</x9></dataPoint>
+        <dataPoint><x1>1100</x1><x2>0.000241</x2><x3>0.001717</x3><x4>0.000000</x4><x5>0.000001</x5><x6>0.000112</x6><x7>0.000071</x7><x8>0.000088</x8><x9>0.000095</x9></dataPoint>
+        <dataPoint><x1>1150</x1><x2>0.000651</x2><x3>0.001527</x3><x4>0.000000</x4><x5>0.000003</x5><x6>0.000171</x6><x7>0.000136</x7><x8>0.000099</x8><x9>0.000176</x9></dataPoint>
+        <dataPoint><x1>1180</x1><x2>0.001000</x2><x3>0.001183</x3><x4>0.000000</x4><x5>0.000005</x5><x6>0.000298</x6><x7>0.000174</x7><x8>0.000154</x8><x9>0.000223</x9></dataPoint>
+        <dataPoint><x1>1210</x1><x2>0.001610</x2><x3>0.000743</x3><x4>0.000003</x4><x5>0.000012</x5><x6>0.000281</x6><x7>0.000283</x7><x8>0.000217</x8><x9>0.000198</x9></dataPoint>
+        <dataPoint><x1>1240</x1><x2>0.002240</x2><x3>0.000289</x3><x4>0.000006</x4><x5>0.000024</x5><x6>0.000157</x6><x7>0.000320</x7><x8>0.000216</x8><x9>0.000085</x9></dataPoint>
+        <dataPoint><x1>1281</x1><x2>0.002550</x2><x3>0.000046</x3><x4>0.000016</x4><x5>0.000035</x5><x6>0.000133</x6><x7>0.000155</x7><x8>0.000064</x8><x9>0.000017</x9></dataPoint>
+    </dataGroup>
+    <comment>Recommended simulation settings: isothermal-isobaric.</comment>
+</experiment>

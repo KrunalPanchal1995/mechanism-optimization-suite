@@ -1,0 +1,67 @@
+<experiment>
+    <fileAuthor>András Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10199047</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2023-12-18</lastModificationDate>
+    <bibliographyLink>
+        <description>S.A. Alturaifi, O. Mathieu, E.L. Petersen, Proceedings of the Combustion Institute (2022)</description>
+        <referenceDOI>10.1016/j.proci.2022.08.016</referenceDOI>
+        <location>Main article, Supp Mat.</location>
+        <table>Supp. Mat. 1 (Excel file), Experimental conditions table, Exp 23-32</table>
+        <figure>Main paper, Fig. 7.e (H2O), black triangles (phi ~ 2.03)</figure>
+        <details>
+            <author>Alturaifi, Sulaiman A. and Mathieu, Olivier and Petersen, Eric L.</author>
+            <journal>Proceedings of the Combustion Institute</journal>
+            <title>A shock-tube study of NH3 and NH3/H2 oxidation using laser absorption of NH3 and H2O</title>
+            <type>Journal Article</type>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="unitless"  reference="ignition delay"  kind="relative"  method="combined from scatter and reported uncertainty" ><value>0.120575</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"        id="x1"   label="T"      sourcetype="reported"  units="K"             />
+        <property name="pressure"           id="x2"   label="p"      sourcetype="reported"  units="atm"           />
+        <property name="composition"        id="x3"   label="x_NH3"  sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+        </property>
+        <property name="composition"        id="x4"   label="x_O2"   sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  />
+        </property>
+        <property name="composition"        id="x5"   label="x_Ar"   sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   />
+        </property>
+        <property name="equivalence ratio"  id="x6"   label="phi"    sourcetype="reported"  units="unitless"      />
+        <property name="ignition delay"     id="x7"   label="tau"    sourcetype="reported"  units="us"            />
+        <property name="uncertainty"        id="x8"   label="d_T"    sourcetype="reported"  units="unitless"       reference="temperature"     kind="relative"  bound="plusminus" />
+        <property name="uncertainty"        id="x9"   label="d_p"    sourcetype="reported"  units="unitless"       reference="pressure"        kind="relative"  bound="plusminus" />
+        <property name="uncertainty"        id="x10"  label="d_tau"  sourcetype="reported"  units="unitless"       reference="ignition delay"  kind="relative"  bound="plusminus" />
+
+        <dataPoint><x1>1910</x1><x2>1.25</x2><x3>0.007395</x3><x4>0.002707</x4><x5>0.989898</x5><x6>2.05</x6><x7>2110</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>1986</x1><x2>1.28</x2><x3>0.007357</x3><x4>0.002707</x4><x5>0.989936</x5><x6>2.04</x6><x7>1287</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2005</x1><x2>1.25</x2><x3>0.007266</x3><x4>0.002708</x4><x5>0.990026</x5><x6>2.01</x6><x7>1080</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2020</x1><x2>1.26</x2><x3>0.007475</x3><x4>0.002707</x4><x5>0.989818</x5><x6>2.07</x6><x7>1037</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2031</x1><x2>1.26</x2><x3>0.007214</x3><x4>0.002708</x4><x5>0.990078</x5><x6>2.00</x6><x7>906</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2094</x1><x2>1.24</x2><x3>0.007156</x3><x4>0.002708</x4><x5>0.990136</x5><x6>1.98</x6><x7>709</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2141</x1><x2>1.22</x2><x3>0.007413</x3><x4>0.002707</x4><x5>0.989880</x5><x6>2.05</x6><x7>482</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2188</x1><x2>1.20</x2><x3>0.007229</x3><x4>0.002708</x4><x5>0.990063</x5><x6>2.00</x6><x7>327</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2215</x1><x2>1.15</x2><x3>0.007259</x3><x4>0.002708</x4><x5>0.990033</x5><x6>2.01</x6><x7>283</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+        <dataPoint><x1>2307</x1><x2>1.18</x2><x3>0.007391</x3><x4>0.002707</x4><x5>0.989902</x5><x6>2.05</x6><x7>194</x7><x8>0.008</x8><x9>0.01</x9><x10>0.1</x10></dataPoint>
+    </dataGroup>
+    <ignitionType target="H2O" type="baseline min intercept from d/dt"/>
+    <comment>IDT uncertainties were determined based on personal communication with the first author. All the specified uncertainties refer approximately to the 1sigma limits.</comment>
+</experiment>

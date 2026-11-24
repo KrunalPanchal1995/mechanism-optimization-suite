@@ -1,0 +1,70 @@
+<experiment>
+    <fileAuthor>András Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30199020</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-03-13</firstPublicationDate>
+    <lastModificationDate>2023-03-13</lastModificationDate>
+    <bibliographyLink>
+        <description>A.M. Dean, J.E. Hardy, R.K. Lyon, Symposium (International) on Combustion 19 (1982), 97–105</description>
+        <referenceDOI>10.1016/S0082-0784(82)80182-3</referenceDOI>
+        <location>Main Article</location>
+        <figure>Fig. 2.</figure>
+        <details>
+            <author>Dean, A.M. and Hardy, J.E. and Lyon, R.K.</author>
+            <journal>Symposium (International) on Combustion</journal>
+            <number>1</number>
+            <pages>97–105</pages>
+            <title>Kinetics and mechanism of NH3 oxidation</title>
+            <type>Journal Article</type>
+            <volume>19</volume>
+            <year>1982</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>concentration time profile measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"                      label="p"  sourcetype="reported"   units="kPa"           ><value>120</value></property>
+        <property name="temperature"                   label="T"  sourcetype="reported"   units="K"             ><value>1279</value></property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="ppm"     >900</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="percent" >4</amount></component>
+            <component><speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"     chemName="water"   /><amount units="percent" >1</amount></component>
+            <component><speciesLink preferredKey="He"   CAS="7440-59-7"  InChI="1S/He"        SMILES="[He]"  chemName="helium"  /><amount units="percent" >94.9100</amount></component>
+        </property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>5e-06</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="time"                          id="x1"   label="t"     sourcetype="digitized"  units="ms"            />
+        <property name="composition"                   id="x2"   label="xNH3"  sourcetype="digitized"  units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="composition"                   id="x3"   label="xNO"   sourcetype="digitized"  units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x4"   sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+
+        <dataPoint><x1>47</x1><x2>820</x2><x3>7</x3><x4>8.3e-05</x4></dataPoint>
+        <dataPoint><x1>55</x1><x2>863</x2><x3>5</x3><x4>8.7e-05</x4></dataPoint>
+        <dataPoint><x1>98</x1><x2>737</x2><x3>8</x3><x4>7.5e-05</x4></dataPoint>
+        <dataPoint><x1>111</x1><x2>781</x2><x3>7</x3><x4>7.9e-05</x4></dataPoint>
+        <dataPoint><x1>190</x1><x2>573</x2><x3>8</x3><x4>5.8e-05</x4></dataPoint>
+        <dataPoint><x1>229</x1><x2>629</x2><x3>7</x3><x4>6.4e-05</x4></dataPoint>
+        <dataPoint><x1>277</x1><x2>418</x2><x3>8</x3><x4>4.2e-05</x4></dataPoint>
+        <dataPoint><x1>300</x1><x2>413</x2><x3>8</x3><x4>4.2e-05</x4></dataPoint>
+    </dataGroup>
+    <comment>No time shift was reported in the article.</comment>
+</experiment>

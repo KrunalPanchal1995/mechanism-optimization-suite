@@ -1,0 +1,66 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100226</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-24</firstPublicationDate>
+    <lastModificationDate>2024-06-24</lastModificationDate>
+    <bibliographyLink>
+        <description>Shawnam, P. Berwal, M. Singh, S. Kumar, International Journal of Hydrogen Energy 71 (2024), 143–154</description>
+        <referenceDOI>10.1016/j.ijhydene.2024.05.222</referenceDOI>
+        <location>Main article</location>
+        <figure>Fig. 6a, black circles (T = 300 K)</figure>
+        <details>
+            <author>Shawnam and Berwal, Pragya and Singh, Muskaan and Kumar, Sudarshan</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <pages>143–154</pages>
+            <title>Laminar burning velocity measurements of NH3/H2+Air mixtures at elevated temperatures</title>
+            <type>Journal Article</type>
+            <volume>71</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>externally heated diverging channel</kind>
+        <mode>laminar, premixed</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"     label="p"      sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="uncertainty"  label="d_LBV"  sourcetype="reported"  units="unitless"  reference="laminar burning velocity"  kind="relative"  bound="plusminus"  sigmarange="1" ><value>0.05136</value></property>
+        <property name="uncertainty"  label="d_T"    sourcetype="reported"  units="K"         reference="temperature"               kind="absolute"  bound="plusminus"  sigmarange="1" ><value>2.2</value></property>
+        <property name="temperature"  label="T"      sourcetype="reported"  units="K"        ><value>300</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="digitized"   units="unitless"      />
+        <property name="initial composition"           id="x2"   label="x_H2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="initial composition"           id="x3"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x5"   label="x_N2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x6"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.70</x1><x2>0.053650</x2><x3>0.125183</x3><x4>0.172445</x4><x5>0.648723</x5><x6>8.44</x6><x7>0.7788</x7></dataPoint>
+        <dataPoint><x1>0.80</x1><x2>0.059787</x2><x3>0.139502</x3><x4>0.168150</x4><x5>0.632562</x5><x6>10.78</x6><x7>0.9946</x7></dataPoint>
+        <dataPoint><x1>0.90</x1><x2>0.065625</x2><x3>0.153125</x3><x4>0.164063</x4><x5>0.617188</x5><x6>15.61</x6><x7>1.4406</x7></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>0.071186</x2><x3>0.166102</x3><x4>0.160170</x4><x5>0.602542</x5><x6>20.84</x6><x7>1.9225</x7></dataPoint>
+        <dataPoint><x1>1.10</x1><x2>0.076490</x2><x3>0.178477</x3><x4>0.156457</x4><x5>0.588576</x5><x6>23.02</x6><x7>2.1239</x7></dataPoint>
+        <dataPoint><x1>1.20</x1><x2>0.081553</x2><x3>0.190291</x3><x4>0.152913</x4><x5>0.575243</x5><x6>22.01</x6><x7>2.0304</x7></dataPoint>
+    </dataGroup>
+    <comment>Based on the digitization of the error bars from the figures, the authors considered 1sigma = 5.136% experimental error for all data points based on the uncertainty analysis in the Supp. Mat. (Table S3, yellow-highlighted value). Therefore, constant relative error model was assumed when using Minimal Spline Fit. Note that this 5.136% relative error is in very good agreement with the recommended typical 1sigma error (5%) for HDC measurements by Zhang et al. (https://doi.org/10.1016/j.combustflame.2021.111867).</comment>
+    <comment>Air composition was assumed to be 21% O2 and 79% N2.</comment>
+</experiment>

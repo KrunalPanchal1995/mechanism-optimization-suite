@@ -1,0 +1,728 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30199021</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2023-12-18</lastModificationDate>
+    <bibliographyLink>
+        <description>A. Stagni, C. Cavallotti, S. Arunthanayothin, Y. Song, O. Herbinet, F. Battin-Leclerc, T. Faravelli, Reaction Chemistry &amp; Engineering 5 (2020), 696?711</description>
+        <referenceDOI>10.1039/C9RE00429G</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>Main Article: Table 2, Supp. Mat.: 2. / NH3 exp data / FR data</table>
+        <figure>Main Article: Fig. 11.</figure>
+        <details>
+            <author>Stagni, Alessandro and Cavallotti, Carlo and Arunthanayothin, Suphaporn and Song, Yu and Herbinet, Olivier and Battin-Leclerc, Frédérique and Faravelli, Tiziano</author>
+            <journal>Reaction Chemistry &amp; Engineering</journal>
+            <number>4</number>
+            <pages>696–711</pages>
+            <title>An experimental, theoretical and kinetic-modeling study of the gas-phase oxidation of ammonia</title>
+            <type>Journal Article</type>
+            <volume>5</volume>
+            <year>2020</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (recrystallized alumina)</kind>
+        <mode>laminar, premixed</mode>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure in reference state"     label="p_0"      sourcetype="reported"  units="bar"      ><value>1</value></property>
+        <property name="temperature in reference state"  label="T_0"      sourcetype="reported"  units="K"        ><value>273.15</value></property>
+        <property name="reactor length"                  label="l"        sourcetype="reported"  units="cm"       ><value>100</value></property>
+        <property name="reactor diameter"                label="d"        sourcetype="reported"  units="mm"       ><value>4</value></property>
+        <property name="pressure"                        label="p"        sourcetype="reported"  units="torr"     ><value>950</value></property>
+        <property name="initial composition"             sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="ppm"     >1000</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="ppm"     >2000</amount></component>
+            <component><speciesLink preferredKey="He"   CAS="7440-59-7"  InChI="1S/He"        SMILES="[He]"  chemName="helium"  /><amount units="percent" >99.7</amount></component>
+        </property>
+        <property name="residence time"                  label="tau"      sourcetype="reported"  units="ms"       ><value>50</value></property>
+        <property name="equivalence ratio"               label="phi"      sourcetype="reported"  units="unitless" ><value>0.375</value></property>
+        <property name="uncertainty"                     label="d_T"      sourcetype="reported"  units="K"         reference="temperature"                              kind="absolute"  bound="plusminus"  sigmarange="2" ><value>30</value></property>
+        <property name="uncertainty"                     label="d_Q_0"    sourcetype="reported"  units="unitless"  reference="volumetric flow rate in reference state"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.005</value></property>
+        <property name="uncertainty"                     label="d_x_H2"   sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"    SMILES="[HH]"   chemName="hydrogen"     />
+            <value>0.05</value>
+        </property>
+        <property name="uncertainty"                     label="d_x_NH3"  sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                     label="d_x_O2"   sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"   SMILES="O=O"    chemName="oxygen"       />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                     label="d_x_H2O"  sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"  SMILES="O"      chemName="water"        />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                     label="d_x_N2"   sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"   SMILES="N#N"    chemName="nitrogen"     />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                     label="d_x_NO"   sourcetype="reported"  units="unitless"  reference="composition"                              kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>0.05</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                              id="x1"   label="T"     sourcetype="reported"    units="K"             />
+        <property name="volumetric flow rate in reference state"  id="x2"   label="Q_0"   sourcetype="calculated"  units="L/min"         />
+        <property name="composition"                              id="x3"   label="xNH3"  sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="composition"                              id="x4"   label="xO2"   sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"   SMILES="O=O"    chemName="oxygen"       />
+        </property>
+        <property name="composition"                              id="x5"   label="xNO"   sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="composition"                              id="x6"   label="xN2"   sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"   SMILES="N#N"    chemName="nitrogen"     />
+        </property>
+        <property name="composition"                              id="x7"   label="xH2O"  sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"  SMILES="O"      chemName="water"        />
+        </property>
+        <property name="composition"                              id="x8"   label="xH2"   sourcetype="reported"    units="ppm"           >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"    SMILES="[HH]"   chemName="hydrogen"     />
+        </property>
+        <property name="evaluated standard deviation"             id="x9"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="evaluated standard deviation"             id="x10"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="evaluated standard deviation"             id="x11"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"   SMILES="O=O"    chemName="oxygen"       />
+        </property>
+        <property name="evaluated standard deviation"             id="x12"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"   SMILES="O=O"    chemName="oxygen"       />
+        </property>
+        <property name="evaluated standard deviation"             id="x13"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"             id="x14"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"             id="x15"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"   SMILES="N#N"    chemName="nitrogen"     />
+        </property>
+        <property name="evaluated standard deviation"             id="x16"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"   SMILES="N#N"    chemName="nitrogen"     />
+        </property>
+        <property name="evaluated standard deviation"             id="x17"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"  SMILES="O"      chemName="water"        />
+        </property>
+        <property name="evaluated standard deviation"             id="x18"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"  SMILES="O"      chemName="water"        />
+        </property>
+        <property name="evaluated standard deviation"             id="x19"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"    SMILES="[HH]"   chemName="hydrogen"     />
+        </property>
+        <property name="evaluated standard deviation"             id="x20"  sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"    SMILES="[HH]"   chemName="hydrogen"     />
+        </property>
+
+        <dataPoint><x1>1073</x1><x2>1.458</x2><x3>993</x3><x4>1968</x4><x5>0</x5><x6>2</x6><x7>74</x7><x8>0</x8><x9>0.000051</x9><x10>0.000051</x10><x11>0.000109</x11><x12>0.000109</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000007</x15><x16>0.000007</x16><x17>0.000045</x17><x18>0.000045</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1123</x1><x2>1.393</x2><x3>1018</x3><x4>1980</x4><x5>0</x5><x6>2</x6><x7>45</x7><x8>0</x8><x9>0.000052</x9><x10>0.000052</x10><x11>0.000110</x11><x12>0.000110</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000006</x15><x16>0.000006</x16><x17>0.000045</x17><x18>0.000045</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1173</x1><x2>1.334</x2><x3>982</x3><x4>1972</x4><x5>0</x5><x6>2</x6><x7>15</x7><x8>0</x8><x9>0.000050</x9><x10>0.000050</x10><x11>0.000109</x11><x12>0.000109</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000006</x15><x16>0.000006</x16><x17>0.000045</x17><x18>0.000045</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1223</x1><x2>1.280</x2><x3>989</x3><x4>1952</x4><x5>1</x5><x6>0</x6><x7>9</x7><x8>0</x8><x9>0.000051</x9><x10>0.000051</x10><x11>0.000109</x11><x12>0.000108</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000006</x15><x16>0.000006</x16><x17>0.000044</x17><x18>0.000044</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1273</x1><x2>1.229</x2><x3>972</x3><x4>2000</x4><x5>1</x5><x6>3</x6><x7>0</x7><x8>0</x8><x9>0.000050</x9><x10>0.000050</x10><x11>0.000110</x11><x12>0.000112</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000006</x15><x16>0.000006</x16><x17>0.000044</x17><x18>0.000044</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1323</x1><x2>1.183</x2><x3>958</x3><x4>2000</x4><x5>1</x5><x6>6</x6><x7>3</x7><x8>0</x8><x9>0.000049</x9><x10>0.000049</x10><x11>0.000110</x11><x12>0.000112</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000007</x15><x16>0.000007</x16><x17>0.000044</x17><x18>0.000044</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1373</x1><x2>1.140</x2><x3>1000</x3><x4>1928</x4><x5>2</x5><x6>18</x6><x7>15</x7><x8>0</x8><x9>0.000051</x9><x10>0.000052</x10><x11>0.000110</x11><x12>0.000107</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000010</x15><x16>0.000008</x16><x17>0.000046</x17><x18>0.000044</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1423</x1><x2>1.100</x2><x3>853</x3><x4>2024</x4><x5>2</x5><x6>52</x6><x7>86</x7><x8>19</x8><x9>0.000064</x9><x10>0.000144</x10><x11>0.000112</x11><x12>0.000140</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000019</x15><x16>0.000011</x16><x17>0.000101</x17><x18>0.000057</x18><x19>0.000013</x19><x20>0.000006</x20></dataPoint>
+        <dataPoint><x1>1473</x1><x2>1.062</x2><x3>351</x3><x4>1570</x4><x5>5</x5><x6>171</x6><x7>511</x7><x8>53</x8><x9>0.000156</x9><x10>0.000115</x10><x11>0.000166</x11><x12>0.000093</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000066</x15><x16>0.000041</x16><x17>0.000136</x17><x18>0.000120</x18><x19>0.000005</x19><x20>0.000017</x20></dataPoint>
+        <dataPoint><x1>1523</x1><x2>1.028</x2><x3>0</x3><x4>1506</x4><x5>16</x5><x6>381</x6><x7>864</x7><x8>0</x8><x9>0.000070</x9><x10>0.000011</x10><x11>0.000090</x11><x12>0.000128</x12><x13>0.000018</x13><x14>0.000006</x14><x15>0.000036</x15><x16>0.000056</x16><x17>0.000192</x17><x18>0.000139</x18><x19>0.000008</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1573</x1><x2>0.995</x2><x3>0</x3><x4>1219</x4><x5>82</x5><x6>476</x6><x7>1476</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000102</x11><x12>0.000077</x12><x13>0.000009</x13><x14>0.000017</x14><x15>0.000027</x15><x16>0.000036</x16><x17>0.000087</x17><x18>0.000161</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1623</x1><x2>0.964</x2><x3>0</x3><x4>1211</x4><x5>108</x5><x6>513</x6><x7>1500</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000077</x11><x12>0.000077</x12><x13>0.000008</x13><x14>0.000008</x14><x15>0.000026</x15><x16>0.000029</x16><x17>0.000087</x17><x18>0.000088</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1673</x1><x2>0.935</x2><x3>0</x3><x4>1191</x4><x5>130</x5><x6>451</x6><x7>1500</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000076</x11><x12>0.000076</x12><x13>0.000007</x13><x14>0.000008</x14><x15>0.000028</x15><x16>0.000025</x16><x17>0.000087</x17><x18>0.000087</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1723</x1><x2>0.908</x2><x3>0</x3><x4>1190</x4><x5>151</x5><x6>426</x6><x7>1628</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000076</x11><x12>0.000076</x12><x13>0.000007</x13><x14>0.000007</x14><x15>0.000023</x15><x16>0.000023</x16><x17>0.000093</x17><x18>0.000093</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1773</x1><x2>0.883</x2><x3>0</x3><x4>1174</x4><x5>164</x5><x6>418</x6><x7>1577</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000075</x11><x12>0.000075</x12><x13>0.000006</x13><x14>0.000007</x14><x15>0.000022</x15><x16>0.000022</x16><x17>0.000090</x17><x18>0.000090</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1823</x1><x2>0.858</x2><x3>0</x3><x4>1174</x4><x5>178</x5><x6>408</x6><x7>1500</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000075</x11><x12>0.000075</x12><x13>0.000006</x13><x14>0.000006</x14><x15>0.000022</x15><x16>0.000021</x16><x17>0.000087</x17><x18>0.000087</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1873</x1><x2>0.836</x2><x3>0</x3><x4>1158</x4><x5>185</x5><x6>405</x6><x7>1500</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000075</x11><x12>0.000075</x12><x13>0.000005</x13><x14>0.000006</x14><x15>0.000021</x15><x16>0.000021</x16><x17>0.000087</x17><x18>0.000087</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1923</x1><x2>0.814</x2><x3>0</x3><x4>1154</x4><x5>188</x5><x6>405</x6><x7>1500</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000074</x11><x12>0.000074</x12><x13>0.000005</x13><x14>0.000005</x14><x15>0.000021</x15><x16>0.000021</x16><x17>0.000087</x17><x18>0.000087</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+        <dataPoint><x1>1973</x1><x2>0.793</x2><x3>0</x3><x4>1158</x4><x5>194</x5><x6>400</x6><x7>1474</x7><x8>0</x8><x9>0.000011</x9><x10>0.000011</x10><x11>0.000075</x11><x12>0.000075</x12><x13>0.000006</x13><x14>0.000006</x14><x15>0.000021</x15><x16>0.000021</x16><x17>0.000086</x17><x18>0.000086</x18><x19>0.000005</x19><x20>0.000005</x20></dataPoint>
+    </dataGroup>
+    <comment>The "temperature" property in dg1 refers to the nominal temperatures of the data points, that is, the temperatures of the isothermal zones of the reactor (K). The residence time is also for the isothermal zone of the reactor.</comment>
+    <comment>In the Supp. Mat., there are experimental results for the first four nominal temperatures (1073, 1123, 1173, 1223 K), however, no experimental temperature profiles are published for these data points. Therefore, the nominal temperatures are used for the simulation of these data points. As practically no NH3 conversion was observed below 1300 K, the lack of experimental temperature profiles should not cause errors in these cases.</comment>
+    <comment>Volumetric flow rates under normal (reference) conditions were calculated based on the FR Inlet flow data given in the Supplementary Material as follows: Q_tot = Q_NH3_in + Q_O2_in + Q_He_tot_in. All pressure values in the FR Inlet flow data were corrected to 950 torr before calculating the inlet flow rates.</comment>
+    <dataGroup id="dg2" label="1273 K" dataPointLink="5">
+        <property name="distance"     id="x14"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x15"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x14>0</x14><x15>298</x15></dataPoint>
+        <dataPoint><x14>5</x14><x15>298</x15></dataPoint>
+        <dataPoint><x14>10</x14><x15>298</x15></dataPoint>
+        <dataPoint><x14>15</x14><x15>336</x15></dataPoint>
+        <dataPoint><x14>20</x14><x15>382</x15></dataPoint>
+        <dataPoint><x14>25</x14><x15>713</x15></dataPoint>
+        <dataPoint><x14>30</x14><x15>922</x15></dataPoint>
+        <dataPoint><x14>34</x14><x15>1177</x15></dataPoint>
+        <dataPoint><x14>36</x14><x15>1210</x15></dataPoint>
+        <dataPoint><x14>38</x14><x15>1228</x15></dataPoint>
+        <dataPoint><x14>40</x14><x15>1242</x15></dataPoint>
+        <dataPoint><x14>42</x14><x15>1252</x15></dataPoint>
+        <dataPoint><x14>44</x14><x15>1258</x15></dataPoint>
+        <dataPoint><x14>46</x14><x15>1258</x15></dataPoint>
+        <dataPoint><x14>48</x14><x15>1259</x15></dataPoint>
+        <dataPoint><x14>50</x14><x15>1258</x15></dataPoint>
+        <dataPoint><x14>52</x14><x15>1253</x15></dataPoint>
+        <dataPoint><x14>54</x14><x15>1244</x15></dataPoint>
+        <dataPoint><x14>56</x14><x15>1229</x15></dataPoint>
+        <dataPoint><x14>58</x14><x15>1196</x15></dataPoint>
+        <dataPoint><x14>60</x14><x15>1138</x15></dataPoint>
+        <dataPoint><x14>62</x14><x15>1054</x15></dataPoint>
+        <dataPoint><x14>64</x14><x15>975</x15></dataPoint>
+        <dataPoint><x14>66</x14><x15>898</x15></dataPoint>
+        <dataPoint><x14>68</x14><x15>831</x15></dataPoint>
+        <dataPoint><x14>70</x14><x15>771</x15></dataPoint>
+        <dataPoint><x14>72</x14><x15>711</x15></dataPoint>
+        <dataPoint><x14>74</x14><x15>605</x15></dataPoint>
+        <dataPoint><x14>80</x14><x15>529</x15></dataPoint>
+        <dataPoint><x14>85</x14><x15>494</x15></dataPoint>
+        <dataPoint><x14>90</x14><x15>443</x15></dataPoint>
+        <dataPoint><x14>95</x14><x15>418</x15></dataPoint>
+        <dataPoint><x14>100</x14><x15>393</x15></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg3" label="1323 K" dataPointLink="6">
+        <property name="distance"     id="x16"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x17"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x16>0</x16><x17>298</x17></dataPoint>
+        <dataPoint><x16>5</x16><x17>298</x17></dataPoint>
+        <dataPoint><x16>10</x16><x17>298</x17></dataPoint>
+        <dataPoint><x16>15</x16><x17>364</x17></dataPoint>
+        <dataPoint><x16>20</x16><x17>436</x17></dataPoint>
+        <dataPoint><x16>25</x16><x17>780</x17></dataPoint>
+        <dataPoint><x16>30</x16><x17>992</x17></dataPoint>
+        <dataPoint><x16>34</x16><x17>1232</x17></dataPoint>
+        <dataPoint><x16>36</x16><x17>1263</x17></dataPoint>
+        <dataPoint><x16>38</x16><x17>1281</x17></dataPoint>
+        <dataPoint><x16>40</x16><x17>1294</x17></dataPoint>
+        <dataPoint><x16>42</x16><x17>1303</x17></dataPoint>
+        <dataPoint><x16>44</x16><x17>1308</x17></dataPoint>
+        <dataPoint><x16>46</x16><x17>1309</x17></dataPoint>
+        <dataPoint><x16>48</x16><x17>1310</x17></dataPoint>
+        <dataPoint><x16>50</x16><x17>1308</x17></dataPoint>
+        <dataPoint><x16>52</x16><x17>1303</x17></dataPoint>
+        <dataPoint><x16>54</x16><x17>1295</x17></dataPoint>
+        <dataPoint><x16>56</x16><x17>1280</x17></dataPoint>
+        <dataPoint><x16>58</x16><x17>1247</x17></dataPoint>
+        <dataPoint><x16>60</x16><x17>1189</x17></dataPoint>
+        <dataPoint><x16>62</x16><x17>1095</x17></dataPoint>
+        <dataPoint><x16>64</x16><x17>1009</x17></dataPoint>
+        <dataPoint><x16>66</x16><x17>928</x17></dataPoint>
+        <dataPoint><x16>68</x16><x17>859</x17></dataPoint>
+        <dataPoint><x16>70</x16><x17>798</x17></dataPoint>
+        <dataPoint><x16>72</x16><x17>738</x17></dataPoint>
+        <dataPoint><x16>74</x16><x17>625</x17></dataPoint>
+        <dataPoint><x16>80</x16><x17>541</x17></dataPoint>
+        <dataPoint><x16>85</x16><x17>501</x17></dataPoint>
+        <dataPoint><x16>90</x16><x17>447</x17></dataPoint>
+        <dataPoint><x16>95</x16><x17>423</x17></dataPoint>
+        <dataPoint><x16>100</x16><x17>398</x17></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg4" label="1373 K" dataPointLink="7">
+        <property name="distance"     id="x18"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x19"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x18>0</x18><x19>298</x19></dataPoint>
+        <dataPoint><x18>5</x18><x19>299</x19></dataPoint>
+        <dataPoint><x18>10</x18><x19>333</x19></dataPoint>
+        <dataPoint><x18>15</x18><x19>391</x19></dataPoint>
+        <dataPoint><x18>20</x18><x19>489</x19></dataPoint>
+        <dataPoint><x18>25</x18><x19>847</x19></dataPoint>
+        <dataPoint><x18>30</x18><x19>1062</x19></dataPoint>
+        <dataPoint><x18>34</x18><x19>1287</x19></dataPoint>
+        <dataPoint><x18>36</x18><x19>1317</x19></dataPoint>
+        <dataPoint><x18>38</x18><x19>1334</x19></dataPoint>
+        <dataPoint><x18>40</x18><x19>1346</x19></dataPoint>
+        <dataPoint><x18>42</x18><x19>1354</x19></dataPoint>
+        <dataPoint><x18>44</x18><x19>1359</x19></dataPoint>
+        <dataPoint><x18>46</x18><x19>1360</x19></dataPoint>
+        <dataPoint><x18>48</x18><x19>1360</x19></dataPoint>
+        <dataPoint><x18>50</x18><x19>1358</x19></dataPoint>
+        <dataPoint><x18>52</x18><x19>1353</x19></dataPoint>
+        <dataPoint><x18>54</x18><x19>1345</x19></dataPoint>
+        <dataPoint><x18>56</x18><x19>1330</x19></dataPoint>
+        <dataPoint><x18>58</x18><x19>1299</x19></dataPoint>
+        <dataPoint><x18>60</x18><x19>1241</x19></dataPoint>
+        <dataPoint><x18>62</x18><x19>1136</x19></dataPoint>
+        <dataPoint><x18>64</x18><x19>1042</x19></dataPoint>
+        <dataPoint><x18>66</x18><x19>959</x19></dataPoint>
+        <dataPoint><x18>68</x18><x19>888</x19></dataPoint>
+        <dataPoint><x18>70</x18><x19>826</x19></dataPoint>
+        <dataPoint><x18>72</x18><x19>765</x19></dataPoint>
+        <dataPoint><x18>74</x18><x19>645</x19></dataPoint>
+        <dataPoint><x18>80</x18><x19>553</x19></dataPoint>
+        <dataPoint><x18>85</x18><x19>508</x19></dataPoint>
+        <dataPoint><x18>90</x18><x19>452</x19></dataPoint>
+        <dataPoint><x18>95</x18><x19>427</x19></dataPoint>
+        <dataPoint><x18>100</x18><x19>403</x19></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg5" label="1423 K" dataPointLink="8">
+        <property name="distance"     id="x20"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x21"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x20>0</x20><x21>313</x21></dataPoint>
+        <dataPoint><x20>5</x20><x21>313</x21></dataPoint>
+        <dataPoint><x20>10</x20><x21>353</x21></dataPoint>
+        <dataPoint><x20>15</x20><x21>419</x21></dataPoint>
+        <dataPoint><x20>20</x20><x21>542</x21></dataPoint>
+        <dataPoint><x20>25</x20><x21>914</x21></dataPoint>
+        <dataPoint><x20>30</x20><x21>1132</x21></dataPoint>
+        <dataPoint><x20>34</x20><x21>1342</x21></dataPoint>
+        <dataPoint><x20>36</x20><x21>1370</x21></dataPoint>
+        <dataPoint><x20>38</x20><x21>1386</x21></dataPoint>
+        <dataPoint><x20>40</x20><x21>1398</x21></dataPoint>
+        <dataPoint><x20>42</x20><x21>1405</x21></dataPoint>
+        <dataPoint><x20>44</x20><x21>1410</x21></dataPoint>
+        <dataPoint><x20>46</x20><x21>1410</x21></dataPoint>
+        <dataPoint><x20>48</x20><x21>1410</x21></dataPoint>
+        <dataPoint><x20>50</x20><x21>1409</x21></dataPoint>
+        <dataPoint><x20>52</x20><x21>1403</x21></dataPoint>
+        <dataPoint><x20>54</x20><x21>1396</x21></dataPoint>
+        <dataPoint><x20>56</x20><x21>1381</x21></dataPoint>
+        <dataPoint><x20>58</x20><x21>1350</x21></dataPoint>
+        <dataPoint><x20>60</x20><x21>1293</x21></dataPoint>
+        <dataPoint><x20>62</x20><x21>1177</x21></dataPoint>
+        <dataPoint><x20>64</x20><x21>1076</x21></dataPoint>
+        <dataPoint><x20>66</x20><x21>990</x21></dataPoint>
+        <dataPoint><x20>68</x20><x21>916</x21></dataPoint>
+        <dataPoint><x20>70</x20><x21>853</x21></dataPoint>
+        <dataPoint><x20>72</x20><x21>792</x21></dataPoint>
+        <dataPoint><x20>74</x20><x21>664</x21></dataPoint>
+        <dataPoint><x20>80</x20><x21>565</x21></dataPoint>
+        <dataPoint><x20>85</x20><x21>514</x21></dataPoint>
+        <dataPoint><x20>90</x20><x21>456</x21></dataPoint>
+        <dataPoint><x20>95</x20><x21>432</x21></dataPoint>
+        <dataPoint><x20>100</x20><x21>408</x21></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg6" label="1473 K" dataPointLink="9">
+        <property name="distance"     id="x22"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x23"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x22>0</x22><x23>328</x23></dataPoint>
+        <dataPoint><x22>5</x22><x23>327</x23></dataPoint>
+        <dataPoint><x22>10</x22><x23>341</x23></dataPoint>
+        <dataPoint><x22>15</x22><x23>447</x23></dataPoint>
+        <dataPoint><x22>20</x22><x23>595</x23></dataPoint>
+        <dataPoint><x22>25</x22><x23>981</x23></dataPoint>
+        <dataPoint><x22>30</x22><x23>1202</x23></dataPoint>
+        <dataPoint><x22>34</x22><x23>1398</x23></dataPoint>
+        <dataPoint><x22>36</x22><x23>1424</x23></dataPoint>
+        <dataPoint><x22>38</x22><x23>1439</x23></dataPoint>
+        <dataPoint><x22>40</x22><x23>1449</x23></dataPoint>
+        <dataPoint><x22>42</x22><x23>1456</x23></dataPoint>
+        <dataPoint><x22>44</x22><x23>1460</x23></dataPoint>
+        <dataPoint><x22>46</x22><x23>1461</x23></dataPoint>
+        <dataPoint><x22>48</x22><x23>1461</x23></dataPoint>
+        <dataPoint><x22>50</x22><x23>1459</x23></dataPoint>
+        <dataPoint><x22>52</x22><x23>1454</x23></dataPoint>
+        <dataPoint><x22>54</x22><x23>1446</x23></dataPoint>
+        <dataPoint><x22>56</x22><x23>1432</x23></dataPoint>
+        <dataPoint><x22>58</x22><x23>1401</x23></dataPoint>
+        <dataPoint><x22>60</x22><x23>1345</x23></dataPoint>
+        <dataPoint><x22>62</x22><x23>1218</x23></dataPoint>
+        <dataPoint><x22>64</x22><x23>1109</x23></dataPoint>
+        <dataPoint><x22>66</x22><x23>1021</x23></dataPoint>
+        <dataPoint><x22>68</x22><x23>945</x23></dataPoint>
+        <dataPoint><x22>70</x22><x23>881</x23></dataPoint>
+        <dataPoint><x22>72</x22><x23>819</x23></dataPoint>
+        <dataPoint><x22>74</x22><x23>684</x23></dataPoint>
+        <dataPoint><x22>80</x22><x23>577</x23></dataPoint>
+        <dataPoint><x22>85</x22><x23>521</x23></dataPoint>
+        <dataPoint><x22>90</x22><x23>460</x23></dataPoint>
+        <dataPoint><x22>95</x22><x23>437</x23></dataPoint>
+        <dataPoint><x22>100</x22><x23>413</x23></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg7" label="1523 K" dataPointLink="10">
+        <property name="distance"     id="x24"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x25"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x24>0</x24><x25>333</x25></dataPoint>
+        <dataPoint><x24>5</x24><x25>341</x25></dataPoint>
+        <dataPoint><x24>10</x24><x25>379</x25></dataPoint>
+        <dataPoint><x24>15</x24><x25>474</x25></dataPoint>
+        <dataPoint><x24>20</x24><x25>648</x25></dataPoint>
+        <dataPoint><x24>25</x24><x25>1048</x25></dataPoint>
+        <dataPoint><x24>30</x24><x25>1272</x25></dataPoint>
+        <dataPoint><x24>34</x24><x25>1453</x25></dataPoint>
+        <dataPoint><x24>36</x24><x25>1477</x25></dataPoint>
+        <dataPoint><x24>38</x24><x25>1491</x25></dataPoint>
+        <dataPoint><x24>40</x24><x25>1501</x25></dataPoint>
+        <dataPoint><x24>42</x24><x25>1507</x25></dataPoint>
+        <dataPoint><x24>44</x24><x25>1511</x25></dataPoint>
+        <dataPoint><x24>46</x24><x25>1511</x25></dataPoint>
+        <dataPoint><x24>48</x24><x25>1511</x25></dataPoint>
+        <dataPoint><x24>50</x24><x25>1509</x25></dataPoint>
+        <dataPoint><x24>52</x24><x25>1504</x25></dataPoint>
+        <dataPoint><x24>54</x24><x25>1496</x25></dataPoint>
+        <dataPoint><x24>56</x24><x25>1482</x25></dataPoint>
+        <dataPoint><x24>58</x24><x25>1452</x25></dataPoint>
+        <dataPoint><x24>60</x24><x25>1397</x25></dataPoint>
+        <dataPoint><x24>62</x24><x25>1259</x25></dataPoint>
+        <dataPoint><x24>64</x24><x25>1143</x25></dataPoint>
+        <dataPoint><x24>66</x24><x25>1052</x25></dataPoint>
+        <dataPoint><x24>68</x24><x25>974</x25></dataPoint>
+        <dataPoint><x24>70</x24><x25>908</x25></dataPoint>
+        <dataPoint><x24>72</x24><x25>847</x25></dataPoint>
+        <dataPoint><x24>74</x24><x25>704</x25></dataPoint>
+        <dataPoint><x24>80</x24><x25>589</x25></dataPoint>
+        <dataPoint><x24>85</x24><x25>528</x25></dataPoint>
+        <dataPoint><x24>90</x24><x25>464</x25></dataPoint>
+        <dataPoint><x24>95</x24><x25>440</x25></dataPoint>
+        <dataPoint><x24>100</x24><x25>416</x25></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg8" label="1573 K" dataPointLink="11">
+        <property name="distance"     id="x26"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x27"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x26>0</x26><x27>338</x27></dataPoint>
+        <dataPoint><x26>5</x26><x27>355</x27></dataPoint>
+        <dataPoint><x26>10</x26><x27>417</x27></dataPoint>
+        <dataPoint><x26>15</x26><x27>502</x27></dataPoint>
+        <dataPoint><x26>20</x26><x27>701</x27></dataPoint>
+        <dataPoint><x26>25</x26><x27>1115</x27></dataPoint>
+        <dataPoint><x26>30</x26><x27>1342</x27></dataPoint>
+        <dataPoint><x26>34</x26><x27>1447</x27></dataPoint>
+        <dataPoint><x26>36</x26><x27>1496</x27></dataPoint>
+        <dataPoint><x26>38</x26><x27>1520</x27></dataPoint>
+        <dataPoint><x26>40</x26><x27>1533</x27></dataPoint>
+        <dataPoint><x26>42</x26><x27>1543</x27></dataPoint>
+        <dataPoint><x26>44</x26><x27>1552</x27></dataPoint>
+        <dataPoint><x26>46</x26><x27>1557</x27></dataPoint>
+        <dataPoint><x26>48</x26><x27>1559</x27></dataPoint>
+        <dataPoint><x26>50</x26><x27>1559</x27></dataPoint>
+        <dataPoint><x26>52</x26><x27>1557</x27></dataPoint>
+        <dataPoint><x26>54</x26><x27>1553</x27></dataPoint>
+        <dataPoint><x26>56</x26><x27>1545</x27></dataPoint>
+        <dataPoint><x26>58</x26><x27>1531</x27></dataPoint>
+        <dataPoint><x26>60</x26><x27>1504</x27></dataPoint>
+        <dataPoint><x26>62</x26><x27>1458</x27></dataPoint>
+        <dataPoint><x26>64</x26><x27>1318</x27></dataPoint>
+        <dataPoint><x26>66</x26><x27>1176</x27></dataPoint>
+        <dataPoint><x26>68</x26><x27>1075</x27></dataPoint>
+        <dataPoint><x26>70</x26><x27>990</x27></dataPoint>
+        <dataPoint><x26>72</x26><x27>928</x27></dataPoint>
+        <dataPoint><x26>74</x26><x27>864</x27></dataPoint>
+        <dataPoint><x26>80</x26><x27>731</x27></dataPoint>
+        <dataPoint><x26>85</x26><x27>630</x27></dataPoint>
+        <dataPoint><x26>90</x26><x27>544</x27></dataPoint>
+        <dataPoint><x26>95</x26><x27>476</x27></dataPoint>
+        <dataPoint><x26>100</x26><x27>418</x27></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg9" label="1623 K" dataPointLink="12">
+        <property name="distance"     id="x28"  label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x29"  label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x28>0</x28><x29>343</x29></dataPoint>
+        <dataPoint><x28>5</x28><x29>369</x29></dataPoint>
+        <dataPoint><x28>10</x28><x29>455</x29></dataPoint>
+        <dataPoint><x28>15</x28><x29>530</x29></dataPoint>
+        <dataPoint><x28>20</x28><x29>754</x29></dataPoint>
+        <dataPoint><x28>25</x28><x29>1182</x29></dataPoint>
+        <dataPoint><x28>30</x28><x29>1412</x29></dataPoint>
+        <dataPoint><x28>34</x28><x29>1511</x29></dataPoint>
+        <dataPoint><x28>36</x28><x29>1557</x29></dataPoint>
+        <dataPoint><x28>38</x28><x29>1579</x29></dataPoint>
+        <dataPoint><x28>40</x28><x29>1591</x29></dataPoint>
+        <dataPoint><x28>42</x28><x29>1600</x29></dataPoint>
+        <dataPoint><x28>44</x28><x29>1606</x29></dataPoint>
+        <dataPoint><x28>46</x28><x29>1610</x29></dataPoint>
+        <dataPoint><x28>48</x28><x29>1611</x29></dataPoint>
+        <dataPoint><x28>50</x28><x29>1610</x29></dataPoint>
+        <dataPoint><x28>52</x28><x29>1608</x29></dataPoint>
+        <dataPoint><x28>54</x28><x29>1604</x29></dataPoint>
+        <dataPoint><x28>56</x28><x29>1596</x29></dataPoint>
+        <dataPoint><x28>58</x28><x29>1582</x29></dataPoint>
+        <dataPoint><x28>60</x28><x29>1555</x29></dataPoint>
+        <dataPoint><x28>62</x28><x29>1504</x29></dataPoint>
+        <dataPoint><x28>64</x28><x29>1346</x29></dataPoint>
+        <dataPoint><x28>66</x28><x29>1208</x29></dataPoint>
+        <dataPoint><x28>68</x28><x29>1109</x29></dataPoint>
+        <dataPoint><x28>70</x28><x29>1024</x29></dataPoint>
+        <dataPoint><x28>72</x28><x29>958</x29></dataPoint>
+        <dataPoint><x28>74</x28><x29>896</x29></dataPoint>
+        <dataPoint><x28>80</x28><x29>745</x29></dataPoint>
+        <dataPoint><x28>85</x28><x29>627</x29></dataPoint>
+        <dataPoint><x28>90</x28><x29>546</x29></dataPoint>
+        <dataPoint><x28>95</x28><x29>475</x29></dataPoint>
+        <dataPoint><x28>100</x28><x29>421</x29></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg10" label="1673 K" dataPointLink="13">
+        <property name="distance"     id="x30"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x31"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x30>0</x30><x31>348</x31></dataPoint>
+        <dataPoint><x30>5</x30><x31>383</x31></dataPoint>
+        <dataPoint><x30>10</x30><x31>493</x31></dataPoint>
+        <dataPoint><x30>15</x30><x31>557</x31></dataPoint>
+        <dataPoint><x30>20</x30><x31>807</x31></dataPoint>
+        <dataPoint><x30>25</x30><x31>1249</x31></dataPoint>
+        <dataPoint><x30>30</x30><x31>1482</x31></dataPoint>
+        <dataPoint><x30>34</x30><x31>1574</x31></dataPoint>
+        <dataPoint><x30>36</x30><x31>1617</x31></dataPoint>
+        <dataPoint><x30>38</x30><x31>1637</x31></dataPoint>
+        <dataPoint><x30>40</x30><x31>1649</x31></dataPoint>
+        <dataPoint><x30>42</x30><x31>1656</x31></dataPoint>
+        <dataPoint><x30>44</x30><x31>1660</x31></dataPoint>
+        <dataPoint><x30>46</x30><x31>1662</x31></dataPoint>
+        <dataPoint><x30>48</x30><x31>1662</x31></dataPoint>
+        <dataPoint><x30>50</x30><x31>1661</x31></dataPoint>
+        <dataPoint><x30>52</x30><x31>1659</x31></dataPoint>
+        <dataPoint><x30>54</x30><x31>1654</x31></dataPoint>
+        <dataPoint><x30>56</x30><x31>1646</x31></dataPoint>
+        <dataPoint><x30>58</x30><x31>1632</x31></dataPoint>
+        <dataPoint><x30>60</x30><x31>1605</x31></dataPoint>
+        <dataPoint><x30>62</x30><x31>1549</x31></dataPoint>
+        <dataPoint><x30>64</x30><x31>1374</x31></dataPoint>
+        <dataPoint><x30>66</x30><x31>1241</x31></dataPoint>
+        <dataPoint><x30>68</x30><x31>1143</x31></dataPoint>
+        <dataPoint><x30>70</x30><x31>1058</x31></dataPoint>
+        <dataPoint><x30>72</x30><x31>987</x31></dataPoint>
+        <dataPoint><x30>74</x30><x31>927</x31></dataPoint>
+        <dataPoint><x30>80</x30><x31>759</x31></dataPoint>
+        <dataPoint><x30>85</x30><x31>623</x31></dataPoint>
+        <dataPoint><x30>90</x30><x31>547</x31></dataPoint>
+        <dataPoint><x30>95</x30><x31>474</x31></dataPoint>
+        <dataPoint><x30>100</x30><x31>423</x31></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg11" label="1723 K" dataPointLink="14">
+        <property name="distance"     id="x32"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x33"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x32>0</x32><x33>360</x33></dataPoint>
+        <dataPoint><x32>5</x32><x33>384</x33></dataPoint>
+        <dataPoint><x32>10</x32><x33>494</x33></dataPoint>
+        <dataPoint><x32>15</x32><x33>594</x33></dataPoint>
+        <dataPoint><x32>20</x32><x33>828</x33></dataPoint>
+        <dataPoint><x32>25</x32><x33>1334</x33></dataPoint>
+        <dataPoint><x32>30</x32><x33>1554</x33></dataPoint>
+        <dataPoint><x32>34</x32><x33>1636</x33></dataPoint>
+        <dataPoint><x32>36</x32><x33>1676</x33></dataPoint>
+        <dataPoint><x32>38</x32><x33>1694</x33></dataPoint>
+        <dataPoint><x32>40</x32><x33>1704</x33></dataPoint>
+        <dataPoint><x32>42</x32><x33>1710</x33></dataPoint>
+        <dataPoint><x32>44</x32><x33>1713</x33></dataPoint>
+        <dataPoint><x32>46</x32><x33>1715</x33></dataPoint>
+        <dataPoint><x32>48</x32><x33>1714</x33></dataPoint>
+        <dataPoint><x32>50</x32><x33>1713</x33></dataPoint>
+        <dataPoint><x32>52</x32><x33>1711</x33></dataPoint>
+        <dataPoint><x32>54</x32><x33>1706</x33></dataPoint>
+        <dataPoint><x32>56</x32><x33>1698</x33></dataPoint>
+        <dataPoint><x32>58</x32><x33>1685</x33></dataPoint>
+        <dataPoint><x32>60</x32><x33>1658</x33></dataPoint>
+        <dataPoint><x32>62</x32><x33>1603</x33></dataPoint>
+        <dataPoint><x32>64</x32><x33>1422</x33></dataPoint>
+        <dataPoint><x32>66</x32><x33>1278</x33></dataPoint>
+        <dataPoint><x32>68</x32><x33>1180</x33></dataPoint>
+        <dataPoint><x32>70</x32><x33>1092</x33></dataPoint>
+        <dataPoint><x32>72</x32><x33>1021</x33></dataPoint>
+        <dataPoint><x32>74</x32><x33>958</x33></dataPoint>
+        <dataPoint><x32>80</x32><x33>782</x33></dataPoint>
+        <dataPoint><x32>85</x32><x33>637</x33></dataPoint>
+        <dataPoint><x32>90</x32><x33>557</x33></dataPoint>
+        <dataPoint><x32>95</x32><x33>481</x33></dataPoint>
+        <dataPoint><x32>100</x32><x33>426</x33></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg12" label="1773 K" dataPointLink="15">
+        <property name="distance"     id="x34"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x35"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x34>0</x34><x35>372</x35></dataPoint>
+        <dataPoint><x34>5</x34><x35>384</x35></dataPoint>
+        <dataPoint><x34>10</x34><x35>495</x35></dataPoint>
+        <dataPoint><x34>15</x34><x35>630</x35></dataPoint>
+        <dataPoint><x34>20</x34><x35>848</x35></dataPoint>
+        <dataPoint><x34>25</x34><x35>1418</x35></dataPoint>
+        <dataPoint><x34>30</x34><x35>1625</x35></dataPoint>
+        <dataPoint><x34>34</x34><x35>1698</x35></dataPoint>
+        <dataPoint><x34>36</x34><x35>1734</x35></dataPoint>
+        <dataPoint><x34>38</x34><x35>1751</x35></dataPoint>
+        <dataPoint><x34>40</x34><x35>1759</x35></dataPoint>
+        <dataPoint><x34>42</x34><x35>1763</x35></dataPoint>
+        <dataPoint><x34>44</x34><x35>1766</x35></dataPoint>
+        <dataPoint><x34>46</x34><x35>1767</x35></dataPoint>
+        <dataPoint><x34>48</x34><x35>1766</x35></dataPoint>
+        <dataPoint><x34>50</x34><x35>1765</x35></dataPoint>
+        <dataPoint><x34>52</x34><x35>1762</x35></dataPoint>
+        <dataPoint><x34>54</x34><x35>1757</x35></dataPoint>
+        <dataPoint><x34>56</x34><x35>1750</x35></dataPoint>
+        <dataPoint><x34>58</x34><x35>1737</x35></dataPoint>
+        <dataPoint><x34>60</x34><x35>1710</x35></dataPoint>
+        <dataPoint><x34>62</x34><x35>1657</x35></dataPoint>
+        <dataPoint><x34>64</x34><x35>1470</x35></dataPoint>
+        <dataPoint><x34>66</x34><x35>1315</x35></dataPoint>
+        <dataPoint><x34>68</x34><x35>1216</x35></dataPoint>
+        <dataPoint><x34>70</x34><x35>1125</x35></dataPoint>
+        <dataPoint><x34>72</x34><x35>1055</x35></dataPoint>
+        <dataPoint><x34>74</x34><x35>989</x35></dataPoint>
+        <dataPoint><x34>80</x34><x35>805</x35></dataPoint>
+        <dataPoint><x34>85</x34><x35>651</x35></dataPoint>
+        <dataPoint><x34>90</x34><x35>566</x35></dataPoint>
+        <dataPoint><x34>95</x34><x35>489</x35></dataPoint>
+        <dataPoint><x34>100</x34><x35>428</x35></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg13" label="1823 K" dataPointLink="16">
+        <property name="distance"     id="x36"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x37"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x36>0</x36><x37>396</x37></dataPoint>
+        <dataPoint><x36>5</x36><x37>412</x37></dataPoint>
+        <dataPoint><x36>10</x36><x37>539</x37></dataPoint>
+        <dataPoint><x36>15</x36><x37>677</x37></dataPoint>
+        <dataPoint><x36>20</x36><x37>905</x37></dataPoint>
+        <dataPoint><x36>25</x36><x37>1479</x37></dataPoint>
+        <dataPoint><x36>30</x36><x37>1684</x37></dataPoint>
+        <dataPoint><x36>34</x36><x37>1753</x37></dataPoint>
+        <dataPoint><x36>36</x36><x37>1789</x37></dataPoint>
+        <dataPoint><x36>38</x36><x37>1803</x37></dataPoint>
+        <dataPoint><x36>40</x36><x37>1811</x37></dataPoint>
+        <dataPoint><x36>42</x36><x37>1814</x37></dataPoint>
+        <dataPoint><x36>44</x36><x37>1816</x37></dataPoint>
+        <dataPoint><x36>46</x36><x37>1817</x37></dataPoint>
+        <dataPoint><x36>48</x36><x37>1816</x37></dataPoint>
+        <dataPoint><x36>50</x36><x37>1815</x37></dataPoint>
+        <dataPoint><x36>52</x36><x37>1812</x37></dataPoint>
+        <dataPoint><x36>54</x36><x37>1807</x37></dataPoint>
+        <dataPoint><x36>56</x36><x37>1800</x37></dataPoint>
+        <dataPoint><x36>58</x36><x37>1787</x37></dataPoint>
+        <dataPoint><x36>60</x36><x37>1762</x37></dataPoint>
+        <dataPoint><x36>62</x36><x37>1710</x37></dataPoint>
+        <dataPoint><x36>64</x36><x37>1508</x37></dataPoint>
+        <dataPoint><x36>66</x36><x37>1346</x37></dataPoint>
+        <dataPoint><x36>68</x36><x37>1241</x37></dataPoint>
+        <dataPoint><x36>70</x36><x37>1147</x37></dataPoint>
+        <dataPoint><x36>72</x36><x37>1076</x37></dataPoint>
+        <dataPoint><x36>74</x36><x37>1013</x37></dataPoint>
+        <dataPoint><x36>80</x36><x37>827</x37></dataPoint>
+        <dataPoint><x36>85</x36><x37>662</x37></dataPoint>
+        <dataPoint><x36>90</x36><x37>571</x37></dataPoint>
+        <dataPoint><x36>95</x36><x37>491</x37></dataPoint>
+        <dataPoint><x36>100</x36><x37>431</x37></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg14" label="1873 K" dataPointLink="17">
+        <property name="distance"     id="x38"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x39"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x38>0</x38><x39>421</x39></dataPoint>
+        <dataPoint><x38>5</x38><x39>439</x39></dataPoint>
+        <dataPoint><x38>10</x38><x39>582</x39></dataPoint>
+        <dataPoint><x38>15</x38><x39>724</x39></dataPoint>
+        <dataPoint><x38>20</x38><x39>962</x39></dataPoint>
+        <dataPoint><x38>25</x38><x39>1539</x39></dataPoint>
+        <dataPoint><x38>30</x38><x39>1742</x39></dataPoint>
+        <dataPoint><x38>34</x38><x39>1807</x39></dataPoint>
+        <dataPoint><x38>36</x38><x39>1843</x39></dataPoint>
+        <dataPoint><x38>38</x38><x39>1855</x39></dataPoint>
+        <dataPoint><x38>40</x38><x39>1862</x39></dataPoint>
+        <dataPoint><x38>42</x38><x39>1865</x39></dataPoint>
+        <dataPoint><x38>44</x38><x39>1866</x39></dataPoint>
+        <dataPoint><x38>46</x38><x39>1867</x39></dataPoint>
+        <dataPoint><x38>48</x38><x39>1866</x39></dataPoint>
+        <dataPoint><x38>50</x38><x39>1864</x39></dataPoint>
+        <dataPoint><x38>52</x38><x39>1862</x39></dataPoint>
+        <dataPoint><x38>54</x38><x39>1857</x39></dataPoint>
+        <dataPoint><x38>56</x38><x39>1850</x39></dataPoint>
+        <dataPoint><x38>58</x38><x39>1837</x39></dataPoint>
+        <dataPoint><x38>60</x38><x39>1813</x39></dataPoint>
+        <dataPoint><x38>62</x38><x39>1763</x39></dataPoint>
+        <dataPoint><x38>64</x38><x39>1546</x39></dataPoint>
+        <dataPoint><x38>66</x38><x39>1377</x39></dataPoint>
+        <dataPoint><x38>68</x38><x39>1265</x39></dataPoint>
+        <dataPoint><x38>70</x38><x39>1169</x39></dataPoint>
+        <dataPoint><x38>72</x38><x39>1096</x39></dataPoint>
+        <dataPoint><x38>74</x38><x39>1037</x39></dataPoint>
+        <dataPoint><x38>80</x38><x39>848</x39></dataPoint>
+        <dataPoint><x38>85</x38><x39>672</x39></dataPoint>
+        <dataPoint><x38>90</x38><x39>575</x39></dataPoint>
+        <dataPoint><x38>95</x38><x39>493</x39></dataPoint>
+        <dataPoint><x38>100</x38><x39>433</x39></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg15" label="1923 K" dataPointLink="18">
+        <property name="distance"     id="x40"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x41"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x40>0</x40><x41>468</x41></dataPoint>
+        <dataPoint><x40>5</x40><x41>495</x41></dataPoint>
+        <dataPoint><x40>10</x40><x41>651</x41></dataPoint>
+        <dataPoint><x40>15</x40><x41>782</x41></dataPoint>
+        <dataPoint><x40>20</x40><x41>1039</x41></dataPoint>
+        <dataPoint><x40>25</x40><x41>1611</x41></dataPoint>
+        <dataPoint><x40>30</x40><x41>1800</x41></dataPoint>
+        <dataPoint><x40>34</x40><x41>1860</x41></dataPoint>
+        <dataPoint><x40>36</x40><x41>1893</x41></dataPoint>
+        <dataPoint><x40>38</x40><x41>1905</x41></dataPoint>
+        <dataPoint><x40>40</x40><x41>1911</x41></dataPoint>
+        <dataPoint><x40>42</x40><x41>1914</x41></dataPoint>
+        <dataPoint><x40>44</x40><x41>1915</x41></dataPoint>
+        <dataPoint><x40>46</x40><x41>1916</x41></dataPoint>
+        <dataPoint><x40>48</x40><x41>1915</x41></dataPoint>
+        <dataPoint><x40>50</x40><x41>1913</x41></dataPoint>
+        <dataPoint><x40>52</x40><x41>1911</x41></dataPoint>
+        <dataPoint><x40>54</x40><x41>1906</x41></dataPoint>
+        <dataPoint><x40>56</x40><x41>1899</x41></dataPoint>
+        <dataPoint><x40>58</x40><x41>1886</x41></dataPoint>
+        <dataPoint><x40>60</x40><x41>1863</x41></dataPoint>
+        <dataPoint><x40>62</x40><x41>1813</x41></dataPoint>
+        <dataPoint><x40>64</x40><x41>1587</x41></dataPoint>
+        <dataPoint><x40>66</x40><x41>1410</x41></dataPoint>
+        <dataPoint><x40>68</x40><x41>1298</x41></dataPoint>
+        <dataPoint><x40>70</x40><x41>1199</x41></dataPoint>
+        <dataPoint><x40>72</x40><x41>1125</x41></dataPoint>
+        <dataPoint><x40>74</x40><x41>1063</x41></dataPoint>
+        <dataPoint><x40>80</x40><x41>862</x41></dataPoint>
+        <dataPoint><x40>85</x40><x41>684</x41></dataPoint>
+        <dataPoint><x40>90</x40><x41>583</x41></dataPoint>
+        <dataPoint><x40>95</x40><x41>497</x41></dataPoint>
+        <dataPoint><x40>100</x40><x41>433</x41></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg16" label="1973 K" dataPointLink="19">
+        <property name="distance"     id="x42"   label="d"       sourcetype="reported"  units="cm" />
+        <property name="temperature"  id="x43"   label="T"       sourcetype="reported"  units="K"  />
+
+        <dataPoint><x42>0</x42><x43>514</x43></dataPoint>
+        <dataPoint><x42>5</x42><x43>550</x43></dataPoint>
+        <dataPoint><x42>10</x42><x43>720</x43></dataPoint>
+        <dataPoint><x42>15</x42><x43>839</x43></dataPoint>
+        <dataPoint><x42>20</x42><x43>1115</x43></dataPoint>
+        <dataPoint><x42>25</x42><x43>1682</x43></dataPoint>
+        <dataPoint><x42>30</x42><x43>1857</x43></dataPoint>
+        <dataPoint><x42>34</x42><x43>1912</x43></dataPoint>
+        <dataPoint><x42>36</x42><x43>1942</x43></dataPoint>
+        <dataPoint><x42>38</x42><x43>1954</x43></dataPoint>
+        <dataPoint><x42>40</x42><x43>1960</x43></dataPoint>
+        <dataPoint><x42>42</x42><x43>1962</x43></dataPoint>
+        <dataPoint><x42>44</x42><x43>1964</x43></dataPoint>
+        <dataPoint><x42>46</x42><x43>1964</x43></dataPoint>
+        <dataPoint><x42>48</x42><x43>1964</x43></dataPoint>
+        <dataPoint><x42>50</x42><x43>1962</x43></dataPoint>
+        <dataPoint><x42>52</x42><x43>1959</x43></dataPoint>
+        <dataPoint><x42>54</x42><x43>1955</x43></dataPoint>
+        <dataPoint><x42>56</x42><x43>1947</x43></dataPoint>
+        <dataPoint><x42>58</x42><x43>1934</x43></dataPoint>
+        <dataPoint><x42>60</x42><x43>1912</x43></dataPoint>
+        <dataPoint><x42>62</x42><x43>1862</x43></dataPoint>
+        <dataPoint><x42>64</x42><x43>1628</x43></dataPoint>
+        <dataPoint><x42>66</x42><x43>1443</x43></dataPoint>
+        <dataPoint><x42>68</x42><x43>1330</x43></dataPoint>
+        <dataPoint><x42>70</x42><x43>1229</x43></dataPoint>
+        <dataPoint><x42>72</x42><x43>1153</x43></dataPoint>
+        <dataPoint><x42>74</x42><x43>1088</x43></dataPoint>
+        <dataPoint><x42>80</x42><x43>876</x43></dataPoint>
+        <dataPoint><x42>85</x42><x43>696</x43></dataPoint>
+        <dataPoint><x42>90</x42><x43>591</x43></dataPoint>
+        <dataPoint><x42>95</x42><x43>501</x43></dataPoint>
+        <dataPoint><x42>100</x42><x43>432</x43></dataPoint>
+    </dataGroup>
+</experiment>

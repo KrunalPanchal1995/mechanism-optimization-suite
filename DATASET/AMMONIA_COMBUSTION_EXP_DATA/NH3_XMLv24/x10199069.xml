@@ -1,0 +1,62 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10199069</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-08-24</firstPublicationDate>
+    <lastModificationDate>2024-08-24</lastModificationDate>
+    <bibliographyLink>
+        <description>T.M. Rault, S. Clees, M. Figueroa-Labastida, S.C. Barnes, A.M. Ferris, N. Obrecht, C. Callu, R.K. Hanson, Combustion and Flame 260 (2024), 113260</description>
+        <referenceDOI>10.1016/j.combustflame.2023.113260</referenceDOI>
+        <location>Main article</location>
+        <figure>Main paper: Fig. 4a, red triangles</figure>
+        <details>
+            <author>Rault, Taylor M. and Clees, Sean and Figueroa-Labastida, Miguel and Barnes, Spencer C. and Ferris, Alison M. and Obrecht, Nicolas and Callu, Cyrille and Hanson, Ronald K.</author>
+            <journal>Combustion and Flame</journal>
+            <pages>113260</pages>
+            <title>Multi-speciation and ignition delay time measurements of ammonia oxidation behind reflected shock waves</title>
+            <type>Journal Article</type>
+            <volume>260</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="uncertainty"                   label="d_tau"    sourcetype="reported"   units="unitless"  reference="ignition delay"       kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.1</value></property>
+        <property name="evaluated standard deviation"  label="std_tau"  sourcetype="estimated"  units="unitless"  reference="ignition delay"       kind="relative"  sigmarange="1"  method="combined from scatter and reported uncertainty" ><value>0.083668</value></property>
+        <property name="uncertainty"                   label="d_p"      sourcetype="reported"   units="atm"       reference="pressure"             kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.1</value></property>
+        <property name="uncertainty"                   label="d_x_NH3"  sourcetype="reported"   units="unitless"  reference="initial composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+            <value>0.08</value>
+        </property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="percent" >0.86</amount></component>
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="percent" >1.14</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="percent" >98</amount></component>
+        </property>
+        <property name="equivalence ratio"             label="phi"      sourcetype="reported"   units="unitless" ><value>1</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"     id="x1"   label="T"    sourcetype="reported"  units="K"   />
+        <property name="pressure"        id="x2"   label="p"    sourcetype="reported"  units="atm" />
+        <property name="ignition delay"  id="x3"   label="tau"  sourcetype="reported"  units="us"  />
+
+        <dataPoint><x1>2292</x1><x2>1.17</x2><x3>176</x3></dataPoint>
+        <dataPoint><x1>2137</x1><x2>1.19</x2><x3>366</x3></dataPoint>
+        <dataPoint><x1>2067</x1><x2>1.27</x2><x3>533</x3></dataPoint>
+        <dataPoint><x1>2006</x1><x2>1.33</x2><x3>630</x3></dataPoint>
+        <dataPoint><x1>1882</x1><x2>1.43</x2><x3>1277</x3></dataPoint>
+    </dataGroup>
+    <ignitionType target="OH*" type="baseline min intercept from d/dt"/>
+    <comment>Tabulated data was obtained from the authors through personal communication.</comment>
+</experiment>

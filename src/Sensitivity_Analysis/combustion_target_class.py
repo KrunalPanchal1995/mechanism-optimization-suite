@@ -13,8 +13,8 @@ import pandas as pd
 import time
 from scipy.optimize import minimize
 
-# Task 2E: load MW/stoich from shared chem_data module; fall back to inline tables
-# if chem_data is not on the path (e.g., running from src/Sensitivity_Analysis/ directly).
+# Task 2D: load MW/stoich from shared chem_data module; fall back to inline tables
+# if chem_data is not on the path (e.g., running from src/MUQ-SAC/ directly).
 try:
 	_chem_data_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 	if _chem_data_dir not in sys.path:
@@ -27,7 +27,7 @@ except ImportError:
 class combustion_target():
 ###Class definition and acquisition of input parameters.
 	def __init__(self,data,addendum,index):
-		# Task 2E: MW and stoichiometry tables now sourced from chem_data.py.
+		# Task 2D: MW and stoichiometry tables now sourced from chem_data.py.
 		# Hard-coded fallback retained for backward compatibility when
 		# chem_data is unavailable.
 		if _HAS_CHEM_DATA:
@@ -94,7 +94,7 @@ class combustion_target():
 		self.x = None
 		self.index = index
 		self.case_index = "case-"+str(index)
-		self.units = self.f_unit = self.t_unit = self.temperature_factor = self.p_unit = self.pressure_factor = self.target_unit = self.target_factor = self.flow_unit  = self.flow_rate = self.target_key = self.input_file = self.target = self.simulation = self.temperature = self.fuel = self.oxygen = self.nitrogen = self.argon = self.pressure = self.phi = self.observed = self.d_weight = self.d_set = self.Tend = self.species = self.s_p_name = None
+		self.units = self.f_unit = self.t_unit = self.temperature_factor = self.p_unit = self.pressure_factor = self.target_unit = self.target_factor = self.flow_unit  = self.flow_rate = self.target_key = self.input_file = self.target = self.simulation = self.temperature = self.fuel = self.oxygen = self.nitrogen = self.argon = self.pressure = self.phi = self.observed = self.d_weight = self.d_set = self.species = self.s_p_name = None
 		self.add = {}	
 		self.simulated = None
 		#raise ValueError("addendum")
@@ -343,9 +343,6 @@ class combustion_target():
 				self.species = content
 				#print(content)
 			
-			if "time" in key:
-				self.Tend = float(content)
-				#print(content)	
 			
 			#print(self.target)		
 		if "Pi" in self.units:
@@ -370,10 +367,6 @@ class combustion_target():
 			self.pressure = float(self.pressure)*101325
 		if self.units["P"].strip("	") == "Pa":
 			self.pressure = float(self.pressure)
-		
-		if self.units["observed"].strip(" ") == "ms":
-			self.observed = float(self.observed)*1000 #Convetin it to us
-		
 		if "solver" not in self.add:
 			self.add["solver"] = "FlameMaster"
 		if "Thermodiffusion" not in self.add:
@@ -381,7 +374,7 @@ class combustion_target():
 		if "ComputeWithRadiation" not in self.add:
 			self.add["ComputeWithRadiation"] = True
 		if "saveAll" not in self.add:
-			self.add["saveAll"] = False
+			self.add["saveAll"] = True
 		if "BoundaryLayer" not in self.add:
 			self.add["BoundaryLayer"] = False
 		if "ign_delay_def" not in self.add:
@@ -432,8 +425,6 @@ class combustion_target():
 			self.add["reactorVolume"] = 0.000314 #m**3,area*l	
 		if "residenceTime" not in self.add:
 			self.add["residenceTime"] = 1
-		if "EndTime" not in self.add:
-			self.add["EndTime"] = 0.04 #s
 		if "time_step" not in self.add:
 			self.add["time_step"] = 2000 #steps		
 		if "flw_method" not in self.add:
@@ -456,8 +447,6 @@ class combustion_target():
 			self.add["flf_target"] = "H" #m**3	
 		if "flf_cond" not in self.add:
 			self.add["flf_cond"] = "max" #m**3	
-		if "estimateTIG" not in self.add:
-			self.add["estimateTIG"] = 0.4
 		if "T_amb" not in self.add:
 			self.add["T_ambient"] = 298
 		else:
@@ -477,6 +466,107 @@ class combustion_target():
 				self.add["group"] = "mix"
 				self.add["description"] = "solution with mixture-averaged transport"
 			
+		# --- RMIP Phase-6 additions (Future.md pt. 3 + 6) -------------------
+		# JSR defaults (residenceTime already defaulted above; these fill the
+		# remaining keys the JSR templates in make_input_file.py read).
+		# RMIP: unified simulation-stop-time key across all target types
+		# (previously split across estimateTIG/maxSimulationTime/total_time,
+		# which could silently collide if defaulted independently).
+		if "MaxSimulationTime" not in self.add:
+			if "JSR" in self.target or "Flf" in self.target or "PFR" in self.target or "Flw" in self.target:
+				self.add["MaxSimulationTime"] = 10  # s
+			elif "Tig" in str(self.target) and self.observed:
+				# 2026-08-27: the old flat 0.4s default made AURORA integrate
+				# ~5000x past the ignition event for µs-scale HTT targets
+				# (pilot_5case_case0: tau_exp = 76 µs) -- ~5-6 min of solver
+				# time AND license-seat hold per sample, all of it wasted on
+				# post-ignition chemistry the tau extractor never reads.
+				# Scale the stop time to the observed ignition delay instead:
+				# 100x covers any perturbation within uncertainty bands
+				# (self.observed is in µs: see the "ms" -> *1000 conversion
+				# above), floored at 10 ms so µs-scale delays still give the
+				# solver room past the ignition spike. Tig rows without an
+				# observed value keep the legacy 0.4s.
+				self.add["MaxSimulationTime"] = max(0.01, 100.0 * self.observed * 1e-6)
+			else:  # RCM, Fls, Flf_a, etc.
+				self.add["MaxSimulationTime"] = 0.4  # s
+		if "species" not in self.add:
+			self.add["species"] = list(self.species_dict.keys())[0] if self.species_dict else "CO2"
+		# PFR (Plug-Flow Reactor) defaults — new target type, all three solvers.
+		if "pfr_length" not in self.add:
+			self.add["pfr_length"] = 0.1  # m
+		if "pfr_diameter" not in self.add:
+			self.add["pfr_diameter"] = 0.02  # m
+		if "pfr_mdot" not in self.add:
+			self.add["pfr_mdot"] = 1e-3  # kg/s
+		if "pfr_n_points" not in self.add:
+			self.add["pfr_n_points"] = 200
+		# Reaction flux / ROP analysis toggle — applies to ANY target type
+		# (Tig/Fls/Flf/JSR/PFR/RCM) across all three solvers:
+		#   FlameMaster  -> uncomments 'ReactionFluxAnal is TRUE'
+		#   CHEMKIN_PRO  -> job.postprocess(rop=True) + VARIABLE ROP ALL
+		#   cantera      -> dumps gas.net_rates_of_progress to output/flux.json
+		if "flux_analysis" not in self.add:
+			self.add["flux_analysis"] = False
+		if "flux_element" not in self.add:
+			self.add["flux_element"] = "C"
+
+		# Zero-RK solver defaults (Tig/JSR only — see ZERORK_GSA_PLAN.md; Zero-RK
+		# has no PFR/flame reactor, those stay on cantera/CHEMKIN_PRO/FlameMaster
+		# regardless of this target's solver= setting). Per the same rule as
+		# every other solver's parameters above: these are the ONLY place
+		# defaults are set — make_input_file.py's zerork branches read
+		# target.add[...] exclusively, never hardcode a value themselves.
+		if "zerork_install_dir" not in self.add:
+			self.add["zerork_install_dir"] = "/home/krithika/zero-rk/build2/inst_dir"
+		if "zerork_idt_temp_delta" not in self.add:
+			self.add["zerork_idt_temp_delta"] = 400.0  # K, ignition-delay definition
+		if "zerork_stop_time" not in self.add:
+			self.add["zerork_stop_time"] = float(self.add["MaxSimulationTime"])  # s
+		if "zerork_rtol" not in self.add:
+			self.add["zerork_rtol"] = 1e-8
+		if "zerork_atol" not in self.add:
+			self.add["zerork_atol"] = 1e-20
+		if "zerork_eps_lin" not in self.add:
+			self.add["zerork_eps_lin"] = 0.05
+		if "zerork_nonlinear_convergence_coefficient" not in self.add:
+			self.add["zerork_nonlinear_convergence_coefficient"] = 0.05
+		if "zerork_preconditioner_threshold" not in self.add:
+			self.add["zerork_preconditioner_threshold"] = 2.048e-3
+		# JSR (constVolumePSR) uses its own preconditioner threshold, not the
+		# Tig/IDT (constVolumeWSR) one above -- Zero-RK's own example decks use
+		# different tuned values per reactor type (1.0e-6 for PSR vs 2.048e-3
+		# for WSR; see zerork_bridge.py's build_jsr_input default), so reusing
+		# the Tig value here would be wrong, not just untuned.
+		if "zerork_jsr_preconditioner_threshold" not in self.add:
+			self.add["zerork_jsr_preconditioner_threshold"] = 1.0e-6
+		if "zerork_n_mpi_ranks" not in self.add:
+			self.add["zerork_n_mpi_ranks"] = 1
+
+		# Zero-RK RCM defaults (variable_volume.x, see ZERORK_GSA_PLAN.md section
+		# 1.1 table). RCM's own ignition-delay DEFINITION differs from the cantera/
+		# CHEMKIN_PRO/FlameMaster RCM branches above (which compute tau as the time
+		# between the first-stage and main temperature-rise peaks): Zero-RK's own
+		# "Time at max dP/dt" summary line is used instead -- a real, documented
+		# definitional difference (same class of gap as zerork_idt_temp_delta vs.
+		# the flexible ign_delay_def/ign_cond options for Tig), not an oversight.
+		if "zerork_rcm_volume_mult" not in self.add:
+			self.add["zerork_rcm_volume_mult"] = 1.0e-6  # cm^3 -> m^3 (volume_profile files are cm^3)
+		if "zerork_rcm_stroke_mult" not in self.add:
+			self.add["zerork_rcm_stroke_mult"] = 1.0
+		if "zerork_rcm_max_dt_internal" not in self.add:
+			self.add["zerork_rcm_max_dt_internal"] = 1.0e-3  # s
+		if "zerork_rcm_max_steps" not in self.add:
+			self.add["zerork_rcm_max_steps"] = 1000000
+		if "zerork_rcm_ref_temp" not in self.add:
+			self.add["zerork_rcm_ref_temp"] = 1000.0  # K, ODE-state normalization only
+		if "zerork_rcm_ref_moles" not in self.add:
+			self.add["zerork_rcm_ref_moles"] = 0.25  # ODE-state normalization only
+		if "zerork_rcm_max_order" not in self.add:
+			self.add["zerork_rcm_max_order"] = 5  # max BDF order
+		if "zerork_rcm_max_num_nonlin_iters" not in self.add:
+			self.add["zerork_rcm_max_num_nonlin_iters"] = 3
+
 		self.initialCond = self.getInitialCond()
 		if "Flf" in self.target:
 			#print(self.add)
@@ -529,34 +619,54 @@ class combustion_target():
 			self.phi = self.add["phi"]
 		
 		
+		# Compute equivalence ratio phi for multi-fuel mixtures
+		# Assumptions:
+		# - self.fuel_dict: {species: mole_fraction}
+		# - self.oxidizer_dict: {species: mole_fraction} and contains O2
+		# - self.stoichiometry: {fuel_species: nu_O2_per_mol_fuel}
+
+		# 1) Get actual oxidizer (O2) mole fraction
+		x_o2 = self.oxidizer_x
+		if x_o2 <= 0.0:
+			raise ValueError("Cannot compute phi: oxidizer_dict has no O2 or O2 mole fraction is zero.")
+
+		# 2) Total fuel (mole fraction) and stoichiometric O2 required for the mixture
+		total_fuel = 0.0
+		o2_required = 0.0
+
+		for fuel, x_fuel in self.fuel_dict.items():
+			x_fuel = float(x_fuel)
+			if x_fuel <= 0.0:
+				continue
+
+			nu_o2 = float(self.stoichiometry.get(fuel, 0.0))
+			# For fuels not in the table, compute from atom balance via chem_data
+			if nu_o2 <= 0.0 and _HAS_CHEM_DATA:
+				nu_o2 = _compute_nu_o2(fuel)
+			# Only include fuels for which a valid stoichiometric O2 coefficient exists
+			if nu_o2 <= 0.0:
+				continue
+
+			total_fuel += x_fuel
+			o2_required += nu_o2 * x_fuel
+
+		if total_fuel <= 0.0:
+			raise ValueError("Cannot compute phi: total_fuel is zero (or no fuels had valid stoichiometry).")
+		if o2_required <= 0.0:
+			raise ValueError("Cannot compute phi: computed O2_required is zero (check stoichiometry map).")
+
+		# 3) Compute phi using your stated formula (shown explicitly)
+		F_over_A_actual = total_fuel / x_o2
+		F_over_A_stoich = total_fuel / o2_required
+		self.phi = float(F_over_A_actual / F_over_A_stoich)
+
+		#print(self.phi)
+		# Equivalent compact form:
+		# self.phi = float(o2_required / x_o2)
 		
-		actual_fuel = []
-		st_fuel = []
-		st_ox = []
-		for i in self.fuel_dict:
-			actual_fuel.append(self.fuel_dict[i])
-			st_fuel.append(1.0)
-			# Task 2E: fix KeyError — use .get() with atom-balance fallback for unlisted fuels
-			nu_i = self.stoichiometry.get(i, 0.0)
-			if nu_i <= 0.0 and _HAS_CHEM_DATA:
-				nu_i = _compute_nu_o2(i)
-			st_ox.append(nu_i)
-		
-		totalfuel_st = 0
-		totalfuel = 0
-		total_ox = 0
-		for i,ele in enumerate(st_fuel):
-			if st_ox[i] !=0:
-				totalfuel_st += st_fuel[i]
-				total_ox += st_ox[i]	
-				totalfuel += actual_fuel[i]
-		Fact = totalfuel/actual_oxidizer
-		Fast = totalfuel_st/total_ox
-			
-		self.phi = float(Fact/Fast)
 		if self.units["observed"] == "ms" and self.target == "Tig":
 			self.observed = self.observed*1000
-		#print(self.phi)
+		#print(self.dataSet_id,self.phi)
 		#raise AssertionError("Stop")
 		#if "Fls" in self.target:
 			#print("Target {} has phi of {}\n".format(self.uniqueID,self.phi))

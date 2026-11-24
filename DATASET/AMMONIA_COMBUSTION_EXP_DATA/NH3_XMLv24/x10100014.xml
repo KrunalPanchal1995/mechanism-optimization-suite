@@ -1,0 +1,65 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10100014</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-08-19</firstPublicationDate>
+    <lastModificationDate>2024-08-19</lastModificationDate>
+    <bibliographyLink>
+        <description>D. Zhu, L. Ruwe, S. Schmitt, B. Shu, K. Kohse-Höinghaus, A. Lucassen, The Journal of Physical Chemistry A (2023)</description>
+        <referenceDOI>10.1021/acs.jpca.2c07784</referenceDOI>
+        <location>Main article, Supp Mat.</location>
+        <table>Supp. Mat. - Table S1 (Cases 12-22), Main paper - Table 2 (Mixture 3)</table>
+        <figure>Main paper - Fig. 7.b, blue triangles (10% H2)</figure>
+        <details>
+            <author>Zhu, Denghao and Ruwe, Lena and Schmitt, Steffen and Shu, Bo and Kohse-Höinghaus, Katharina and Lucassen, Arnas</author>
+            <journal>The Journal of Physical Chemistry A</journal>
+            <title>Interactions in Ammonia and Hydrogen Oxidation Examined in a Flow Reactor and a Shock Tube</title>
+            <type>Journal Article</type>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"             label="phi"      sourcetype="reported"   units="unitless"      ><value>1.0</value></property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="mole fraction" >0.0522</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="mole fraction" >0.0058</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="mole fraction" >0.0420</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"    /><amount units="mole fraction" >0.9000</amount></component>
+        </property>
+        <property name="evaluated standard deviation"  label="std_tau"  sourcetype="estimated"  units="unitless"       reference="ignition delay"  kind="relative"  sigmarange="1"  method="combined from scatter and reported uncertainty" ><value>0.164556</value></property>
+        <property name="uncertainty"                   label="d_T"      sourcetype="reported"   units="unitless"       reference="temperature"     kind="relative"  bound="plusminus"  sigmarange="1" ><value>0.053</value></property>
+        <property name="uncertainty"                   label="d_p"      sourcetype="reported"   units="unitless"       reference="pressure"        kind="relative"  bound="plusminus"  sigmarange="1" ><value>0.015</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"     id="x1"   label="T"    sourcetype="reported"  units="K"   />
+        <property name="pressure"        id="x2"   label="p"    sourcetype="reported"  units="bar" />
+        <property name="ignition delay"  id="x3"   label="tau"  sourcetype="reported"  units="us"  />
+
+        <dataPoint><x1>2312</x1><x2>2.77</x2><x3>5.5</x3></dataPoint>
+        <dataPoint><x1>2194</x1><x2>2.89</x2><x3>19</x3></dataPoint>
+        <dataPoint><x1>2106</x1><x2>3.02</x2><x3>27.5</x3></dataPoint>
+        <dataPoint><x1>2047</x1><x2>3.18</x2><x3>32.5</x3></dataPoint>
+        <dataPoint><x1>1952</x1><x2>3.23</x2><x3>62.5</x3></dataPoint>
+        <dataPoint><x1>1892</x1><x2>3.34</x2><x3>70.5</x3></dataPoint>
+        <dataPoint><x1>1802</x1><x2>3.33</x2><x3>123.5</x3></dataPoint>
+        <dataPoint><x1>1765</x1><x2>3.45</x2><x3>136.5</x3></dataPoint>
+        <dataPoint><x1>1694</x1><x2>3.45</x2><x3>210</x3></dataPoint>
+        <dataPoint><x1>1672</x1><x2>3.59</x2><x3>227</x3></dataPoint>
+        <dataPoint><x1>1615</x1><x2>3.60</x2><x3>281</x3></dataPoint>
+    </dataGroup>
+    <ignitionType target="NO" type="relative concentration" amount="0.5" units="unitless"/>
+    <comment>Based on an earlier publication of the authors (https://doi.org/10.1016/j.combustflame.2022.112087), all uncertainties reported in the paper refer to the 1sigma limits (or the standard error of the mean: (sigma/sqrt(n))). Hence, all reported uncertainties were considered as 1sigma limits.</comment>
+    <comment>Experimental uncertainties were not reported for the ignition delay times; therefore, 1sigma = 10% typical for ST-IDT measurements was taken as the experimental uncertainty during the estimation of the evaluated standard deviation.</comment>
+</experiment>

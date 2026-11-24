@@ -1,0 +1,74 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199213</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-06</firstPublicationDate>
+    <lastModificationDate>2024-09-06</lastModificationDate>
+    <bibliographyLink>
+        <description>A. Nolte, M.R. Noé, K.A. Heufer, Energy &amp; Fuels 38 (2024), 15622–15629</description>
+        <referenceDOI>10.1021/acs.energyfuels.4c02172</referenceDOI>
+        <location>Supp. Mat.</location>
+        <table>SM: Table S4, Su_LM</table>
+        <details>
+            <author>Nolte, Adrian and Noé, Micha Renè and Heufer, Karl Alexander</author>
+            <journal>Energy &amp; Fuels</journal>
+            <number>16</number>
+            <pages>15622–15629</pages>
+            <title>Laminar Burning Velocities at Engine-Relevant Conditions of Methane, Hydrogen, and Ammonia: A Rapid Compression Machine Study</title>
+            <type>Journal Article</type>
+            <volume>38</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>rapid compression machine</kind>
+        <mode>laminar, premixed, unstretched</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="uncertainty"  label="d_T"    sourcetype="reported"  units="K"         reference="temperature"               kind="absolute"  bound="plusminus"  sigmarange="2" ><value>5</value></property>
+        <property name="uncertainty"  label="d_LBV"  sourcetype="reported"  units="unitless"  reference="laminar burning velocity"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.064</value></property>
+        <property name="uncertainty"  label="d_p"    sourcetype="reported"  units="unitless"  reference="pressure"                  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.02</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"    units="bar"           />
+        <property name="temperature"                   id="x2"   label="T"        sourcetype="reported"    units="K"             />
+        <property name="equivalence ratio"             id="x3"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="initial composition"           id="x4"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+        </property>
+        <property name="initial composition"           id="x5"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  />
+        </property>
+        <property name="initial composition"           id="x6"   label="x_Ar"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   />
+        </property>
+        <property name="laminar burning velocity"      id="x7"   label="LBV"      sourcetype="reported"    units="cm/s"          />
+        <property name="evaluated standard deviation"  id="x8"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>9.0</x1><x2>698</x2><x3>1.3</x3><x4>0.266862</x4><x5>0.153959</x5><x6>0.579179</x6><x7>58.1</x7><x8>1.9621</x8></dataPoint>
+        <dataPoint><x1>9.0</x1><x2>699</x2><x3>1.3</x3><x4>0.266862</x4><x5>0.153959</x5><x6>0.579179</x6><x7>58.9</x7><x8>1.9891</x8></dataPoint>
+        <dataPoint><x1>8.9</x1><x2>704</x2><x3>1.2</x3><x4>0.251497</x4><x5>0.157186</x5><x6>0.591317</x6><x7>63.4</x7><x8>2.1411</x8></dataPoint>
+        <dataPoint><x1>8.9</x1><x2>704</x2><x3>1.2</x3><x4>0.251497</x4><x5>0.157186</x5><x6>0.591317</x6><x7>62.9</x7><x8>2.1242</x8></dataPoint>
+        <dataPoint><x1>8.9</x1><x2>704</x2><x3>1.1</x3><x4>0.235474</x4><x5>0.160551</x5><x6>0.603976</x6><x7>66.3</x7><x8>2.2390</x8></dataPoint>
+        <dataPoint><x1>8.9</x1><x2>710</x2><x3>1.1</x3><x4>0.235474</x4><x5>0.160551</x5><x6>0.603976</x6><x7>65.2</x7><x8>2.2019</x8></dataPoint>
+        <dataPoint><x1>9.1</x1><x2>718</x2><x3>1.0</x3><x4>0.218750</x4><x5>0.164063</x5><x6>0.617188</x6><x7>64.6</x7><x8>2.1816</x8></dataPoint>
+        <dataPoint><x1>8.8</x1><x2>724</x2><x3>0.9</x3><x4>0.201278</x4><x5>0.167732</x5><x6>0.630990</x6><x7>61.1</x7><x8>2.0634</x8></dataPoint>
+        <dataPoint><x1>8.8</x1><x2>724</x2><x3>0.9</x3><x4>0.201278</x4><x5>0.167732</x5><x6>0.630990</x6><x7>60.2</x7><x8>2.0330</x8></dataPoint>
+        <dataPoint><x1>8.8</x1><x2>734</x2><x3>0.8</x3><x4>0.183007</x4><x5>0.171569</x5><x6>0.645425</x6><x7>56.1</x7><x8>1.8945</x8></dataPoint>
+        <dataPoint><x1>8.7</x1><x2>733</x2><x3>0.8</x3><x4>0.183007</x4><x5>0.171569</x5><x6>0.645425</x6><x7>56.7</x7><x8>1.9148</x8></dataPoint>
+        <dataPoint><x1>8.7</x1><x2>742</x2><x3>0.7</x3><x4>0.163880</x4><x5>0.175585</x5><x6>0.660535</x6><x7>48.1</x7><x8>1.6244</x8></dataPoint>
+        <dataPoint><x1>8.7</x1><x2>742</x2><x3>0.7</x3><x4>0.163880</x4><x5>0.175585</x5><x6>0.660535</x6><x7>47.4</x7><x8>1.6007</x8></dataPoint>
+        <dataPoint><x1>8.5</x1><x2>751</x2><x3>0.6</x3><x4>0.143836</x4><x5>0.179795</x5><x6>0.676370</x6><x7>37.5</x7><x8>1.2664</x8></dataPoint>
+        <dataPoint><x1>8.6</x1><x2>751</x2><x3>0.6</x3><x4>0.143836</x4><x5>0.179795</x5><x6>0.676370</x6><x7>36.9</x7><x8>1.2461</x8></dataPoint>
+    </dataGroup>
+    <comment>Extrapolation method to zero stretch: LS.</comment>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+</experiment>

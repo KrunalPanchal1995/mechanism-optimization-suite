@@ -1,0 +1,31 @@
+name,smiles,formula,notes
+O,[O],O,Atomic oxygen
+O2,[O][O],O2,Molecular oxygen
+HE,[He],He,Helium (bath gas)
+AR,[Ar],Ar,Argon (bath gas)
+H,[H],H,Atomic hydrogen
+H2,[H][H],H2,Molecular hydrogen
+OH,[OH],HO,Hydroxyl radical
+H2O,O,H2O,Water
+HO2,[O]O,HO2,Hydroperoxyl radical (H-O-O•)
+H2O2,OO,H2O2,Hydrogen peroxide
+HONO,ON=O,HNO2,Nitrous acid (H-O-N=O)
+HNOH,[NH]O,H2NO,Hydroxylaminyl radical (HN•-OH)
+HONO2,ON(=O)=O,HNO3,Nitric acid (H-O-NO2)
+HNO,N=O,HNO,Nitroxyl (H-N=O)
+H2NO,N[O],H2NO,Aminoxyl radical (H2N-O•)
+H2NN,N[N],H2N2,Aminonitrene radical (H2N-N:)
+HON,O[N],HNO,Hydroxonitrene radical (H-O-N:)
+N,[N],N,Atomic nitrogen
+N2,N#N,N2,Molecular nitrogen
+NO,[N]=O,NO,Nitric oxide
+NO2,[O]N=O,NO2,Nitrogen dioxide
+NO3,[O]N(=O)=O,NO3,Nitrate radical
+N2O,[N-]=[N+]=O,N2O,Nitrous oxide
+NH3,N,H3N,Ammonia
+NNH,N=[N],HN2,Diazenyl radical (H-N=N•)
+NH2,[NH2],H2N,Amino radical
+NH,[NH],HN,Imidogen radical
+N2H2,N=N,H2N2,Diazene (H-N=N-H)
+N2H3,N[NH],H3N2,Hydrazinyl radical (H2N-NH•)
+N2H4,NN,H4N2,Hydrazine

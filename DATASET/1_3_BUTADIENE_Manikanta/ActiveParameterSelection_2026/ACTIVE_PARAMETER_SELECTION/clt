@@ -8,19 +8,19 @@ python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.
 python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
     --sens-dir SA_BUTADIENE_LTC/ \
     --mechanism BUTADIENE.yaml \
-    --classification-file /data/SA_SRIVATSAV/SA_BUTADIENE_LTC_CORRECTED/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/1_3_BUTADIENE_Manikanta/ActiveParameterSelection_2026/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
     --generate-xml
 
 python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
     --sens-dir SA_BUTADIENE_LTC/ \
     --mechanism BUTADIENE.yaml \
-    --classification-file /data/SA_SRIVATSAV/SA_BUTADIENE_LTC_CORRECTED/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/1_3_BUTADIENE_Manikanta/ActiveParameterSelection_2026/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
     --generate-plots \
     --compare-temperatures 660 916 1200
     
 python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.py \
     --sens-dir SA_BUTADIENE_LTC/ \
     --mechanism BUTADIENE.yaml \
-    --classification-file /data/SA_SRIVATSAV/SA_BUTADIENE_LTC_CORRECTED/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
+    --classification-file /home/krithika/mechanism-optimization-suite/DATASET/1_3_BUTADIENE_Manikanta/ActiveParameterSelection_2026/ACTIVE_PARAMETER_SELECTION/results/CLASSIFIED.csv \
     --fuel 1,3-Butadiene \
     --generate-latex --longtable

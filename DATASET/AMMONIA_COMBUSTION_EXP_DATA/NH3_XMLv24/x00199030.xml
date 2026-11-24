@@ -1,0 +1,161 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00199030</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>X. He, M. Li, B. Shu, R. Fernandes, K. Moshammer, The Journal of Physical Chemistry A 127 (2023), 1923–1940</description>
+        <referenceDOI>10.1021/acs.jpca.2c07547</referenceDOI>
+        <location>Main article and SM</location>
+        <table>Main article: Table 1 (initial conditions); SM: si002, JSR_NH3_100_phi0.5 (initial compositions, measured data)</table>
+        <figure>Main article: Fig. 4, blue stars (100%NH3+0%H2, not used)</figure>
+        <details>
+            <author>He, Xiaoyu and Li, Mengdi and Shu, Bo and Fernandes, Ravi and Moshammer, Kai</author>
+            <journal>The Journal of Physical Chemistry A</journal>
+            <number>8</number>
+            <pages>1923–1940</pages>
+            <title>Exploring the Effect of Different Reactivity Promoters on the Oxidation of Ammonia in a Jet-Stirred Reactor</title>
+            <type>Journal Article</type>
+            <volume>127</volume>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>Perfectly stirred reactor (quartz)</kind>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"               label="V"    sourcetype="reported"  units="cm3"           ><value>33</value></property>
+        <property name="pressure"             label="p"    sourcetype="reported"  units="bar"           ><value>1</value></property>
+        <property name="residence time"       label="tau"  sourcetype="reported"  units="s"             ><value>1</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="mole fraction" >0.02</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="mole fraction" >0.03</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="mole fraction" >0.95</amount></component>
+        </property>
+        <property name="uncertainty"          label="d_T"  sourcetype="reported"  units="unitless"       reference="temperature"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.025</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless"      ><value>0.5</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"        sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="x_NH3"    sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="uncertainty"                   id="x3"   label="d_x_NH3"  sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="composition"                   id="x4"   label="x_H2"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"      />
+        </property>
+        <property name="uncertainty"                   id="x5"   label="d_x_H2"   sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"      />
+        </property>
+        <property name="composition"                   id="x6"   label="x_O2"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"        />
+        </property>
+        <property name="uncertainty"                   id="x7"   label="d_x_O2"   sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"        />
+        </property>
+        <property name="composition"                   id="x8"   label="x_N2"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"     SMILES="N#N"         chemName="nitrogen"      />
+        </property>
+        <property name="uncertainty"                   id="x9"   label="d_x_N2"   sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"     SMILES="N#N"         chemName="nitrogen"      />
+        </property>
+        <property name="composition"                   id="x10"  label="x_H2O"    sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="uncertainty"                   id="x11"  label="d_x_H2O"  sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="composition"                   id="x12"  label="x_NO"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="uncertainty"                   id="x13"  label="d_x_NO"   sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="composition"                   id="x14"  label="x_N2O"    sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+        <property name="uncertainty"                   id="x15"  label="d_x_N2O"  sourcetype="reported"   units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x16"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x17"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x18"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x19"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x20"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"        />
+        </property>
+        <property name="evaluated standard deviation"  id="x21"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"        />
+        </property>
+        <property name="evaluated standard deviation"  id="x22"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"     SMILES="N#N"         chemName="nitrogen"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x23"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"     SMILES="N#N"         chemName="nitrogen"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x24"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="evaluated standard deviation"  id="x25"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"   InChI="1S/H2O/h1H2"    SMILES="O"           chemName="water"         />
+        </property>
+        <property name="evaluated standard deviation"  id="x26"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x27"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x28"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x29"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+
+        <dataPoint><x1>705.825</x1><x2>0.01935</x2><x3>2.05E-04</x3><x4>0</x4><x5>4.93E-08</x5><x6>0.03001</x6><x7>0.00154</x7><x8>3.00E-04</x8><x9>2.40E-04</x9><x10>5.49E-05</x10><x11>2.11E-05</x11><x12>4.99E-07</x12><x13>9.90E-07</x13><x14>5.02E-07</x14><x15>2.43E-06</x15><x16>0.000193</x16><x17>0.000193</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000779</x20><x21>0.000779</x21><x22>0.000128</x22><x23>0.000128</x23><x24>0.000061</x24><x25>0.000061</x25><x26>0.000005</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>758.875</x1><x2>0.01968</x2><x3>0.0021</x3><x4>1.08E-06</x4><x5>4.18E-07</x5><x6>0.0302</x6><x7>0.00156</x7><x8>2.05E-04</x8><x9>1.66E-04</x9><x10>5.09E-06</x10><x11>4.08E-06</x11><x12>2.70E-07</x12><x13>1.90E-06</x13><x14>4.04E-07</x14><x15>2.28E-06</x15><x16>0.001054</x16><x17>0.001054</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000789</x20><x21>0.000789</x21><x22>0.000094</x22><x23>0.000094</x23><x24>0.000060</x24><x25>0.000059</x25><x26>0.000005</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>759.936</x1><x2>0.01973</x2><x3>0.00211</x3><x4>8.13E-07</x4><x5>3.61E-07</x5><x6>0.03018</x6><x7>0.00155</x7><x8>2.62E-04</x8><x9>2.11E-04</x9><x10>0</x10><x11>8.75E-07</x11><x12>1.53E-07</x12><x13>6.10E-08</x13><x14>4.86E-07</x14><x15>2.49E-06</x15><x16>0.001059</x16><x17>0.001059</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000784</x20><x21>0.000784</x21><x22>0.000114</x22><x23>0.000114</x23><x24>0.000060</x24><x25>0.000059</x25><x26>0.000005</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>811.925</x1><x2>0.01999</x2><x3>0.00218</x3><x4>2.47E-06</x4><x5>6.99E-07</x5><x6>0.03037</x6><x7>0.00158</x7><x8>1.57E-04</x8><x9>1.28E-04</x9><x10>2.85E-05</x10><x11>1.25E-05</x11><x12>5.46E-06</x12><x13>2.76E-06</x13><x14>4.76E-07</x14><x15>2.57E-06</x15><x16>0.001093</x16><x17>0.001094</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000799</x20><x21>0.000799</x21><x22>0.000078</x22><x23>0.000078</x23><x24>0.000064</x24><x25>0.000062</x25><x26>0.000005</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>864.975</x1><x2>0.01979</x2><x3>0.00213</x3><x4>5.72E-06</x4><x5>1.28E-06</x5><x6>0.02993</x6><x7>0.00154</x7><x8>1.37E-04</x8><x9>1.12E-04</x9><x10>1.88E-04</x10><x11>6.73E-05</x11><x12>2.71E-05</x12><x13>8.22E-06</x13><x14>5.65E-06</x14><x15>2.87E-06</x15><x16>0.001068</x16><x17>0.001068</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000779</x20><x21>0.000780</x21><x22>0.000071</x22><x23>0.000071</x23><x24>0.000076</x24><x25>0.000074</x25><x26>0.000007</x26><x27>0.000007</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>918.025</x1><x2>0.0198</x2><x3>0.00213</x3><x4>9.38E-06</x4><x5>1.92E-06</x5><x6>0.0299</x6><x7>0.00155</x7><x8>2.48E-04</x8><x9>2.00E-04</x9><x10>4.73E-04</x10><x11>1.63E-04</x11><x12>3.54E-05</x12><x13>1.78E-05</x13><x14>6.71E-06</x14><x15>3.22E-06</x15><x16>0.001068</x16><x17>0.001069</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000785</x20><x21>0.000786</x21><x22>0.000109</x22><x23>0.000109</x23><x24>0.000109</x24><x25>0.000108</x25><x26>0.000012</x26><x27>0.000011</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>939.245</x1><x2>0.01978</x2><x3>0.00213</x3><x4>1.05E-05</x4><x5>2.13E-06</x5><x6>0.02968</x6><x7>0.00154</x7><x8>1.77E-04</x8><x9>1.44E-04</x9><x10>4.75E-04</x10><x11>1.64E-04</x11><x12>6.04E-05</x12><x13>1.66E-05</x13><x14>5.57E-06</x14><x15>2.97E-06</x15><x16>0.001069</x16><x17>0.001069</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000781</x20><x21>0.000781</x21><x22>0.000084</x22><x23>0.000084</x23><x24>0.000111</x24><x25>0.000109</x25><x26>0.000012</x26><x27>0.000011</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>940.306</x1><x2>0.01987</x2><x3>0.00215</x3><x4>1.05E-05</x4><x5>2.13E-06</x5><x6>0.02975</x6><x7>0.00154</x7><x8>1.68E-04</x8><x9>1.37E-04</x9><x10>4.25E-04</x10><x11>1.47E-04</x11><x12>5.78E-05</x12><x13>1.60E-05</x13><x14>4.00E-06</x14><x15>2.55E-06</x15><x16>0.001078</x16><x17>0.001079</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000781</x20><x21>0.000781</x21><x22>0.000081</x22><x23>0.000081</x23><x24>0.000105</x24><x25>0.000103</x25><x26>0.000012</x26><x27>0.000011</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>960.465</x1><x2>0.01971</x2><x3>0.00212</x3><x4>1.29E-05</x4><x5>2.56E-06</x5><x6>0.02965</x6><x7>0.00155</x7><x8>1.64E-04</x8><x9>1.33E-04</x9><x10>5.48E-04</x10><x11>1.88E-04</x11><x12>6.69E-05</x12><x13>1.83E-05</x13><x14>9.15E-06</x14><x15>3.94E-06</x15><x16>0.001064</x16><x17>0.001064</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000786</x20><x21>0.000787</x21><x22>0.000080</x22><x23>0.000080</x23><x24>0.000151</x24><x25>0.000120</x25><x26>0.000014</x26><x27>0.000013</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>981.685</x1><x2>0.01967</x2><x3>0.00211</x3><x4>1.79E-05</x4><x5>3.51E-06</x5><x6>0.02946</x6><x7>0.00155</x7><x8>1.52E-04</x8><x9>1.24E-04</x9><x10>7.49E-04</x10><x11>2.52E-04</x11><x12>8.35E-05</x12><x13>2.24E-05</x13><x14>7.00E-06</x14><x15>3.42E-06</x15><x16>0.001059</x16><x17>0.001062</x17><x18>0.000005</x18><x19>0.000005</x19><x20>0.000787</x20><x21>0.000788</x21><x22>0.000085</x22><x23>0.000076</x23><x24>0.000206</x24><x25>0.000163</x25><x26>0.000018</x26><x27>0.000015</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1002.905</x1><x2>0.01956</x2><x3>0.00209</x3><x4>2.39E-05</x4><x5>4.75E-06</x5><x6>0.02917</x6><x7>0.00157</x7><x8>2.44E-04</x8><x9>1.97E-04</x9><x10>0.00102</x10><x11>3.38E-04</x11><x12>1.11E-04</x12><x13>2.92E-05</x13><x14>1.33E-05</x14><x15>5.05E-06</x15><x16>0.001051</x16><x17>0.001057</x17><x18>0.000006</x18><x19>0.000005</x19><x20>0.000797</x20><x21>0.000804</x21><x22>0.000130</x22><x23>0.000110</x23><x24>0.000274</x24><x25>0.000228</x25><x26>0.000017</x26><x27>0.000020</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1024.125</x1><x2>0.01945</x2><x3>0.00208</x3><x4>3.35E-05</x4><x5>7.08E-06</x5><x6>0.0293</x6><x7>0.00156</x7><x8>3.72E-04</x8><x9>2.98E-04</x9><x10>0.00139</x10><x11>4.48E-04</x11><x12>1.28E-04</x12><x13>3.35E-05</x13><x14>1.11E-05</x14><x15>4.55E-06</x15><x16>0.001051</x16><x17>0.001059</x17><x18>0.000012</x18><x19>0.000006</x19><x20>0.000797</x20><x21>0.000809</x21><x22>0.000184</x22><x23>0.000168</x23><x24>0.000383</x24><x25>0.000302</x25><x26>0.000017</x26><x27>0.000021</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1045.345</x1><x2>0.01897</x2><x3>0.00204</x3><x4>4.90E-05</x4><x5>1.19E-05</x5><x6>0.02868</x6><x7>0.00163</x7><x8>4.88E-04</x8><x9>3.89E-04</x9><x10>0.00184</x10><x11>5.76E-04</x11><x12>1.33E-04</x12><x13>3.48E-05</x13><x14>1.52E-05</x14><x15>5.60E-06</x15><x16>0.001038</x16><x17>0.001047</x17><x18>0.000015</x18><x19>0.000011</x19><x20>0.000840</x20><x21>0.000854</x21><x22>0.000233</x22><x23>0.000220</x23><x24>0.000485</x24><x25>0.000405</x25><x26>0.000018</x26><x27>0.000023</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1066.565</x1><x2>0.01867</x2><x3>0.00205</x3><x4>7.57E-05</x4><x5>2.38E-05</x5><x6>0.02851</x6><x7>0.00165</x7><x8>7.29E-04</x8><x9>5.76E-04</x9><x10>0.00255</x10><x11>7.65E-04</x11><x12>1.14E-04</x12><x13>3.01E-05</x13><x14>2.29E-05</x14><x15>7.56E-06</x15><x16>0.001050</x16><x17>0.001057</x17><x18>0.000016</x18><x19>0.000018</x19><x20>0.000861</x20><x21>0.000872</x21><x22>0.000321</x22><x23>0.000314</x23><x24>0.000593</x24><x25>0.000533</x25><x26>0.000018</x26><x27>0.000027</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1087.785</x1><x2>0.01806</x2><x3>0.00211</x3><x4>9.58E-05</x4><x5>3.60E-05</x5><x6>0.02784</x6><x7>0.00179</x7><x8>9.81E-04</x8><x9>7.69E-04</x9><x10>0.0032</x10><x11>9.20E-04</x11><x12>6.95E-05</x12><x13>1.91E-05</x13><x14>2.47E-05</x14><x15>8.03E-06</x15><x16>0.001086</x16><x17>0.001098</x17><x18>0.000018</x18><x19>0.000022</x19><x20>0.000938</x20><x21>0.000945</x21><x22>0.000414</x22><x23>0.000410</x23><x24>0.000679</x24><x25>0.000639</x25><x26>0.000023</x26><x27>0.000019</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1109.005</x1><x2>0.01775</x2><x3>0.00216</x3><x4>1.07E-04</x4><x5>4.41E-05</x5><x6>0.02757</x6><x7>0.00185</x7><x8>0.00115</x8><x9>8.94E-04</x9><x10>0.00393</x10><x11>0.00108</x11><x12>3.74E-05</x12><x13>1.12E-05</x13><x14>2.45E-05</x14><x15>8.05E-06</x15><x16>0.001119</x16><x17>0.001167</x17><x18>0.000022</x18><x19>0.000023</x19><x20>0.000973</x20><x21>0.000996</x21><x22>0.000486</x22><x23>0.000472</x23><x24>0.000762</x24><x25>0.000734</x25><x26>0.000022</x26><x27>0.000010</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1130.225</x1><x2>0.01706</x2><x3>0.00231</x3><x4>1.07E-04</x4><x5>4.38E-05</x5><x6>0.02701</x6><x7>0.00199</x7><x8>0.00145</x8><x9>0.00112</x9><x10>0.00485</x10><x11>0.00125</x11><x12>1.86E-05</x12><x13>6.61E-06</x13><x14>2.50E-05</x14><x15>8.19E-06</x15><x16>0.001218</x16><x17>0.001285</x17><x18>0.000022</x18><x19>0.000022</x19><x20>0.001054</x20><x21>0.001098</x21><x22>0.000619</x22><x23>0.000587</x23><x24>0.000922</x24><x25>0.000823</x25><x26>0.000012</x26><x27>0.000007</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1151.445</x1><x2>0.01618</x2><x3>0.00254</x3><x4>1.03E-04</x4><x5>4.07E-05</x5><x6>0.02622</x6><x7>0.00221</x7><x8>0.00194</x8><x9>0.00148</x9><x10>0.00603</x10><x11>0.00143</x11><x12>1.56E-05</x12><x13>5.86E-06</x13><x14>2.58E-05</x14><x15>8.41E-06</x15><x16>0.001372</x16><x17>0.001429</x17><x18>0.000021</x18><x19>0.000021</x19><x20>0.001185</x20><x21>0.001230</x21><x22>0.000806</x22><x23>0.000776</x23><x24>0.001118</x24><x25>0.000950</x25><x26>0.000008</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1172.665</x1><x2>0.01537</x2><x3>0.00275</x3><x4>9.85E-05</x4><x5>3.78E-05</x5><x6>0.02566</x6><x7>0.00237</x7><x8>0.00229</x8><x9>0.00173</x9><x10>0.00708</x10><x11>0.00156</x11><x12>1.28E-05</x12><x13>5.20E-06</x13><x14>2.24E-05</x14><x15>7.59E-06</x15><x16>0.001512</x16><x17>0.001550</x17><x18>0.000019</x18><x19>0.000019</x19><x20>0.001293</x20><x21>0.001325</x21><x22>0.000936</x22><x23>0.000916</x23><x24>0.001259</x24><x25>0.001110</x25><x26>0.000006</x26><x27>0.000005</x27><x28>0.000005</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1193.885</x1><x2>0.01425</x2><x3>0.00304</x3><x4>9.50E-05</x4><x5>3.54E-05</x5><x6>0.02464</x6><x7>0.00265</x7><x8>0.0028</x8><x9>0.00208</x9><x10>0.00851</x10><x11>0.00168</x11><x12>1.11E-05</x12><x13>4.78E-06</x13><x14>2.49E-05</x14><x15>8.24E-06</x15><x16>0.001677</x16><x17>0.001694</x17><x18>0.000018</x18><x19>0.000018</x19><x20>0.001448</x20><x21>0.001465</x21><x22>0.001106</x22><x23>0.001097</x23><x24>0.001356</x24><x25>0.001269</x25><x26>0.000006</x26><x27>0.000005</x27><x28>0.000006</x28><x29>0.000005</x29></dataPoint>
+        <dataPoint><x1>1215.105</x1><x2>0.01314</x2><x3>0.00326</x3><x4>9.55E-05</x4><x5>3.57E-05</x5><x6>0.02381</x6><x7>0.00286</x7><x8>0.00342</x8><x9>0.0025</x9><x10>0.01017</x10><x11>0.00178</x11><x12>1.09E-05</x12><x13>4.79E-06</x13><x14>3.24E-05</x14><x15>1.01E-05</x15><x16>0.001797</x16><x17>0.001805</x17><x18>0.000018</x18><x19>0.000018</x19><x20>0.001563</x20><x21>0.001573</x21><x22>0.001311</x22><x23>0.001306</x23><x24>0.001439</x24><x25>0.001383</x25><x26>0.000005</x26><x27>0.000005</x27><x28>0.000006</x28><x29>0.000008</x29></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+    <comment>Recommended JSR reactor model for simulations: isothermal-isobaric.</comment>
+    <comment>Based on the digitization of the T uncertainties published in Fig. S17 as error bars, the temperature uncertainty is +/-2.5%, which agrees with the value reported in the paper.</comment>
+    <comment>In the case of one data point, the experimental uncertainty was not reported in the Excel sheet. In this case, the absolute uncertainty was calculated based on the percentage given in Table 2 (25.1%), except in the case of the NOx species where 40.0% was considered based on Section 4.1 of the main paper.</comment>
+</experiment>

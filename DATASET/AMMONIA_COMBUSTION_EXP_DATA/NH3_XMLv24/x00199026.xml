@@ -1,0 +1,66 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00199026</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>R. Tang, Q. Xu, J. Pan, J. Gao, Z. Wang, H. Wei, G. Shu, Combustion and Flame 240 (2022), 112007</description>
+        <referenceDOI>10.1016/j.combustflame.2022.112007</referenceDOI>
+        <location>Main article</location>
+        <figure>Fig. 2, full red squares</figure>
+        <details>
+            <author>Tang, Ruoyue and Xu, Qiang and Pan, Jiaying and Gao, Jian and Wang, Zhandong and Wei, Haiqiao and Shu, Gequn</author>
+            <journal>Combustion and Flame</journal>
+            <pages>112007</pages>
+            <title>An experimental and modeling study of ammonia oxidation in a jet stirred reactor</title>
+            <type>Journal Article</type>
+            <volume>240</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>Perfectly stirred reactor (silica)</kind>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"               label="V"        sourcetype="reported"  units="cm3"      ><value>78</value></property>
+        <property name="pressure"             label="p"        sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="residence time"       label="tau"      sourcetype="reported"  units="s"        ><value>1.5</value></property>
+        <property name="initial composition" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="ppm"     >500</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="percent" >4</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="percent" >95.95</amount></component>
+        </property>
+        <property name="uncertainty"          label="d_T"      sourcetype="reported"  units="K"         reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>10</value></property>
+        <property name="uncertainty"          label="d_x_NH3"  sourcetype="reported"  units="unitless"  reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+            <value>0.1</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="digitized"  units="K"             />
+        <property name="composition"                   id="x2"   label="x_NH3"  sourcetype="digitized"  units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x3"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+
+        <dataPoint><x1>1000</x1><x2>499.66</x2><x3>0.000025</x3></dataPoint>
+        <dataPoint><x1>1050</x1><x2>495.95</x2><x3>0.000025</x3></dataPoint>
+        <dataPoint><x1>1100</x1><x2>465.88</x2><x3>0.000024</x3></dataPoint>
+        <dataPoint><x1>1150</x1><x2>403.38</x2><x3>0.000021</x3></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+    <comment>The diluent gas was not reported explicitly in the paper for these experiments. Through personal communication with the authors, it was clarified that Ar was used as the diluent gas.</comment>
+    <comment>Recommended simulation settings: isothermal-isobaric.</comment>
+</experiment>

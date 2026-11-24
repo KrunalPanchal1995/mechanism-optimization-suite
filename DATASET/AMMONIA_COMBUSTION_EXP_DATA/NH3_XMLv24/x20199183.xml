@@ -1,0 +1,65 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199183</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-29</firstPublicationDate>
+    <lastModificationDate>2024-06-29</lastModificationDate>
+    <bibliographyLink>
+        <description>M. Figueroa-Labastida, L. Zheng, A.M. Ferris, N. Obrecht, C. Callu, R.K. Hanson, Combustion and Flame 260 (2024), 113256</description>
+        <referenceDOI>10.1016/j.combustflame.2023.113256</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>Main Article: Table 1, NH3/Airgon, phi = 1.0 (initial compositions); SM7: Table S5 - phi = 1 (initial conditions, measured data)</table>
+        <figure>Main Article: Fig. 2a, black hollow squares (the figure contains the radiation-corrected data not included in the present XML file)</figure>
+        <details>
+            <author>Figueroa-Labastida, Miguel and Zheng, Lingzhi and Ferris, Alison M. and Obrecht, Nicolas and Callu, Cyrille and Hanson, Ronald K.</author>
+            <journal>Combustion and Flame</journal>
+            <pages>113256</pages>
+            <title>Shock-tube laminar flame speed measurements of ammonia/airgon mixtures at temperatures up to 771K</title>
+            <type>Journal Article</type>
+            <volume>260</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>imaging shock tube</kind>
+        <mode>static, constrained reaction volume (CRV) configuration, laminar, premixed, extrapolation to zero stretch: area-averaged linear-curvature (AALC) method</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"          label="T"    sourcetype="reported"  units="K"        ><value>295</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless" ><value>1</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="percent" >21.90</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="percent" >16.40</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="percent" >61.70</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"   units="atm"  />
+        <property name="laminar burning velocity"      id="x2"   label="LBV"      sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x3"   label="d_LBV"    sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x4"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.50</x1><x2>21.21</x2><x3>0.74</x3><x4>1.0656</x4></dataPoint>
+        <dataPoint><x1>0.50</x1><x2>20.41</x2><x3>0.57</x3><x4>1.0401</x4></dataPoint>
+        <dataPoint><x1>0.75</x1><x2>18.76</x2><x3>0.63</x3><x4>1.0478</x4></dataPoint>
+        <dataPoint><x1>0.75</x1><x2>19.78</x2><x3>0.70</x3><x4>1.0600</x4></dataPoint>
+        <dataPoint><x1>0.75</x1><x2>19.41</x2><x3>0.67</x3><x4>1.0538</x4></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>16.55</x2><x3>0.81</x3><x4>1.0784</x4></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>16.99</x2><x3>0.66</x3><x4>1.0523</x4></dataPoint>
+        <dataPoint><x1>1.50</x1><x2>15.97</x2><x3>0.94</x3><x4>1.1042</x4></dataPoint>
+        <dataPoint><x1>1.50</x1><x2>15.69</x2><x3>0.92</x3><x4>1.1007</x4></dataPoint>
+        <dataPoint><x1>1.50</x1><x2>15.97</x2><x3>0.94</x3><x4>1.1041</x4></dataPoint>
+        <dataPoint><x1>2.00</x1><x2>15.99</x2><x3>0.80</x3><x4>1.0774</x4></dataPoint>
+        <dataPoint><x1>2.00</x1><x2>16.26</x2><x3>0.81</x3><x4>1.0785</x4></dataPoint>
+    </dataGroup>
+    <comment>The XML contains the LBV data without radiation correction. This way, any arbitrary radiation heat loss model can be used for modeling these experiments.</comment>
+    <comment>Too few data points in the data series; therefore, no appropriate fitting could be carried out with Minimal Spline Fit. An experiment-type-characteristic standard deviation, 1 cm/s, was assigned to std_fit.</comment>
+</experiment>

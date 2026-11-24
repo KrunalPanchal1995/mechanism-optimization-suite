@@ -1,0 +1,92 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00100036</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>P. Sabia, M.V. Manna, R. Ragucci, J.M. de, International Journal of Hydrogen Energy 45 (2020), 32113–32127</description>
+        <referenceDOI>10.1016/j.ijhydene.2020.08.218</referenceDOI>
+        <location>Main article and SM</location>
+        <table>Main article: Table 1 (initial conditions)</table>
+        <figure>Fig. 6, black symbols (d N2)</figure>
+        <details>
+            <author>Sabia, Pino and Manna, Maria Virginia and Ragucci, Raffaele and de Joannon, Mara</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <number>56</number>
+            <pages>32113–32127</pages>
+            <title>Mutual inhibition effect of hydrogen and ammonia in oxidation processes and the role of ammonia as “strong” collider in third-molecular reactions</title>
+            <type>Journal Article</type>
+            <volume>45</volume>
+            <year>2020</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>Perfectly stirred reactor (silica)</kind>
+        <type>adiabatic</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"                            label="V"       sourcetype="reported"    units="cm3"             ><value>113</value></property>
+        <property name="pressure"                          label="p"       sourcetype="reported"    units="atm"             ><value>1.2</value></property>
+        <property name="residence time"                    label="tau"     sourcetype="reported"    units="s"               ><value>0.5</value></property>
+        <property name="equivalence ratio"                 label="phi"     sourcetype="reported"    units="unitless"        ><value>0.5</value></property>
+        <property name="exchange area"                     label="A"       sourcetype="calculated"  units="cm2"             ><value>113</value></property>
+        <property name="global heat exchange coefficient"  label="U"       sourcetype="calculated"  units="cal m-2 s-1 K-1" ><value>19</value></property>
+        <property name="initial composition"              >
+            <component><speciesLink preferredKey="H2"  CAS="1333-74-0"  InChI="1S/H2/h1H"   SMILES="[HH]"  sourcetype="calculated"  chemName="hydrogen" /><amount units="mole fraction" >0.030000</amount></component>
+            <component><speciesLink preferredKey="O2"  CAS="7782-44-7"  InChI="1S/O2/c1-2"  SMILES="O=O"   sourcetype="calculated"  chemName="oxygen"   /><amount units="mole fraction" >0.030000</amount></component>
+        </property>
+        <property name="uncertainty"                       label="d_T"     sourcetype="reported"    units="unitless"         reference="temperature"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.0025</value></property>
+        <property name="uncertainty"                       label="d_x_O2"  sourcetype="reported"    units="unitless"         reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"  CAS="7782-44-7"  InChI="1S/O2/c1-2"  SMILES="O=O"   chemName="oxygen"   />
+            <value>0.03</value>
+        </property>
+        <property name="uncertainty"                       label="d_x_H2"  sourcetype="reported"    units="unitless"         reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2"  CAS="1333-74-0"  InChI="1S/H2/h1H"   SMILES="[HH]"  chemName="hydrogen" />
+            <value>0.03</value>
+        </property>
+        <property name="temperature"                       label="T"       sourcetype="reported"    units="K"               ><value>970</value></property>
+        <property name="environment temperature"           label="T_env"   sourcetype="reported"    units="K"               ><value>970</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="initial composition"           id="x1"   label="x_NH3_0"  sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x2"   label="x_N2_0"   sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" />
+        </property>
+        <property name="composition"                   id="x3"   label="x_O2"     sourcetype="digitized"   units="percent"       >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="composition"                   id="x4"   label="x_H2"     sourcetype="digitized"   units="percent"       >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+
+        <dataPoint><x1>0.017929</x1><x2>0.922071</x2><x3>2.0694</x3><x4>1.3925</x4><x5>0.000335</x5><x6>0.000265</x6></dataPoint>
+        <dataPoint><x1>0.037120</x1><x2>0.902880</x2><x3>2.4157</x3><x4>2.0930</x4><x5>0.000383</x5><x6>0.000353</x6></dataPoint>
+        <dataPoint><x1>0.046015</x1><x2>0.893985</x2><x3>2.5475</x3><x4>2.2714</x4><x5>0.000402</x5><x6>0.000377</x6></dataPoint>
+        <dataPoint><x1>0.055680</x1><x2>0.884320</x2><x3>2.6055</x3><x4>2.4030</x4><x5>0.000410</x5><x6>0.000395</x6></dataPoint>
+        <dataPoint><x1>0.074822</x1><x2>0.865178</x2><x3>2.6947</x3><x4>2.5521</x4><x5>0.000423</x5><x6>0.000416</x6></dataPoint>
+        <dataPoint><x1>0.093452</x1><x2>0.846548</x2><x3>2.7727</x3><x4>2.6589</x4><x5>0.000434</x5><x6>0.000431</x6></dataPoint>
+        <dataPoint><x1>0.112020</x1><x2>0.827980</x2><x3>2.7971</x3><x4>2.7255</x4><x5>0.000438</x5><x6>0.000440</x6></dataPoint>
+        <dataPoint><x1>0.140706</x1><x2>0.799294</x2><x3>2.8282</x3><x4>2.7674</x4><x5>0.000442</x5><x6>0.000446</x6></dataPoint>
+        <dataPoint><x1>0.187448</x1><x2>0.752552</x2><x3>2.8747</x3><x4>2.8313</x4><x5>0.000449</x5><x6>0.000455</x6></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+    <comment>Recommended simulation settings: "non-adiabatic"-isobaric using the global heat exchange coefficient published in the paper.</comment>
+    <comment>In the paper, NH3 is considered an inert species in the calculation of the equivalence ratio and it is defined considering only H2 as fuel.</comment>
+</experiment>

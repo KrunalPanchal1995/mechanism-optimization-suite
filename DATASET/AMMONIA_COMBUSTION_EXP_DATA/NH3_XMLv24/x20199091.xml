@@ -1,0 +1,71 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199091</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-23</firstPublicationDate>
+    <lastModificationDate>2023-12-18</lastModificationDate>
+    <bibliographyLink>
+        <description>D. Hou, Z. Zhang, Q. Cheng, B. Liu, M. Zhou, G. Li, Fuel 320 (2022), 123913</description>
+        <referenceDOI>10.1016/j.fuel.2022.123913</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>Supp. Mat.: Table S2, first data series (phi = 0.7)</table>
+        <figure>Main Article: Fig. 7c., black triangles</figure>
+        <details>
+            <author>Hou, Di and Zhang, Zunhua and Cheng, Qian and Liu, Biao and Zhou, Mengni and Li, Gesheng</author>
+            <journal>Fuel</journal>
+            <pages>123913</pages>
+            <title>Experimental and kinetic studies of laminar burning velocities of ammonia with high Lewis number at elevated pressures</title>
+            <type>Journal Article</type>
+            <volume>320</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>constant volume combustion chamber</mode>
+        <mode>premixed</mode>
+        <mode>laminar</mode>
+        <mode>unstretched</mode>
+        <mode>extrapolation method to zero stretch: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"        label="T"      sourcetype="reported"  units="K"        ><value>298</value></property>
+        <property name="pressure"           label="p"      sourcetype="reported"  units="MPa"      ><value>1.0</value></property>
+        <property name="equivalence ratio"  label="phi"    sourcetype="reported"  units="unitless" ><value>0.7</value></property>
+        <property name="uncertainty"        label="d_phi"  sourcetype="reported"  units="unitless"  reference="equivalence ratio"  kind="absolute"  bound="plusminus" ><value>0.0024</value></property>
+        <property name="uncertainty"        label="d_T"    sourcetype="reported"  units="K"         reference="temperature"        kind="absolute"  bound="plusminus" ><value>3</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="composition"                   id="x1"   label="x_NH3"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+        </property>
+        <property name="composition"                   id="x2"   label="x_O2"   sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  />
+        </property>
+        <property name="composition"                   id="x3"   label="x_Ar"   sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   />
+        </property>
+        <property name="composition"                   id="x4"   label="x_He"   sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="He"   CAS="7440-59-7"  InChI="1S/He"        SMILES="[He]"  chemName="helium"  />
+        </property>
+        <property name="laminar burning velocity"      id="x5"   label="Sl"     sourcetype="reported"   units="cm/s"          />
+        <property name="uncertainty"                   id="x6"   label="d_Sl"   sourcetype="reported"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus" />
+        <property name="evaluated standard deviation"  id="x7"   sourcetype="estimated"  units="cm/s"           reference="laminar burning velocity"  kind="absolute"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.1750</x1><x2>0.1875</x2><x3>0.4251</x3><x4>0.2125</x4><x5>8.72</x5><x6>1.76</x6><x7>0.985</x7></dataPoint>
+        <dataPoint><x1>0.1920</x1><x2>0.2057</x2><x3>0.4015</x3><x4>0.2008</x4><x5>12.79</x5><x6>1.68</x6><x7>1.065</x7></dataPoint>
+        <dataPoint><x1>0.2114</x1><x2>0.2265</x2><x3>0.3748</x3><x4>0.1874</x4><x5>17.01</x5><x6>2.82</x6><x7>1.658</x7></dataPoint>
+        <dataPoint><x1>0.2339</x1><x2>0.2506</x2><x3>0.3436</x3><x4>0.1718</x4><x5>23.30</x5><x6>1.02</x6><x7>1.298</x7></dataPoint>
+        <dataPoint><x1>0.2608</x1><x2>0.2795</x2><x3>0.3065</x3><x4>0.1532</x4><x5>35.48</x5><x6>1.82</x6><x7>2.032</x7></dataPoint>
+    </dataGroup>
+    <comment>Sl and d_Sl data were obtained from the authors in a tabulated format through personal communication.</comment>
+    <comment>The sum of mole fractions in the initial gas mixtures given by the authors is not always exactly 1.000000, in some NH3/O2/He/Ar cases, there is a +/-0.0001 deviation. In these cases, correction was applied to make the sum of mole fractions equal to 1.000000. The difference between the sum and 1 was calculated and it was distributed between x_He and x_Ar according to their original ratio as corrections. This way, neither the equivalence ratio nor the x_Ar/x_He ratio change.</comment>
+</experiment>

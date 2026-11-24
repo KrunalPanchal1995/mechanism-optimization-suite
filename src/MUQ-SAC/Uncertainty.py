@@ -1341,9 +1341,24 @@ class UncertaintyExtractor(object):
 		Build the reduced Cholesky L_r from the principal submatrix of Σ.
 		NEVER slice L_full directly.  Always: Σ = L L^T → Σ_r → chol(Σ_r).
 		Returns (Σ_r, L_r).
+
+		L_full may be the 1-element cholskyDeCorrelateMat an A-factor-only
+		("perturbation_type == 'factor'") reaction sets -- a bare sigma_lnA,
+		not a matrix. `L_full @ L_full.T` on that 1-D array broadcasts to a
+		0-d SCALAR, not a 1x1 matrix, and Sigma[np.ix_(idx, idx)] below would
+		then raise "too many indices for array: array is 0-dimensional, but
+		2 were indexed" (see IdentifiablePRS.sigma_from_cholesky's docstring
+		for the full derivation -- this mirrors that fix for this class's own
+		direct callers, e.g. is_band_valid).
 		"""
 		from scipy.linalg import cholesky as _chol
-		Sigma   = L_full @ L_full.T
+		L_arr = np.asarray(L_full, dtype=float)
+		if L_arr.size == 1:
+			Sigma = np.zeros((3, 3))
+			Sigma[0, 0] = float(L_arr.reshape(-1)[0]) ** 2
+		else:
+			L_mat = np.atleast_2d(L_arr)
+			Sigma = L_mat @ L_mat.T
 		idx	 = list(indices)
 		Sigma_r = Sigma[np.ix_(idx, idx)]
 		try:

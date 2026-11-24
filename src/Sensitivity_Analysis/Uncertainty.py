@@ -11,102 +11,46 @@ from scipy.interpolate import CubicSpline
 import multiprocessing
 import sys,time
 import make_input_file
+from scipy.linalg import cholesky
 from scipy.optimize import shgo
 from scipy.optimize import BFGS
 from MechanismParser import Parser
 import subprocess
+import warnings
+import qmc_sampling
 #############################################################
 ###	   Uncertainty for arrhenius parameters		 ######
 ###	   of elementary reactions					  ######
 #############################################################
 
-def _canon_rxn_equation(equation):
+# ── SAMPLER_VERSION (2026-08-19) ────────────────────────────────────────────
+# Bump this string whenever a class-A/B/C/D sampler's accept/reject logic
+# changes (i.e. whenever the set of curves a fresh call to
+# run_sampling_{a,b,c}_partial / getClass{A,B,C}_partial would produce could
+# differ from before). DesignMatrix.py stamps every cached class-pool pickle
+# with this value in `pool_provenance.json`; run_script.py / DesignMatrix's
+# own cache-freshness check refuse to reuse a pool stamped with an older
+# version, so a sampler bugfix (like the 2026-08-19 class-B m=3 band-gating
+# fix, see _psac_class_B_m3_'s docstring) can never be silently shadowed by
+# a pre-fix cache the way it was for the THREE-PARAM-MSO-LLNL-N-HEPTANE_159
+# study (pools generated 2026-08-05, fix landed 2026-08-19, cache check had
+# no version awareness so the fix never took effect -- 93.2% of that study's
+# rows ended up band-invalid). Format is free-form but should be sortable /
+# comparable by simple string equality (exact match required, no ordering
+# logic implemented -- any change at all invalidates old caches, which is
+# the conservative and correct default for a physical-validity guarantee).
+SAMPLER_VERSION = "2026-08-26-eacapped"
+
+def _rng_advance_sample(rng):
 	"""
-	Order-independent, notation-independent canonical form of a reaction
-	equation string, used by reaction/PLOG's mechanism-membership check below.
-
-	Real bug (found 2026-07-17 while stress-testing forward_uq_gui/
-	gsa_prs_crosscheck.py against a real fused mechanism; byte-identical
-	copy of the same fix in src/MUQ-SAC/Uncertainty.py):
-	`MechanismParser.Parser(mechPath).rxnList` reads each reaction's
-	`equation:` string VERBATIM from the mechanism YAML file (e.g.
-	"O + H2 <=> H + OH", preserving whatever order the source CHEMKIN file
-	happened to list reactants in) -- but Cantera's OWN
-	`gas.reaction_equations()`, when loading that exact same file, reorders
-	reactant/product species internally and returns a DIFFERENT string for
-	the identical physical reaction (e.g. "H2 + O <=> H + OH"). Any
-	uncertainty XML whose `rxn=` attribute was populated from a live
-	`ct.Solution` (a natural, common thing to do) then fails this class's
-	exact-string membership check with a confusing "not in the mechanism"
-	AssertionError, even though the reaction is genuinely present.
-
-	Extended 2026-08-10 (WORKBENCH_AUDIT_2026-08-10.md, Round 2, defect B3;
-	byte-identical copy of the same fix in src/MUQ-SAC/Uncertainty.py) for
-	two more real mismatches confirmed against FFCM1.yaml/GRI_CO.yaml:
-
-	1. Stoichiometric-coefficient shorthand. A hand-written uncertainty XML
-	   duplicates repeated species explicitly ("OH+OH<=>O+H2O"), while
-	   Cantera's ck2yaml-style YAML output uses "N species" shorthand
-	   ("2 OH <=> O + H2O") -- confirmed in FFCM1.yaml/GRI_CO.yaml
-	   (`H2 + M <=> 2 H + M`, `2 H + M <=> H2 + M`). Each side is now
-	   expanded to one token per stoichiometric unit before sorting, so both
-	   spellings collapse identically.
-	2. Direction disagreement between mechanisms for a REVERSIBLE ("<=>")
-	   reaction. GRI_CO.yaml writes recombination as
-	   "2 H + M <=> H2 + M" (dissociation is the "reverse" direction) while
-	   FFCM1.yaml writes the same physical reaction as
-	   "H2 + M <=> 2 H + M" (dissociation is "forward") -- verified directly
-	   in both shipped mechanism files. Since "<=>" already declares the
-	   reaction reversible, which side a given mechanism happens to call
-	   "forward" carries no physical meaning here, so the two (now
-	   token-expanded) sides are additionally sorted AS A PAIR for
-	   reversible reactions only. Irreversible ("=>") equations are never
-	   side-swapped -- for those, reactant/product order is physically
-	   meaningful and must NOT be conflated with its reverse.
-	3. Falloff third-body notation. Cantera writes falloff/pressure-
-	   dependent reactions with the third body in parentheses,
-	   "H + O2 (+M) <=> HO2 (+M)" (confirmed live in FFCM1.yaml, Reaction
-	   15) -- while a hand-written uncertainty XML for the exact same
-	   reaction (DATASET/H2_O2_TEST/uncertainty/H2_uncertainty.xml,
-	   correctly flagged <type>pressure_dependent</type>) spells it with
-	   the plain-reactant third-body notation, "H+O2+M<=>HO2+M". Both are
-	   the same physical reaction; "(+M)"/"(+N2)"/etc. is normalized to
-	   "+ M"/"+ N2" before tokenizing so the two notations canonicalize
-	   identically instead of failing "not in the mechanism".
+	Tell a QuasiRandomGenerator (Sobol/LHS-backed) that we're now drawing
+	for a fresh accepted output sample, so it reserves its next shadow row.
+	No-op for plain np.random.Generator instances (legacy 'numpy' method),
+	which have no such bookkeeping concept.
 	"""
-	eq = re.sub(r'\(\+\s*(\S+?)\)', r'+ \1', equation)
-	eq = " ".join(eq.split())
-	reversible = True
-	for arrow in (" <=> ", "<=>", " => ", "=>", " = ", "="):
-		if arrow in eq:
-			lhs, rhs = eq.split(arrow, 1)
-			# NOT a plain "'=>' not in arrow" substring check -- "<=>"
-			# itself contains "=>" as a substring, which would misclassify
-			# every reversible reaction as irreversible.
-			reversible = arrow not in (" => ", "=>")
-			break
-	else:
-		return eq.lower()
-
-	def _expand_side(side):
-		"""One token per stoichiometric unit, e.g. "2 OH" -> ["OH", "OH"]."""
-		tokens = []
-		for t in side.split("+"):
-			t = t.strip()
-			if not t:
-				continue
-			m = re.match(r'^(\d+)\s+(.+)$', t)
-			if m:
-				tokens.extend([m.group(2).strip()] * int(m.group(1)))
-			else:
-				tokens.append(t)
-		return " + ".join(sorted(tokens))
-
-	lhs_c, rhs_c = _expand_side(lhs), _expand_side(rhs)
-	if reversible:
-		lhs_c, rhs_c = sorted([lhs_c, rhs_c])
-	return lhs_c + " <=> " + rhs_c
-
+	advance = getattr(rng, "advance_sample", None)
+	if advance is not None:
+		advance()
 
 def run(sample,data,length):
 	A = UncertaintyExtractor(data)
@@ -130,18 +74,116 @@ def run_sampling_b_partial(sample, data, generator, length):
 	partial-parameter sampling.  Called by workers.do_unsrt_b_partial.
 	Generates ONE full-space ζ for data["param_indices"].
 	No SLSQP — uses the analytical instance methods of UncertaintyExtractor.
+
+	`generator` is a length-4 array [a1, a2, r1, r2] sliced from this
+	reaction's column-block of the joint low-discrepancy shadow matrix
+	(see DesignMatrix.getClassB_Curves_partial):
+	  a1, a2 -> only fed into the deterministic fallback-seed derivation
+	            below (kept for uniqueness parity with the other branches).
+	            Historically fed to populateValues() for the m==3 branch's
+	            SHGO solve (getB2Zeta) -- REMOVED 2026-08-19, see below.
+	  r1, r2 -> reserved as the FIRST-attempt draw for the m==3 analytical
+	            3x3 solve (_psac_class_B_m3_), the m==2 analytical bisection
+	            (getClassB_partial), or the m==1 class-A fallback — all
+	            three DO use rejection sampling internally. Any retry
+	            beyond that first attempt is routed to an independent,
+	            deterministically-seeded fallback stream (derived from
+	            data["fallback_seed_b_base"] + this task's own shadow
+	            values, so every task gets its own fallback stream without
+	            needing a separate per-task seed array to be threaded
+	            through the multiprocessing dispatch).
+
+	BAND-VALIDITY FIX (2026-08-19): the m==3 branch used to call
+	UncertaintyExtractor.getB2Zeta(flag=True) -- SHGO/SLSQP against a raw
+	[-1000, 1000] box with "no rejection step" (its own docstring). Verified
+	against real n-heptane reaction data: the solver was frequently returning
+	the box corner (b_type sample pool median |zeta| = [15.3, 53.3, 1000.0]),
+	giving ~98% of class-B m=3 samples 26-80x outside the reaction's stated
+	uncertainty band. Replaced with the analytical, rejection-sampled
+	_psac_class_B_m3_ (same family as the m==1/m==2 branches below), which
+	now also enforces the physical band directly (see its own docstring) --
+	every class-B sample this function returns, m=1/2/3 alike, is physically
+	valid by construction.
 	"""
+	warnings.filterwarnings(
+	   "ignore",
+	   category=RuntimeWarning,
+	   message="Values in x were outside bounds during a minimize step"
+	)
+	param_indices = data["param_indices"]
 	A = UncertaintyExtractor(data)
+	a1, a2 = float(generator[0]), float(generator[1])
+	A.populateValues(a1, a2)
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag=False)
-	param_indices = data["param_indices"]
-	rng           = np.random.default_rng()
-	zeta_list     = A.getClassB_partial(param_indices, 1, rng)
-	if not zeta_list:
-		zeta_list = A.getClassA_partial(param_indices, 1, rng)
-	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+	m = len(param_indices)
+
+	if m == 3:
+		r1, r2 = float(generator[2]), float(generator[3])
+		task_seed = qmc_sampling.derive_seed(
+			data.get("fallback_seed_b_base"), "classB3", a1, a2, r1, r2
+		)
+		rng = qmc_sampling.QuasiRandomGenerator(
+			np.array([[r1, r2]]),
+			fallback_seed=task_seed,
+			label="class-B-partial-m3"
+		)
+		# CANONICAL-SIGN FIX (2026-08-19): A.cov (set by getCovariance()'s
+		# unconstrained SLSQP fit -- self.L's diagonal has no positivity
+		# constraint) is only ONE of several valid Cholesky-like factors of
+		# this reaction's Sigma; np.linalg.cholesky(Sigma) (positive
+		# diagonal, unique) is a DIFFERENT one whenever SLSQP's diagonal
+		# signs don't happen to match. Verified for one reaction
+		# (nc7h16+ho2=>c7h15-2+h2o2): A.cov's column signs were
+		# [-1,+1,-1] relative to canonical. This matters because
+		# IdentifiablePRS.build_layout_blocks (the SCREENING/SCORING this
+		# case's whole PRS-fitting pipeline uses, F1's fix) ALWAYS
+		# reconstructs the canonical np.linalg.cholesky(Sigma) from the
+		# reaction's stored Sigma.csv -- generating a "band-valid" sample
+		# against A.cov's own (possibly different-signed) convention does
+		# NOT guarantee it will read as band-valid once screened by the
+		# canonical convention downstream (confirmed empirically: samples
+		# that passed this function's rejection test at 0% violation under
+		# A.cov scored 0% PASSING under canonical-L scoring for the same
+		# reaction). Recomputing the canonical L here, from the SAME Sigma
+		# (A.cov @ A.cov.T is sign-invariant), makes this function's
+		# accept/reject test agree with everything downstream by construction.
+		Sigma_full = A.cov @ A.cov.T
+		try:
+			L_full = np.linalg.cholesky(Sigma_full)
+		except np.linalg.LinAlgError:
+			eps = 1e-12 * max(float(np.trace(Sigma_full)), 1e-10) / 3
+			L_full = np.linalg.cholesky(Sigma_full + eps * np.eye(3))
+		zeta_list = A._psac_class_B_m3_(A.temperatures, L_full, L_full, param_indices, rng, 1)
+		if zeta_list:
+			zeta = list(A._psac_reconstruct_full(np.asarray(zeta_list[0]), param_indices))
+		else:
+			# No band-valid, sign-changing point found within the attempt
+			# budget for this draw -- fall back to class-A (rejection-
+			# sampled, always band-valid), not a physically meaningless
+			# [0.0, 0.0, 0.0] (the pre-fix behaviour).
+			fallback = A.getClassA_partial(param_indices, 1, rng)
+			zeta = list(fallback[0]) if fallback else [0.0, 0.0, 0.0]
+		diag = rng.diagnostics()
+	else:
+		r1, r2 = float(generator[2]), float(generator[3])
+		task_seed = qmc_sampling.derive_seed(
+			data.get("fallback_seed_b_base"), "classB", a1, a2, r1, r2
+		)
+		rng = qmc_sampling.QuasiRandomGenerator(
+			np.array([[r1, r2]]),
+			fallback_seed=task_seed,
+			label="class-B-partial"
+		)
+		if m == 2:
+			zeta_list = A.getClassB_partial(data, param_indices, 1, rng)
+		else:
+			zeta_list = A.getClassA_partial(param_indices, 1, rng)
+		zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+		diag = rng.diagnostics()
+
 	del A
-	return (sample, generator, zeta, length)
+	return (sample, generator, zeta, length, diag)
 
 
 def run_sampling_c_partial(sample, data, generator, length):
@@ -149,18 +191,82 @@ def run_sampling_c_partial(sample, data, generator, length):
 	Multiprocessing-compatible top-level function for parallel class-C
 	partial-parameter sampling.  Called by workers.do_unsrt_c_partial.
 	Generates ONE full-space ζ for data["param_indices"].
+
+	`generator` is a length-2 [r1, r2] array sliced from this reaction's
+	column-block of the joint low-discrepancy shadow matrix (see
+	DesignMatrix.getClassC_Curves_partial). It is reserved as the
+	FIRST-attempt draw for getClassC_partial / the m==1 class-A fallback,
+	both of which use rejection sampling internally; any retry beyond the
+	first attempt is routed to an independent, deterministically-seeded
+	fallback stream (derived from data["fallback_seed_c_base"] + this
+	task's own shadow values).
 	"""
 	A = UncertaintyExtractor(data)
 	A.getCovariance(flag=False)
 	A.getUnCorrelated(flag=False)
 	param_indices = data["param_indices"]
-	rng           = np.random.default_rng()
-	zeta_list     = A.getClassC_partial(param_indices, 1, rng)
-	if not zeta_list:
+
+	r1, r2 = float(generator[0]), float(generator[1])
+	task_seed = qmc_sampling.derive_seed(
+		data.get("fallback_seed_c_base"), "classC", r1, r2
+	)
+	rng = qmc_sampling.QuasiRandomGenerator(
+		np.array([[r1, r2]]),
+		fallback_seed=task_seed,
+		label="class-C-partial"
+	)
+
+	m = len(param_indices)
+	if m > 1:
+		zeta_list	 = A.getClassC_partial(param_indices, 1, rng)
+	else:
 		zeta_list = A.getClassA_partial(param_indices, 1, rng)
 	zeta = list(zeta_list[0]) if zeta_list else [0.0, 0.0, 0.0]
+	diag = rng.diagnostics()
 	del A
-	return (sample, generator, zeta, length)
+	return (sample, generator, zeta, length, diag)
+
+
+def batch_violation_ratio(Z, L_r, indices, T_arr):
+	"""
+	Vectorized band-validity score for MANY candidate reduced-ζ rows at once
+	(rejection-sampling a whole batch of Sobol/LHS candidates one-row-at-a-time
+	in Python is needlessly slow -- this is the batched counterpart to
+	UncertaintyExtractor.is_band_valid, computing the identical quantity:
+	ratio = max_T |Δκ_S(T)| / f_prior,S(T)).
+
+	Parameters
+	----------
+	Z       : (N, m) ndarray -- N candidate reduced-ζ rows, m = len(indices).
+	L_r     : (m, m) ndarray -- reduced Cholesky factor, from
+	          UncertaintyExtractor._psac_get_reduced_L(L_full, indices).
+	indices : the same reduced-parameter indices L_r was built with.
+	T_arr   : temperatures to check over (use several, not one -- see
+	          is_band_valid's docstring).
+
+	Returns
+	-------
+	ratio : (N,) ndarray. `ratio <= 1.0` means every T in T_arr keeps that
+	        row's reaction inside its stated uncertainty band; this is
+	        exactly what a rejection-sampling loop should require before
+	        accepting a newly-generated point (mirroring the existing
+	        `if np.all(np.abs(curve) <= fp): accepted = True` pattern used
+	        by _psac_class_A/_psac_class_D_m2, just vectorized and reusable
+	        outside those two call sites).
+
+	Deliberately a pure function of (Z, L_r, indices, T_arr) -- no
+	UncertaintyExtractor instance needed -- so IdentifiablePRS.py's
+	`violation_ratio` (used for training-row screening in environments where
+	this module isn't importable, see its docstring) can be tested against
+	this one and proven to compute the same number.
+	"""
+	T_arr = np.asarray(T_arr, dtype=float)
+	theta_full = np.column_stack([np.ones_like(T_arr), np.log(T_arr), -1.0 / T_arr])
+	thS = theta_full[:, list(indices)]         # (nT, m)
+	W = thS @ np.asarray(L_r, dtype=float)     # (nT, m)
+	fp = np.linalg.norm(W, axis=1)             # (nT,)
+	dk = np.asarray(Z, dtype=float) @ W.T      # (N, nT)
+	return np.max(np.abs(dk) / np.maximum(fp[None, :], 1e-300), axis=1)
 
 
 class workers(object):
@@ -174,11 +280,15 @@ class workers(object):
 		self.progress.append(result[0])
 		self.parallized_zeta.append(result[1])
 		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(
-		    len(self.progress)/float(result[-1])*100))
+			len(self.progress)/float(result[-1])*100))
 		sys.stdout.flush()
 
+
 	def callback_error(self, result):
+		import traceback
 		print('error', result)
+		if isinstance(result, BaseException):
+			traceback.print_exception(type(result), result, result.__traceback__)
 
 	def do_job_async(self,data,sampling_points):
 		for args in range(sampling_points):
@@ -196,7 +306,7 @@ class workers(object):
 		Parallel class-B sampling for a partial parameter subset.
 		
 		Expects data to contain:
-		  data["param_indices"]        – tuple of active parameter indices
+		  data["param_indices"]		– tuple of active parameter indices
 		  data["generators_b_partial"] – array of shape (sampling_points, 2)
 
 		Each worker call (run_sampling_b_partial) instantiates a fresh
@@ -207,10 +317,10 @@ class workers(object):
 		"""
 		for args in range(sampling_points):
 			self.pool.apply_async(
-			    run_sampling_b_partial,
-			    args=(1, data, data["generators_b_partial"][args], sampling_points),
-			    callback=self.callback,
-			    error_callback=self.callback_error)
+				run_sampling_b_partial,
+				args=(1, data, data["generators_b_partial"][args], sampling_points),
+				callback=self.callback,
+				error_callback=self.callback_error)
 		self.pool.close()
 		self.pool.join()
 		self.pool.terminate()
@@ -221,17 +331,17 @@ class workers(object):
 		Parallel class-C sampling for a partial parameter subset.
 
 		Expects data to contain:
-		  data["param_indices"]        – tuple of active parameter indices
+		  data["param_indices"]		– tuple of active parameter indices
 		  data["generators_c_partial"] – array of shape (sampling_points, 2)
 
 		Returns (parallized_zeta, progress) mirroring the Worker interface.
 		"""
 		for args in range(sampling_points):
 			self.pool.apply_async(
-			    run_sampling_c_partial,
-			    args=(1, data, data["generators_c_partial"][args], sampling_points),
-			    callback=self.callback,
-			    error_callback=self.callback_error)
+				run_sampling_c_partial,
+				args=(1, data, data["generators_c_partial"][args], sampling_points),
+				callback=self.callback,
+				error_callback=self.callback_error)
 		self.pool.close()
 		self.pool.join()
 		self.pool.terminate()
@@ -280,10 +390,6 @@ class UncertaintyExtractor(object):
 		
 	def getUncertFunc(self,L):
 		func = [self.M*np.linalg.norm(np.dot(L.T,i)) for i in self.Theta.T]
-		return np.asarray(func)
-	
-	def get_psacUncertFunc(self):
-		func = [self.M*np.linalg.norm(np.dot(self.cov.T,i)) for i in self.Theta.T]
 		return np.asarray(func)
 	
 	def getZetaUnsrtKappaFunc(self,L,z):
@@ -413,137 +519,137 @@ class UncertaintyExtractor(object):
 	
 	def cons_derivative_b2(self,z):
 		if self.kright_fact < 0 and self.kleft_fact<0:
-		    T = z[-1]
-		    guess = z[0:-1]
-		    P = self.ArrheniusParams
-		    cov = self.L
-		    P_max = P + np.asarray(np.dot(cov,self.kmiddle_fact*self.zeta.x)).flatten()
-		    theta = np.array([0*(T/T),1/T,1/T**2])
-		    dk_dt = theta.T.dot(P_max)
-		    dko_dt = theta.T.dot(P)
-		    dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-		    obj = dk_dt - dko_dt - dQtLZ_dt
+			T = z[-1]
+			guess = z[0:-1]
+			P = self.ArrheniusParams
+			cov = self.L
+			P_max = P + np.asarray(np.dot(cov,self.kmiddle_fact*self.zeta.x)).flatten()
+			theta = np.array([0*(T/T),1/T,1/T**2])
+			dk_dt = theta.T.dot(P_max)
+			dko_dt = theta.T.dot(P)
+			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
+			obj = dk_dt - dko_dt - dQtLZ_dt
 		elif self.kright_fact >0 and self.kleft_fact>0:
-		    T = z[-1]
-		    guess = z[0:-1]
-		    P = self.ArrheniusParams
-		    cov = self.L
-		    P_min = P - np.asarray(np.dot(cov,self.kmiddle_fact*self.zeta.x)).flatten()
-		    theta = np.array([0,1/T,1/T**2])
-		    dk_dt = theta.T.dot(P_min)
-		    dko_dt = theta.T.dot(P)
-		    dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-		    obj = dk_dt - dko_dt - dQtLZ_dt
-		    
+			T = z[-1]
+			guess = z[0:-1]
+			P = self.ArrheniusParams
+			cov = self.L
+			P_min = P - np.asarray(np.dot(cov,self.kmiddle_fact*self.zeta.x)).flatten()
+			theta = np.array([0,1/T,1/T**2])
+			dk_dt = theta.T.dot(P_min)
+			dko_dt = theta.T.dot(P)
+			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
+			obj = dk_dt - dko_dt - dQtLZ_dt
+			
 		elif self.kright_fact>0 and self.kleft_fact<0:
-		    T = z[-1]
-		    guess = z[0:-1]
-		    P = self.ArrheniusParams
-		    cov = self.L
-		    P_min = P + self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-		    theta = np.array([0,1/T,1/T**2])
-		    dk_dt = theta.T.dot(P_min)
-		    dko_dt = theta.T.dot(P)
-		    dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-		    obj = dk_dt - dko_dt - dQtLZ_dt
+			T = z[-1]
+			guess = z[0:-1]
+			P = self.ArrheniusParams
+			cov = self.L
+			P_min = P + self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
+			theta = np.array([0,1/T,1/T**2])
+			dk_dt = theta.T.dot(P_min)
+			dko_dt = theta.T.dot(P)
+			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
+			obj = dk_dt - dko_dt - dQtLZ_dt
 		elif self.kright_fact<0 and self.kleft_fact>0:
-		    T = z[-1]
-		    guess = z[0:-1]
-		    P = self.ArrheniusParams
-		    cov = self.L
-		    P_max = P - self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-		    theta = np.array([0,1/T,1/T**2])
-		    dk_dt = theta.T.dot(P_max)
-		    dko_dt = theta.T.dot(P)
-		    dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-		    obj = dk_dt - dko_dt - dQtLZ_dt
+			T = z[-1]
+			guess = z[0:-1]
+			P = self.ArrheniusParams
+			cov = self.L
+			P_max = P - self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
+			theta = np.array([0,1/T,1/T**2])
+			dk_dt = theta.T.dot(P_max)
+			dko_dt = theta.T.dot(P)
+			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
+			obj = dk_dt - dko_dt - dQtLZ_dt
 		else:
-		    T = z[-1]
-		    guess = z[0:-1]
-		    P = self.ArrheniusParams
-		    cov = self.L
-		    P_max = P + self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
-		    theta = np.array([0,1/T,1/T**2])
-		    dk_dt = theta.T.dot(P_max)
-		    dko_dt = theta.T.dot(P)
-		    dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
-		    obj = dk_dt - dko_dt - dQtLZ_dt
+			T = z[-1]
+			guess = z[0:-1]
+			P = self.ArrheniusParams
+			cov = self.L
+			P_max = P + self.kmiddle_fact*np.asarray(np.dot(cov,self.zeta.x)).flatten()
+			theta = np.array([0,1/T,1/T**2])
+			dk_dt = theta.T.dot(P_max)
+			dko_dt = theta.T.dot(P)
+			dQtLZ_dt =(theta.T.dot(cov.dot(z[0:-1])))
+			obj = dk_dt - dko_dt - dQtLZ_dt
 		return obj
-	    
+		
 	def const_2_typeB2_Zeta(self,z):
 		if self.kleft_fact >0 and self.kright_fact>0:
-		    M = self.M
-		    T = z[-1]
-		    cov = self.L
-		    P = self.ArrheniusParams
-		    Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-		    Theta = np.array([T/T,np.log(T),-1/(T)]).astype(float)
-		    k_min = Theta.dot(Pmin)
-		    QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-		    f = (Theta.dot(P)+QtLZ)
-		    obj = k_min - f
+			M = self.M
+			T = z[-1]
+			cov = self.L
+			P = self.ArrheniusParams
+			Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
+			Theta = np.array([T/T,np.log(T),-1/(T)]).astype(float)
+			k_min = Theta.dot(Pmin)
+			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
+			f = (Theta.dot(P)+QtLZ)
+			obj = k_min - f
 		elif self.kleft_fact <0 and self.kright_fact<0:
-		    M = self.M
-		    T = z[-1]
-		    cov = self.L
-		    P = self.ArrheniusParams
-		    Pmax = P + self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-		    Theta = np.array([1,np.log(T),-1/(T)])
-		    k_max = Theta.dot(Pmax)
-		    QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-		    f = (Theta.dot(P)+QtLZ)
-		    obj = k_max - f
+			M = self.M
+			T = z[-1]
+			cov = self.L
+			P = self.ArrheniusParams
+			Pmax = P + self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
+			Theta = np.array([1,np.log(T),-1/(T)])
+			k_max = Theta.dot(Pmax)
+			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
+			f = (Theta.dot(P)+QtLZ)
+			obj = k_max - f
 		elif self.kleft_fact <0 and self.kright_fact>0:
-		    M = self.M
-		    T = z[-1]
-		    cov = self.L
-		    P = self.ArrheniusParams
-		    Pmax = P + self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-		    Theta = np.array([1,np.log(T),-1/(T)])
-		    k_max = Theta.dot(Pmax)
-		    QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-		    f = (Theta.dot(P)+QtLZ)
-		    obj = k_max - f
-		    """
-		    M = self.M
-		    T = self.temperatures[1:-1]
-		    cov = self.L
-		    Theta = np.array([T/T,np.log(T),-1/(T)])
-		    QtLZ = np.asarray([(i.dot(cov.dot(z[0:-1]))) for i in Theta.T])
-		    f = (self.uncertainties[1:-1]-QtLZ)
-		    obj = np.amin(f)
-		    """
+			M = self.M
+			T = z[-1]
+			cov = self.L
+			P = self.ArrheniusParams
+			Pmax = P + self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
+			Theta = np.array([1,np.log(T),-1/(T)])
+			k_max = Theta.dot(Pmax)
+			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
+			f = (Theta.dot(P)+QtLZ)
+			obj = k_max - f
+			"""
+			M = self.M
+			T = self.temperatures[1:-1]
+			cov = self.L
+			Theta = np.array([T/T,np.log(T),-1/(T)])
+			QtLZ = np.asarray([(i.dot(cov.dot(z[0:-1]))) for i in Theta.T])
+			f = (self.uncertainties[1:-1]-QtLZ)
+			obj = np.amin(f)
+			"""
 		elif self.kleft_fact >0 and self.kright_fact<0:
-		    M = self.M
-		    T = z[-1]
-		    cov = self.L
-		    P = self.ArrheniusParams
-		    Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-		    Theta = np.array([1,np.log(T),-1/(T)])
-		    k_min = Theta.dot(Pmin)
-		    QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-		    f = (Theta.dot(P)+QtLZ)
-		    obj = k_min - f
-		    """
-		    M = self.M
-		    T = self.temperatures[1:-1]
-		    cov = self.L
-		    Theta = np.array([T/T,np.log(T),-1/(T)])
-		    QtLZ = np.asarray([(i.dot(cov.dot(z[0:-1]))) for i in Theta.T])
-		    f = (self.uncertainties[1:-1]-QtLZ)
-		    obj = np.amin(f)
-		    """
+			M = self.M
+			T = z[-1]
+			cov = self.L
+			P = self.ArrheniusParams
+			Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
+			Theta = np.array([1,np.log(T),-1/(T)])
+			k_min = Theta.dot(Pmin)
+			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
+			f = (Theta.dot(P)+QtLZ)
+			obj = k_min - f
+			"""
+			M = self.M
+			T = self.temperatures[1:-1]
+			cov = self.L
+			Theta = np.array([T/T,np.log(T),-1/(T)])
+			QtLZ = np.asarray([(i.dot(cov.dot(z[0:-1]))) for i in Theta.T])
+			f = (self.uncertainties[1:-1]-QtLZ)
+			obj = np.amin(f)
+			"""
 		else:
-		    M = self.M
-		    T = z[-1]
-		    cov = self.L
-		    P = self.ArrheniusParams
-		    Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
-		    Theta = np.array([1,np.log(T),-1/(T)])
-		    k_min = Theta.dot(Pmin)
-		    QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
-		    f = (Theta.dot(P)+QtLZ)
-		    obj = k_min - f
+			M = self.M
+			T = z[-1]
+			cov = self.L
+			P = self.ArrheniusParams
+			Pmin = P - self.kmiddle_fact*np.asarray(np.dot(self.cov,self.zeta.x)).flatten()
+			Theta = np.array([1,np.log(T),-1/(T)])
+			k_min = Theta.dot(Pmin)
+			QtLZ = (Theta.T.dot(cov.dot(z[0:-1])))
+			f = (Theta.dot(P)+QtLZ)
+			obj = k_min - f
 		return obj
 
 	def const_1_typeB2_Zeta(self,z):
@@ -880,6 +986,45 @@ class UncertaintyExtractor(object):
 			zeta = minimize(self.obj_func_zeta_b2,self.guess_z2,method="SLSQP",constraints=self.const_zeta,bounds=bnds)
 		return [zeta.x[0],zeta.x[1],zeta.x[2]]
 	
+	
+	def _build_bound_constraints(self,temperatures, uncertainties, dk_z_at_T,
+                              n_bound_pts: int = 20):
+		"""
+		Return a list of SLSQP 'ineq' dicts enforcing
+		   |Δκ(Tᵢ)| ≤ |uncertainties[i]|  for a downsampled temperature grid.
+
+		Two constraints per grid point:
+		   uᵢ - Δκ(Tᵢ) ≥ 0   (upper bound)
+		   uᵢ + Δκ(Tᵢ) ≥ 0   (lower bound)
+
+		Parameters
+		----------
+		temperatures  : (N,) array of temperatures [K]
+		uncertainties : (N,) per-temperature uncertainty magnitudes
+		dk_z_at_T     : callable (T, z) → float  (Δκ at a single temperature)
+		n_bound_pts   : number of grid points to sample (default 20)
+
+		Returns
+		-------
+		bound_cons : list of constraint dicts
+		"""
+		stride = max(1, len(temperatures) // n_bound_pts)
+		T_grid = temperatures[::stride]
+		u_grid = np.abs(uncertainties[::stride])
+
+		bound_cons = []
+		for Ti, ui in zip(T_grid, u_grid):
+			Ti, ui = float(Ti), float(ui)
+			bound_cons.append({
+			  'type': 'ineq',
+			  'fun': lambda z, Ti=Ti, ui=ui:  ui - dk_z_at_T(Ti, z[:3])  # upper
+			})
+			bound_cons.append({
+			  'type': 'ineq',
+			  'fun': lambda z, Ti=Ti, ui=ui:  ui + dk_z_at_T(Ti, z[:3])  # lower
+			})
+		return bound_cons
+	
 	def getB2Zeta(self,flag): 
 		self.getUnCorrelated(flag=False)
 		if flag == True:
@@ -887,21 +1032,52 @@ class UncertaintyExtractor(object):
 			con2 = {'type': 'eq', 'fun': self.const_2_typeB2_Zeta}
 			con3 = {'type': 'eq', 'fun': self.const_3_typeB2_Zeta}
 			con4 = {'type': 'eq', 'fun': self.cons_derivative_b2}
-			self.const_zeta = [con1,con2,con3,con4]
-			bnds = ((float("-10000"),float("10000")),(float("-10000"),float("10000")),(float("-10000"),float("10000")),(200,3500))
-			#zeta = minimize(self.obj_func_zeta_b2,self.guess_z2,method="SLSQP",constraints=self.const_zeta,bounds=bnds)
-			zeta = shgo(self.obj_func_zeta_b2,bnds,sampling_method='sobol',constraints=self.const_zeta)
-			#zeta = minimize(self.obj_func_zeta_b2,self.guess_z2,method="trust-constr",constraints=self.const_zeta,bounds=bnds)#,options={'xtol': 1e-05, 'gtol': 1e-05, 'barrier_tol': 1e-05})
-			#print(f"{zeta.success}\t{self.kright_fact}\t{self.kleft_fact}\n")
-			#if zeta.success == False:
-			#	print(zeta)
-			#raise AssertionError("stop")
+			
+			def dk_z_at_T(Tv, z):
+				return float(self._psac_theta_full(np.array([Tv]))[:, 0] @ self.L @ z)
+			
+			bound_constraints = self._build_bound_constraints(
+			   self.temperatures, self.uncertainties, dk_z_at_T, n_bound_pts=20
+		    )
+
+			self.const_zeta = [con1,con2,con3,con4] + bound_constraints
+			bnds = ((float("-1000"),float("1000")),(float("-1000"),float("1000")),(float("-1000"),float("1000")),(200,3500))
+			
+			#print("STarting the opt")
+			zeta = shgo(self.obj_func_zeta_b2, bnds,
+                       constraints=self.const_zeta, n=128, iters=2,
+                       sampling_method='sobol',
+                       minimizer_kwargs={
+                           "method": "SLSQP",
+                           "options": {
+                               "maxiter": 50,
+                               "ftol":    1e-7,
+                               "maxfun":  100,
+                           }
+                       })
+			#print(zeta)
+
+			# shgo returns res.x = None (no exception) when it can't find ANY
+			# feasible point under the 4 eq constraints + 40 bound-validity
+			# ineq constraints (happens for a non-trivial fraction of (a1,a2)
+			# draws -- the feasible region is thin). Subscripting that None
+			# used to crash every worker task that hit it. Retry once with a
+			# plain SLSQP minimize from a fixed interior guess against the
+			# SAME constraint set (shgo's own minimizer_kwargs uses SLSQP
+			# internally, so this is the same local solver, just given one
+			# more shot from a different start) before giving up.
+			if zeta.x is None:
+				zeta = minimize(self.obj_func_zeta_b2, self.guess_z2, method="SLSQP",
+								 constraints=self.const_zeta, bounds=bnds)
+				if zeta.x is None:
+					return None
+
 		else:
 			con5 = {'type': 'ineq', 'fun': self.cons_T}
 			self.const_zeta = [con5]
 			bnds = ((float("-inf"),float("inf")),(float("-inf"),float("inf")),(float("-inf"),float("inf")),(200,3500))
 			zeta = minimize(self.obj_func_zeta_b2,self.guess_z2,method="SLSQP",constraints=self.const_zeta,bounds=bnds)
-		return [zeta.x[0:-1][0],zeta.x[0:-1][1],zeta.x[0:-1][2]]
+		return [zeta.x[0],zeta.x[1],zeta.x[2]]
 		
 	def obj_get_kappa(self,guess):
 		cov = self.L
@@ -911,9 +1087,9 @@ class UncertaintyExtractor(object):
 		obj = np.dot(f,f)
 		return obj
 	def _obj_delta_n(self,z):
-	    	f = ((self.kappa_d_n-self.kappa_0)-np.array(self.theta_for_kappa.T.dot(self.L.dot(z))).flatten())
-	    	obj = np.dot(f,f)
-	    	return obj
+			f = ((self.kappa_d_n-self.kappa_0)-np.array(self.theta_for_kappa.T.dot(self.L.dot(z))).flatten())
+			obj = np.dot(f,f)
+			return obj
 
 	def constraint_d_n(self,z):
 		return 2 - np.array(self.L.dot(z)).flatten()[1]	
@@ -991,20 +1167,20 @@ class UncertaintyExtractor(object):
 		self.generator = []
 		self.samples = []
 		for i in range(int(sample_points)):
-		    a1 =2*np.random.random_sample(1)-1
-		    a2 = 2*np.random.random_sample(1)-1
-		    #a3 = 2*np.random.random_sample(1)-1
-		    #a3 = [1.0]
-		    #a1 =np.random.uniform(-1,1,1)
-		    #a2 = np.random.uniform(-1,1,1)
-		    #a3 = np.random.uniform(-1,1,1)
-		    
-		    generator.append([a1[0],a2[0]])
-		    self.kleft_fact = a1[0]
-		    self.kright_fact = a2[0]
-		    self.kmiddle_fact = abs(a1[0])
-		    zeta_B2 = self.getB2Zeta(flag=True)
-		    self.samples.append(zeta_B2)
+			a1 =2*np.random.random_sample(1)-1
+			a2 = 2*np.random.random_sample(1)-1
+			#a3 = 2*np.random.random_sample(1)-1
+			#a3 = [1.0]
+			#a1 =np.random.uniform(-1,1,1)
+			#a2 = np.random.uniform(-1,1,1)
+			#a3 = np.random.uniform(-1,1,1)
+			
+			generator.append([a1[0],a2[0]])
+			self.kleft_fact = a1[0]
+			self.kright_fact = a2[0]
+			self.kmiddle_fact = abs(a1[0])
+			zeta_B2 = self.getB2Zeta(flag=True)
+			self.samples.append(zeta_B2)
 		return self.zeta_B2  
 	
 	def getExtremeCurves_fast(self,sample_points):
@@ -1073,11 +1249,14 @@ class UncertaintyExtractor(object):
 	# ═══════════════════════════════════════════════════════════════════
 
 	_PSAC_MAX_DELTA_N = 2.0   # physical |Δn| bound (class-level constant)
+	_PSAC_MAX_ZETA_EA = 1500.0  # |ζ_Ea| bound (class-level constant, 2026-08-26)
 
 	# ── basis / prior-uncertainty helpers ──────────────────────────────
 	def _psac_theta_full(self, T_val):
 		"""Full Arrhenius basis [1, ln T, -1/T] at scalar T."""
-		return np.array([1.0, np.log(float(T_val)), -1.0 / float(T_val)])
+		#print(np.shape(T_val))
+		#print(T_val)
+		return np.array([T_val/T_val, np.log(T_val), -1.0 / T_val])
 
 	def _psac_theta_S(self, T_val, indices):
 		"""Reduced basis vector for selected indices at scalar T."""
@@ -1091,15 +1270,24 @@ class UncertaintyExtractor(object):
 		"""Vectorised f_prior,S over a temperature array."""
 		return np.array([self._psac_fp_S(t, L_r, indices) for t in T_arr])
 
+	def _f_prior(self, T, L_full):
+		"""f_prior_S(T) = ‖L_r^T Θ_S(T)‖₂ for each T in array."""
+		thS = self._psac_theta_full(T)
+		return np.array([np.linalg.norm(L_full.T @ col) for col in thS.T])
+	
+	def delta_kappa(self,T, L_r, zeta_r, indices):
+		"""Δκ_S(T) = Θ_S(T)^T L_r zeta_r."""
+		return self._psac_theta_S(T, indices).T @ (L_r @ zeta_r)
+	
 	def _psac_dtheta_S_dT(self, T_val, indices):
 		"""Analytical dθ_S/dT.  d/dT: 1→0, ln T→1/T, -1/T→1/T²."""
-		return np.array([0.0, 1.0 / float(T_val), 1.0 / float(T_val)**2])[list(indices)]
+		return np.array([0.0, 1.0 / T_val, 1.0 / T_val**2])[list(indices)]
 
 	def _psac_fp_S_deriv(self, T_val, L_r, indices):
 		"""Analytical df_prior,S/dT = (L_r^T θ_S)·(L_r^T dθ_S/dT) / f_prior,S."""
 		LTth  = L_r.T @ self._psac_theta_S(T_val, indices)
 		LTdth = L_r.T @ self._psac_dtheta_S_dT(T_val, indices)
-		fp    = np.linalg.norm(LTth)
+		fp	= np.linalg.norm(LTth)
 		return float(LTth @ LTdth) / fp if fp > 1e-30 else 0.0
 
 	def _psac_dk_S(self, T_arr, L_r, zeta_r, indices):
@@ -1116,9 +1304,35 @@ class UncertaintyExtractor(object):
 		if 1 not in indices:
 			return zeta_r
 		pos_n = list(indices).index(1)
-		dn    = abs((L_r @ zeta_r)[pos_n])
+		dn	= abs((L_r @ zeta_r)[pos_n])
 		if dn > self._PSAC_MAX_DELTA_N:
 			zeta_r = zeta_r * (self._PSAC_MAX_DELTA_N / (dn + 1e-30)) * 0.95
+		return zeta_r
+
+	def _psac_enforce_ea(self, zeta_r, indices):
+		"""Post-hoc cap |ζ_Ea| at _PSAC_MAX_ZETA_EA when Ea/R is active.
+
+		2026-08-26: the m=3 analytical solver (_psac_solve_3x3) scales ζ by
+		L_r^-1, so in the Ea/R direction -- where both L_33 and θ_Ea = -1/T
+		are tiny -- ζ_Ea explodes (observed: class-B pool ζ_Ea std 6500 vs
+		the pre-fix sampler's ~650, i.e. ±10^4 zeta, physical Δ(Ea/R) ≈
+		±1100 K on the n-heptane study). The band-ratio check barely
+		constrains this direction (the tiny L_33 keeps the Ea contribution
+		small relative to f_prior), so nothing bounded it -- unlike Δn,
+		which _psac_enforce_dn caps. The result: design-matrix columns with
+		ζ_Ea ±10^4, a response surface whose curvature an order-2 PRS
+		cannot track (observed: train MRE floor ~20-37% on the 5-case HTC
+		study vs 0.4-2% for the prior study whose sampler's [-1000,1000]
+		box bounded ζ_Ea to ~650). Scaling the whole ζ_r preserves the
+		curve's shape (ratio between components) exactly as enforce_dn
+		does, so accepted solutions keep their band validity.
+		"""
+		if 2 not in indices:
+			return zeta_r
+		pos_ea = list(indices).index(2)
+		ze = abs(zeta_r[pos_ea])
+		if ze > self._PSAC_MAX_ZETA_EA:
+			zeta_r = zeta_r * (self._PSAC_MAX_ZETA_EA / (ze + 1e-30))
 		return zeta_r
 
 	# ── covariance helpers ──────────────────────────────────────────────
@@ -1130,7 +1344,7 @@ class UncertaintyExtractor(object):
 		"""
 		from scipy.linalg import cholesky as _chol
 		Sigma   = L_full @ L_full.T
-		idx     = list(indices)
+		idx	 = list(indices)
 		Sigma_r = Sigma[np.ix_(idx, idx)]
 		try:
 			L_r = _chol(Sigma_r, lower=True)
@@ -1145,6 +1359,35 @@ class UncertaintyExtractor(object):
 		for local_i, global_i in enumerate(indices):
 			zeta_full[global_i] = zeta_r[local_i]
 		return zeta_full
+
+	# ── band-validity check (shared by fit-time row screening and new-point
+	#    rejection sampling; see report/ for why this matters) ─────────────
+	def is_band_valid(self, zeta_r, indices, T_arr, tol=1.0):
+		"""
+		Return (is_valid, ratio) for a candidate reduced ζ_r, using exactly
+		the same acceptance test the class-A/B/C/D samplers themselves use
+		(`_psac_class_A`: `np.all(np.abs(curve) <= fp)`), evaluated over an
+		ARRAY of temperatures T_arr (not a single point, so a curve can't
+		sneak through by only being checked where it happens to be small).
+
+		ratio = max_T |Δκ_S(T)| / f_prior,S(T).  ratio <= tol means every T
+		in T_arr stays inside this reaction's stated uncertainty band.
+
+		This is the single source of truth for "is this perturbation
+		physically valid" -- both ResponseSurface's training-row screening
+		(via IdentifiablePRS.violation_ratio, which duplicates this exact
+		formula because DesignMatrix/Uncertainty aren't importable in every
+		environment this repo runs in -- see IdentifiablePRS.py's module
+		docstring) and AdaptiveResampler's new-point rejection sampling
+		(which DOES have a live extractor instance and should call this
+		method directly, not re-derive the math) must agree with it.
+		"""
+		Sigma_r, L_r = self._psac_get_reduced_L(self.cholskyDeCorrelateMat, indices)
+		T_arr = np.asarray(T_arr, dtype=float)
+		dk = self._psac_dk_S(T_arr, L_r, np.asarray(zeta_r, dtype=float), indices)
+		fp = self._psac_fp_S_vec(T_arr, L_r, indices)
+		ratio = float(np.max(np.abs(dk) / np.maximum(fp, 1e-300)))
+		return ratio <= tol, ratio
 
 	# ── linear system solvers ───────────────────────────────────────────
 	def _psac_solve_2x2(self, T1, T2, rhs1, rhs2, L_r, indices):
@@ -1167,8 +1410,8 @@ class UncertaintyExtractor(object):
 		row1 = L_r.T @ self._psac_theta_S(T_min, indices)
 		row2 = L_r.T @ self._psac_theta_S(T_u,   indices)
 		row3 = L_r.T @ self._psac_dtheta_S_dT(T_u, indices)
-		A    = np.vstack([row1, row2, row3])
-		b    = np.array([r1_fp, r3_fp, r3_fpd])
+		A	= np.vstack([row1, row2, row3])
+		b	= np.array([r1_fp, r3_fp, r3_fpd])
 		if abs(np.linalg.det(A)) < 1e-14:
 			return None
 		try:
@@ -1177,265 +1420,545 @@ class UncertaintyExtractor(object):
 			return None
 
 	# ── curve-type samplers ─────────────────────────────────────────────
-	def _psac_class_A(self, T_arr, L_r, indices, rng, n_samples,perturb_factor=None):
+	def _psac_class_A(self, T_arr,L_full, L_r, indices, rng, n_samples,max_attempts=10, recorder=None):
 		"""
-		Class-A for any m: pseudo-inverse LS fit to ±α_s · f_prior,S.
-		Returns list of n_samples ζ_r arrays (length m each).
+		Generate `n_samples` Class-A zeta_r vectors for the given parameter subset,
+		with rejection sampling to enforce the fp uncertainty bounds at all temperatures.
+
+		Algorithm
+		---------
+		1.  Compute f_prior_S(T) = ‖L_r^T Θ_S(T)‖₂  for all T.
+		2.  Form A_mat = Θ_S(T)^T L_r  (overdetermined system, shape N×m).
+		3.  For each sample:
+			a. Draw α ~ U(0, 1), draw sign ∈ {-1, +1}.
+			   Set target b = sign·α·f_prior_S(T).
+			   Solve zeta_r = pinv(A_mat) · b  (least-squares fit).
+			b. Apply Δn constraint.
+			c. Reject if |A_mat @ zeta_r| > fp at ANY temperature; retry.
+		4.  Raise RuntimeError if max_attempts is exceeded for any single sample.
+
+		Parameters
+		----------
+		T			: temperature array (K), shape (N,)
+		L_full	   : full (3,3) Cholesky factor, used to compute fp
+		L_r		  : (m, m) reduced Cholesky factor
+		indices	  : tuple of active parameter indices, e.g. (0, 1) for (A, n)
+		n_samples	: number of valid samples to generate
+		rng		  : numpy Generator (created fresh if None)
+		max_attempts : max draws per sample before raising an error (default 10)
+
+		Returns
+		-------
+		zeta_list : list of n_samples zeta_r arrays, each shape (m,)
 		"""
-		fp     = self._psac_fp_S_vec(T_arr, L_r, indices)
-		#fp     = self.get_psacUncertFunc()
-		thS    = np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
-		A_pinv = np.linalg.pinv(thS @ L_r)                                   # (m,N)
-		out    = []
+		
+		fp	 = self._f_prior(T_arr, L_full)
+		thS	= np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
+		A_mat  = thS @ L_r
+		A_pinv = np.linalg.pinv(A_mat)								   # (m,N)
+		out	= []
 		for _ in range(n_samples):
-			if perturb_factor is not None:
-				alpha_s = perturb_factor
-				sign = 1
-			else:
-				alpha_s = rng.uniform(0.05, 1.0)
-				sign    = rng.choice([-1.0, 1.0])
-			#print(sign * alpha_s * fp)
-			zr      = A_pinv @ (sign * alpha_s * fp)
-			out.append(self._psac_enforce_dn(zr, L_r, indices))
-		return out
-	
-	def _psac_class_A_SA(self, T_arr, L_r, indices, rng, n_samples,perturb_factor=None):
-		"""
-		Class-A for any m: pseudo-inverse LS fit to ±α_s · f_prior,S.
-		Returns list of n_samples ζ_r arrays (length m each).
-		"""
-		#fp     = self._psac_fp_S_vec(T_arr, L_r, indices)
-		#print(fp)
-		fp     = self.get_psacUncertFunc()
-		#print(fp)
-		thS    = np.array([self._psac_theta_S(t, indices) for t in T_arr])  # (N,m)
-		A_pinv = np.linalg.pinv(thS @ L_r)                                   # (m,N)
-		out    = []
-		for _ in range(n_samples):
-			if perturb_factor is not None:
-				alpha_s = perturb_factor
-				sign = 1
-			else:
-				alpha_s = rng.uniform(0.05, 1.0)
-				sign    = rng.choice([-1.0, 1.0])
-			#print(sign * alpha_s * fp)
-			zr      = A_pinv @ (sign * alpha_s * fp)
-			out.append(self._psac_enforce_dn(zr, L_r, indices))
-		return out
-	
-	def _psac_class_B_m2(self, T_arr, L_r, indices, rng, n_samples):
-		"""
-		Class-B for m=2: 2×2 solve at each candidate T_u, bisect on the
-		C4 tangency residual g(T_u) = dΔκ/dT|_{T_u} - r3·f'_prior,S(T_u).
-		Falls back to SLSQP when no sign change is found (flat f_prior).
-		Returns list of n_samples ζ_r arrays.
-		"""
-		T_min    = float(T_arr[0]);   T_max = float(T_arr[-1])
-		fp_Tmin  = self._psac_fp_S(T_min, L_r, indices)
-		Tu_grid  = np.linspace(T_min * 1.02, T_max * 0.98, 120)
+			_rng_advance_sample(rng)
+			if recorder is not None:
+				recorder.mark_restart()
+			accepted = False
+			for attempt in range(max_attempts):
+				alpha_s = rng.uniform(0.00, 1.0)
+				sign	= rng.choice([-1.0, 1.0])
+				zr	  = A_pinv @ (sign * alpha_s * fp)
+				zr	   = self._psac_enforce_dn(zr, L_r, indices)
 
-		def _analytical():
-			results = []
-			for _ in range(n_samples * 40):
-				if len(results) >= n_samples:
+				curve = A_mat @ zr					  # shape (N,)
+				ok = np.all(np.abs(curve) <= fp)			 # passes at every T
+				if recorder is not None:
+					ratio = float(np.max(np.abs(curve) / np.maximum(fp, 1e-300)))
+					recorder.record(zr, ratio, {"T_arr": T_arr, "dk": curve, "accepted": bool(ok), "ratio": ratio})
+					if not ok:
+						recorder.mark_rejection("band_violation")
+				if ok:
+					accepted = True
 					break
-				r1   = rng.uniform(-0.95, 0.95)
-				r3   = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
-				rhs1 = r1 * fp_Tmin
-				g    = np.full(len(Tu_grid), np.nan)
-				valid = np.zeros(len(Tu_grid), dtype=bool)
-				for k, Tu in enumerate(Tu_grid):
-					fp_Tu = self._psac_fp_S(Tu, L_r, indices)
-					zr    = self._psac_solve_2x2(T_min, Tu, rhs1, r3 * fp_Tu, L_r, indices)
-					if zr is None:
-						continue
-					dth   = self._psac_dtheta_S_dT(Tu, indices)
-					g[k]  = float((L_r @ zr) @ dth) - r3 * self._psac_fp_S_deriv(Tu, L_r, indices)
-					valid[k] = True
-				ok = np.where(valid)[0]
-				if len(ok) < 2:
-					continue
-				sc = np.where(np.diff(np.sign(g[ok])) != 0)[0]
-				if len(sc) == 0:
-					continue
-				pick     = rng.choice(sc)
-				ia, ib   = ok[pick], ok[pick + 1]
-				Ta, Tb   = Tu_grid[ia], Tu_grid[ib]
-				ga       = g[ia]
-				zr_best  = None
-				for _ in range(50):
-					Tm    = 0.5 * (Ta + Tb)
-					fp_m  = self._psac_fp_S(Tm, L_r, indices)
-					zr_m  = self._psac_solve_2x2(T_min, Tm, rhs1, r3 * fp_m, L_r, indices)
-					if zr_m is None:
-						break
-					dth = self._psac_dtheta_S_dT(Tm, indices)
-					gm  = float((L_r @ zr_m) @ dth) - r3 * self._psac_fp_S_deriv(Tm, L_r, indices)
-					if abs(gm) < 1e-10:
-						zr_best = zr_m;  break
-					if np.sign(gm) == np.sign(ga):
-						Ta, ga = Tm, gm
-					else:
-						Tb = Tm
-				if zr_best is None:
-					Tm_f    = 0.5 * (Ta + Tb)
-					zr_best = self._psac_solve_2x2(
-					    T_min, Tm_f, rhs1,
-					    r3 * self._psac_fp_S(Tm_f, L_r, indices), L_r, indices)
-				if zr_best is None:
-					continue
-				if not self._psac_has_sign_change(self._psac_dk_S(T_arr, L_r, zr_best, indices)):
-					continue
-				results.append(self._psac_enforce_dn(zr_best, L_r, indices))
-			return results
+			if not accepted:
+				
+				#raise RuntimeError(
+				#	f"Class-A sample {_}: could not find a valid sample within "
+				#	f"{max_attempts} attempts. "
+				#	f"Check L_r / indices consistency or increase max_attempts."
+				#)
+				print(
+					f"Class-A sample {_}: could not find a valid sample within "
+					f"{max_attempts} attempts. "
+					f"Check L_r / indices consistency or increase max_attempts."
+				)
+			out.append(zr)
+		return out
 
-		def _slsqp_fallback(n_needed):
-			results  = []
-			m        = len(indices)
-			fp_grid  = self._psac_fp_S_vec(T_arr, L_r, indices)
-			for _ in range(n_needed * 20):
-				if len(results) >= n_needed:
-					break
-				r1   = rng.uniform(-0.99, 0.99)
-				r3   = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
-				x0   = np.append(rng.uniform(-1, 1, size=m),
-				                 rng.uniform(T_min + 0.2*(T_max-T_min),
-				                             T_max - 0.2*(T_max-T_min)))
-				def obj(x):
-					return float(np.sum(
-					    (fp_grid - self._psac_dk_S(T_arr, L_r, x[:m], indices))**2))
-				def c1(x):
-					return (float(self._psac_dk_S(np.array([T_min]), L_r, x[:m], indices)[0])
-					        - r1 * fp_Tmin)
-				def c3(x):
-					Tu = float(np.clip(x[-1], T_min, T_max))
-					return (float(self._psac_dk_S(np.array([Tu]), L_r, x[:m], indices)[0])
-					        - r3 * self._psac_fp_S(Tu, L_r, indices))
-				try:
-					res = minimize(obj, x0, method='SLSQP',
-					               bounds=[(None,None)]*m + [(T_min*1.005, T_max*0.995)],
-					               constraints=[{'type':'eq','fun':c1},{'type':'eq','fun':c3}],
-					               options={'maxiter':1000, 'ftol':1e-8})
-					zr = res.x[:m]
-					if self._psac_has_sign_change(
-					        self._psac_dk_S(T_arr, L_r, zr, indices)):
-						results.append(self._psac_enforce_dn(zr, L_r, indices))
-				except Exception:
-					pass
-			return results
+	def _psac_class_D_m2(self, T_arr, L_full, L_r, indices, rng, n_samples, recorder=None):
+		"""recorder : optional VisualAid.PPRSSearchRecorder-like object, see
+		_psac_class_B_m3_'s docstring for the None-is-a-no-op contract."""
 
-		out = _analytical()
-		if len(out) < n_samples:
-			out += _slsqp_fallback(n_samples - len(out))
-		return out[:n_samples]
+		idx = list(indices)
 
-	def _psac_class_B_m3(self, T_arr, L_r, indices, rng, n_samples):
+		T_min = float(T_arr[0])
+		T_max = float(T_arr[-1])
+
+		# f_prior from full L at all temperatures
+		thfull	   = self._psac_theta_full(T_arr)		   # (3, N)
+		LT_th		= L_full.T @ thfull				 # (3, N)
+		f_prior_vals = np.linalg.norm(LT_th, axis=0)	 # (N,)
+		fp_min	   = f_prior_vals[0]
+		fp_max	   = f_prior_vals[-1]
+
+		# Reduced theta at endpoints — extract rows manually
+		thfull_min = self._psac_theta_full(np.array([T_min]))[:, 0]  # (3,)
+		thfull_max = self._psac_theta_full(np.array([T_max]))[:, 0]  # (3,)
+		thS_min	= thfull_min[idx]					   # (m,)
+		thS_max	= thfull_max[idx]					   # (m,)
+
+		# Build M (2x2) — computed once
+		M = np.stack([
+		   thS_min @ L_r,	# (m,) @ (m,m) = (m,)
+		   thS_max @ L_r	 # (m,) @ (m,m) = (m,)
+		], axis=0)			 # (2, m) = (2, 2)
+
+		if abs(np.linalg.det(M)) < 1e-12:
+			raise ValueError(
+			  f"M is singular for indices={indices}."
+			)
+
+		M_inv = np.linalg.inv(M)			  # (2, 2), once
+
+		results = []
+		for k in range(n_samples):
+			_rng_advance_sample(rng)
+			if recorder is not None:
+				recorder.mark_restart()
+			accepted = False
+			for attempt in range(200):
+				r1 = float(rng.uniform(-1.0, 1.0))
+				r2 = float(rng.uniform(-1.0, 1.0))
+
+				d	  = np.array([r1 * fp_min,
+								r2 * fp_max])
+				zeta_r = M_inv @ d				 # (2,)
+
+				dk = self.delta_kappa(
+				 T_arr, L_r, zeta_r, indices
+				)
+
+				ok = np.all(np.abs(dk) <= f_prior_vals + 1e-10)
+				if recorder is not None:
+					ratio = float(np.max(np.abs(dk) / np.maximum(f_prior_vals, 1e-300)))
+					recorder.record(zeta_r, ratio, {"T_arr": T_arr, "dk": dk, "accepted": bool(ok), "ratio": ratio})
+					if not ok:
+						recorder.mark_rejection("band_violation")
+				if ok:
+				 accepted = True
+				 break
+
+			if not accepted:
+				print(
+				f"  [!] Sample {k}: validation failed "
+				f"after 200 attempts for "
+				f"indices={indices}."
+				)
+
+			results.append(
+				self._psac_enforce_dn(
+				np.asarray(zeta_r), L_r, indices
+				)
+				)
+		return results
+
+	def _psac_class_B_m3_(self, T_arr, L_full, L_r, indices, rng, n_samples, band_tol=1.0, recorder=None):
 		"""
 		Class-B for m=3: direct 3×3 linear solve (C1+C3+C4) at each T_u.
-		Scans a shuffled 80-point grid and keeps the first solution whose
-		Δκ_S changes sign.  >10^4× faster than SLSQP.
-		Returns list of n_samples ζ_r arrays.
+		Scans a shuffled 80-point grid and keeps the first solution that both
+		(a) has a Δκ_S sign change and (b) stays inside the reaction's actual
+		physical uncertainty band (ratio = max_T |Δκ(T)| / f_prior_full(T) <=
+		band_tol, the same full-3-parameter acceptance test _psac_class_A /
+		_psac_class_D_m2 use via _f_prior -- for m=3, indices=(0,1,2), so
+		L_r IS L_full and this coincides with is_band_valid's definition; it
+		is inlined here rather than calling self.is_band_valid because that
+		method reads self.cholskyDeCorrelateMat, an attribute this class sets
+        	only on the `reaction` subclass, not on a bare UncertaintyExtractor
+		worker instance).  >10^4× faster than SLSQP.
+
+		BAND-VALIDITY FIX (2026-08-19): the original version accepted on sign
+		change alone. Verified against real n-heptane reaction data: that gave
+		median ratio 1.00 but only 88.5% of samples inside the band (max
+		observed ratio 2.15) -- good enough to look plausible, not good enough
+		to train a PRS on. Adding the band check here (rather than relying on
+		a caller-side filter) means every class-B m=3 sample is physically
+		valid at the SOURCE, matching what class-A/D already guarantee.
+
+		Returns list of n_samples ζ_r arrays (each already validated). If a
+		sample can't be found within the attempt budget, it is silently
+		omitted (caller is responsible for falling back, e.g. to class-A, to
+		reach n_samples if that matters for its use case).
+
+		recorder : optional object with .record(z, obj, meta), .mark_restart(),
+		.mark_rejection(reason) (e.g. VisualAid.PPRSSearchRecorder). When None
+		(every existing call site), no recorder methods are invoked and no rng
+		draws are added or skipped -- behavior and RNG draw order are
+		bit-identical to before this parameter existed.
 		"""
 		T_min   = float(T_arr[0]);   T_max = float(T_arr[-1])
 		Tu_grid = np.linspace(T_min * 1.04, T_max * 0.96, 80)
-		out     = []
+		out	 = []
 		attempt = 0
 		while len(out) < n_samples and attempt < n_samples * 30:
 			attempt += 1
 			r1 = rng.uniform(-0.99, 0.99)
 			r3 = -np.sign(r1) if abs(r1) > 1e-6 else 1.0
+			if recorder is not None:
+				recorder.mark_restart()
 			for Tu in rng.permutation(Tu_grid):
 				zr = self._psac_solve_3x3(
-				    T_min, float(Tu), L_r,
-				    r1 * self._psac_fp_S(T_min, L_r, indices),
-				    r3 * self._psac_fp_S(float(Tu), L_r, indices),
-				    r3 * self._psac_fp_S_deriv(float(Tu), L_r, indices),
-				    indices)
+					T_min, float(Tu), L_r,
+					r1 * self._psac_fp_S(T_min, L_r, indices),
+					r3 * self._psac_fp_S(float(Tu), L_r, indices),
+					r3 * self._psac_fp_S_deriv(float(Tu), L_r, indices),
+					indices)
 				if zr is None:
+					if recorder is not None:
+						recorder.mark_rejection("singular_3x3_solve")
 					continue
-				if self._psac_has_sign_change(self._psac_dk_S(T_arr, L_r, zr, indices)):
-					out.append(self._psac_enforce_dn(zr, L_r, indices))
-					break
-		return out
-
-	def _psac_class_C(self, T_arr, L_r, indices, rng, n_samples):
-		"""
-		Class-C for m≥2: linear anchor target f_c(T) between T_min and T_max
-		(opposite-sign anchors ensure crossover), pseudo-inverse LS.
-		Returns list of n_samples ζ_r arrays.
-		"""
-		if len(indices) < 2:
-			return []
-		T_min   = float(T_arr[0]);  T_max = float(T_arr[-1])
-		fp_Tmin = self._psac_fp_S(T_min, L_r, indices)
-		fp_Tmax = self._psac_fp_S(T_max, L_r, indices)
-		A_pinv  = np.linalg.pinv(
-		    np.array([self._psac_theta_S(t, indices) for t in T_arr]) @ L_r)
-		out = []
-		for _ in range(n_samples * 5):
-			if len(out) >= n_samples:
+				dk_trial = self._psac_dk_S(T_arr, L_r, zr, indices)
+				if not self._psac_has_sign_change(dk_trial):
+					if recorder is not None:
+						recorder.record(zr, None, {"T_arr": T_arr, "dk": dk_trial, "Tu": float(Tu), "accepted": False})
+						recorder.mark_rejection("no_sign_change")
+					continue
+				zr_final = self._psac_enforce_dn(zr, L_r, indices)
+				zr_final = self._psac_enforce_ea(zr_final, indices)
+				dk_final = self._psac_dk_S(T_arr, L_r, zr_final, indices)
+				fp_full  = self._f_prior(T_arr, L_full)
+				ratio = float(np.max(np.abs(dk_final) / np.maximum(fp_full, 1e-300)))
+				if ratio > band_tol:
+					if recorder is not None:
+						recorder.record(zr_final, ratio, {"T_arr": T_arr, "dk": dk_final, "Tu": float(Tu), "accepted": False, "ratio": ratio})
+						recorder.mark_rejection("band_violation")
+					continue
+				if recorder is not None:
+					recorder.record(zr_final, ratio, {"T_arr": T_arr, "dk": dk_final, "Tu": float(Tu), "accepted": True, "ratio": ratio})
+				out.append(zr_final)
 				break
-			r1 = rng.uniform(-1.0, 1.0)
-			r2 = rng.uniform(-1.0, 1.0)
+		return out
+	
+	def _psac_class_B_m3(self, data, T_arr, L_full, L_r, indices, rng, n_samples):
+		"""
+		Generate one Class-B sample using the ORIGINAL published SHGO/SLSQP
+		method for m = 3  (all three Arrhenius parameters A, n, Ea active).
+
+		Constraints C1–C4 are enforced on the full-space Δκ using L_full.
+		SHGO is used as the primary solver; SLSQP is the fallback.
+
+		Uncertainty bounds are enforced at two levels:
+		  Layer 1 (optimizer)	   — inequality constraints |Δκ(Tᵢ)| ≤ uᵢ on a
+									  20-point temperature grid, active during SHGO/SLSQP.
+		  Layer 2 (post-processing) — radial scaling of zr if any residual violation
+									  survives after _enforce_dn_constraint.
+
+		This is the method published in the MUQ-SAC paper, extended with bound
+		enforcement.
+
+		Parameters
+		----------
+		nominal	   : (3,) nominal log-rate Arrhenius parameter vector
+		T_arr        : (N,) array of temperatures in K
+		L_full	   : (3, 3) lower-triangular Cholesky factor from MUQ
+		uncertainties : (N,) array of uncertainty values
+		indices	   : must be (0, 1, 2) for this method
+		sub_dir	   : Path object for animation output (currently commented out)
+		n_samples	 : number of samples to generate
+		rng		   : numpy Generator for random r1, r2 draws
+
+		Returns
+		-------
+		zeta_list : list of zeta_r arrays, each shape (3,)
+		"""
+		T_min	= float(T_arr[0])
+		T_max	= float(T_arr[-1])
+		L		= L_full
+		zeta_unc = _compute_uncorrelated_direction(L, T_arr, uncertainties)
+
+		# ── helper closures: rate curve values and derivatives ────────────────
+		def dk_unc_at_T(Tv):
+			return float(theta_full(np.array([Tv]))[:, 0] @ L @ zeta_unc)
+
+		def dk_z_at_T(Tv, z):
+			return float(theta_full(np.array([Tv]))[:, 0] @ L @ z)
+
+		def ddk_unc_at_T(Tv):
+			dth = np.array([0.0, 1.0 / Tv, 1.0 / Tv ** 2])
+			return float(dth @ L @ zeta_unc)
+
+		def ddk_z_at_T(Tv, z):
+			dth = np.array([0.0, 1.0 / Tv, 1.0 / Tv ** 2])
+			return float(dth @ L @ z)
+
+		def mismatch_objective(z):
+			Theta = np.array([T_arr / T_arr,
+							  np.log(T_arr),
+							  -1.0 / T_arr])
+			QtLZ  = np.array([th @ L @ z[:3] for th in Theta.T])
+			obj   = float(np.dot(uncertainties - QtLZ, uncertainties - QtLZ))
+			return obj
+
+		# ── nominal curve (full 3-param theta) ────────────────────────────────
+		Theta_full = np.array([T_arr / T_arr,
+							   np.log(T_arr),
+							   -1.0 / T_arr])
+		QtPo = np.array([th @ nominal for th in Theta_full.T])
+
+
+		# ── Layer 1: build bound-inequality constraints (computed once) ────────
+		# These enforce |Δκ(Tᵢ)| ≤ uᵢ on a 20-point grid inside the optimizer.
+		bound_constraints = _build_bound_constraints(
+			T_arr, uncertainties, dk_z_at_T, n_bound_pts=20
+		)
+
+		zeta_list = []
+		for _ in range(n_samples):
+			r1 = float(rng.uniform(-1.0, 1.0))
+			r2 = float(rng.uniform(-1.0, 1.0))
+			sign_C2, sign_C4, kmiddle = _determine_constraint_signs(r1, r2)
+
+			# ── per-sample anchor points ───────────────────────────────────────
+			_dk_min		= dk_unc_at_T(T_min)
+			_dk_max		= dk_unc_at_T(T_max)
+			idx_min		= int(np.argmin(np.abs(temperatures - T_min)))
+			idx_max		= int(np.argmin(np.abs(temperatures - T_max)))
+
+			# ── equality constraints C1–C4 ────────────────────────────────────
+			def c1(z): return r1 * dk_unc_at_T(T_min) - dk_z_at_T(T_min, z[:3])
+			def c3(z): return r2 * dk_unc_at_T(T_max) - dk_z_at_T(T_max, z[:3])
+			def c2(z):
+				Tu = float(np.clip(z[-1], T_min + 1, T_max - 1))
+				return sign_C2 * kmiddle * dk_unc_at_T(Tu) - dk_z_at_T(Tu, z[:3])
+			def c4(z):
+				Tu = float(np.clip(z[-1], T_min + 1, T_max - 1))
+				return sign_C4 * kmiddle * ddk_unc_at_T(Tu) - ddk_z_at_T(Tu, z[:3])
+
+			# ── full constraint list: C1–C4 + bound inequalities ──────────────
+			constraints = [
+				{'type': 'eq', 'fun': c1},
+				{'type': 'eq', 'fun': c2},
+				{'type': 'eq', 'fun': c3},
+				{'type': 'eq', 'fun': c4},
+			] + bound_constraints						  # ← Layer 1 appended
+
+			bounds = [(-1000, 1000)] * 3 + [(200, 3500)]
+			x0	 = np.array([10, 10, 100, (T_min + T_max) / 2])
+
+			t_sample = time.perf_counter()
+			try:
+				sol = shgo(mismatch_objective, bounds,
+						   constraints=constraints, n=128, iters=2,
+						   sampling_method='sobol',
+						   minimizer_kwargs={
+							   "method": "SLSQP",
+							   "options": {
+								   "maxiter": 50,
+								   "ftol":	1e-7,
+								   "maxfun":  100,
+							   }
+						   })
+				zr = sol.x[:3]
+			except Exception:
+				try:
+					sol = minimize(mismatch_objective, x0, method='SLSQP',
+								   bounds=bounds, constraints=constraints,
+								   options={'maxiter': 2000, 'ftol': 1e-9})
+					zr = sol.x[:3]
+				except Exception:
+					zr = x0[:3]
+
+			elapsed = time.perf_counter() - t_sample
+			if elapsed > ORIG_TIME_CAP_S:
+				print(f"	  [!] original_m3 sample took {elapsed:.1f}s "
+					  f"(cap={ORIG_TIME_CAP_S}s)")
+
+			# ── _enforce_dn_constraint (existing, preserves ||zeta|| norm) ────
+			zr_dn = _enforce_dn_constraint(np.asarray(zr), L_full, (0, 1, 2))
+
+			# ── Layer 2: post-processing bound safety net ─────────────────────
+			# Radially scales zr_dn if any temperature point still violates
+			# |Δκ(T)| ≤ uncertainty(T) after the optimizer + dn constraint.
+			zr_final, max_ratio = _enforce_uncertainty_bounds(
+				zr_dn, L_full, temperatures, uncertainties
+			)
+			if max_ratio > 1.0:
+				print(f"	  [!] sample {_:03d}: residual bound violation "
+					  f"ratio = {max_ratio:.4f} — scaled down in post-processing.")
+
+			zeta_list.append(zr_final)
+		return zeta_list
+	
+	def _psac_class_C(self, T_arr, L_full, L_r, indices, rng, n_samples, recorder=None):
+		"""
+		Class-C: direct least-squares fit to a linear crossing ramp target.
+
+		f_c(T) = r1·f_prior_S(T_min) + [r2·f_prior_S(T_max) - r1·f_prior_S(T_min)]
+				                 × (T - T_min) / (T_max - T_min)
+
+		zeta_r = pinv(Θ_S^T L_r) · f_c(T)  — single closed-form solve per attempt,
+		no iterative optimisation.  The recorded "objective" is the LS residual
+		||f_c - Θ_S^T L_r zeta_r||² (should be near-zero for well-posed subsets).
+
+		Parameters
+		----------
+		nominal       : (3,) nominal Arrhenius parameters (for viz baseline)
+		T_arr  : (N,) temperature array in K
+		L_full        : (3, 3) full Cholesky factor
+		uncertainties : (N,) uncertainty array  (used for viz band only)
+		indices       : tuple of active parameter indices (must have len >= 2)
+		sub_dir       : Path-like, directory for per-sample animation output
+		n_samples     : number of accepted samples to generate
+		rng           : numpy Generator
+
+		Returns
+		-------
+		zeta_list : list of zeta_r arrays, each shape (m,)
+		"""
+		
+		T_min   = float(T_arr[0]);  T_max = float(T_arr[-1])
+		inv_T     = 1.0 / T_arr
+		inv_T_min = 1.0 / T_max    # note: T_max → smallest 1/T
+		inv_T_max = 1.0 / T_min    # note: T_min → largest 1/T
+		
+		thfull	   = self._psac_theta_full(T_arr)		   # (3, N)
+		LT_th		= L_full.T @ thfull				 # (3, N)
+		f_prior_vals = np.linalg.norm(LT_th, axis=0)	 # (N,)
+		fp_Tmin	   = f_prior_vals[0]
+		fp_Tmax	   = f_prior_vals[-1]
+		thS = np.array([self._psac_theta_S(t, indices) for t in T_arr])
+		A_mat  = thS @ L_r                      # (N, m)  =  Φ_S L_r
+		A_pinv = np.linalg.pinv(A_mat)
+		zeta_list = []
+		sample_idx = 0
+		attempt    = 0
+		_rng_advance_sample(rng)
+		while len(zeta_list) < n_samples and attempt < n_samples * 5:
+			attempt += 1
+
+			r1 = float(rng.uniform(-1.0, 1.0))
+			r2 = float(rng.uniform(-1.0, 1.0))
 			if np.sign(r1) == np.sign(r2):
 				r2 = -r2
-			fc     = (r1 * fp_Tmin
-			          + (r2 * fp_Tmax - r1 * fp_Tmin) / (T_max - T_min)
-			          * (T_arr - T_min))
-			zeta_r = A_pinv @ fc
-			if not self._psac_has_sign_change(
-			        self._psac_dk_S(T_arr, L_r, zeta_r, indices)):
-				continue
-			out.append(self._psac_enforce_dn(zeta_r, L_r, indices))
-		return out[:n_samples]
 
-	def _psac_fsac(self, T_arr, L_r, indices, rng, n_samples):
+			# Build ramp target
+			#fc = (r1 * fp_Tmin
+			#      + (r2 * fp_Tmax - r1 * fp_Tmin) / (T_max - T_min)
+			#      * (temperatures - T_min))           # (N,)
+
+			fc = (r1 * fp_Tmin
+			  + (r2 * fp_Tmax - r1 * fp_Tmin) / (inv_T_max - inv_T_min)
+			  * (inv_T - inv_T_min))
+			# Closed-form solve
+			zeta_r = A_pinv @ fc                      # (m,)
+
+			# LS residual — what the right panel tracks
+			residual = fc - A_mat @ zeta_r            # (N,)
+			obj      = float(np.dot(residual, residual))
+
+
+			# ── accept / reject ───────────────────────────────────────────
+			dk = self.delta_kappa(T_arr, L_r, zeta_r, indices)
+			if not self._psac_has_sign_change(dk):
+				if recorder is not None:
+					recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": False})
+					recorder.mark_rejection("no_sign_change")
+				continue
+
+			zeta_r = self._psac_enforce_dn(
+				 np.asarray(zeta_r), L_r, indices
+			  )
+
+			# ── band-validity gate (added 2026-08-19) ───────────────────────
+			# Unlike class-A/B/D, this function previously only rejected on a
+			# missing sign change -- the ramp target's two ENDPOINTS are
+			# anchored inside the band by construction, but the intermediate
+			# least-squares fit is not constrained pointwise, so it can (and
+			# empirically does, ~3.3% of the time) overshoot the band between
+			# them. Recompute dk AFTER _psac_enforce_dn (which can rescale
+			# zeta_r) so this checks the curve that actually gets stored --
+			# same ordering _psac_class_A uses for its own equivalent check.
+			dk = self.delta_kappa(T_arr, L_r, zeta_r, indices)
+			if not np.all(np.abs(dk) <= f_prior_vals + 1e-10):
+				if recorder is not None:
+					recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": False})
+					recorder.mark_rejection("band_violation")
+				continue
+
+			if recorder is not None:
+				recorder.record(zeta_r, obj, {"T_arr": T_arr, "dk": dk, "accepted": True})
+
+			zeta_list.append(zeta_r)
+			_rng_advance_sample(rng)
+
+		return zeta_list[:n_samples]
+
+	def _psac_fsac(self, T_arr, L_full, L_r, indices, rng, n_samples):
 		"""
 		Fast SAC for partial parameters.
 		m=1 → class-A (f-SAC is undefined for a single parameter).
-		m=2 → 2×2 system at T_min + T_mid.
+		m=2 → 2×2 system at T_min + T_max.
 		m=3 → 3×3 system at T_min + T_mid + T_max.
 		Midpoint value drawn to ensure opposite-sign anchors → crossover.
 		Returns list of n_samples ζ_r arrays.
 		"""
 		T_min = float(T_arr[0]);  T_max = float(T_arr[-1])
 		T_mid = 0.5 * (T_min + T_max)
-		m     = len(indices)
-		fp_min = self._psac_fp_S(T_min, L_r, indices)
-		fp_mid = self._psac_fp_S(T_mid, L_r, indices)
-		fp_max = self._psac_fp_S(T_max, L_r, indices)
+		m	 = len(indices)
+		thfull	   = self._psac_theta_full(T_arr)		   # (3, N)
+		LT_th		= L_full.T @ thfull				 # (3, N)
+		f_prior_vals = np.linalg.norm(LT_th, axis=0)	 # (N,)
+		fp_min	   = f_prior_vals[0]
+		fp_max	   = f_prior_vals[-1]
+		th_mid = self._psac_theta_full(np.array([T_mid]))[:, 0]
+		fp_mid = np.linalg.norm(L_full.T @ th_mid)
+		
 		out = []
+		_rng_advance_sample(rng)
 		for _ in range(n_samples * 8):
 			if len(out) >= n_samples:
 				break
-			r1    = rng.uniform(-1.0, 1.0)
-			r2    = -r1 * rng.uniform(0.3, 1.0)
-			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r2)
+			r1	= rng.uniform(-1.0, 1.0)
+			r2	= -r1 * rng.uniform(0.3, 1.0)
+			r_mid = rng.uniform(-1.0, 1.0) * np.sign(r1)
 			kl, km, kr = r1 * fp_min, r_mid * fp_mid, r2 * fp_max
 			if m == 1:
-				sub = self._psac_class_A(T_arr, L_r, indices, rng, 1)
+				sub = self._psac_class_A(T_arr, L_full, L_r, indices, rng, 1)
 				if sub:
 					out.append(sub[0])
+					_rng_advance_sample(rng)
 				continue
 			elif m == 2:
-				zr = self._psac_solve_2x2(T_min, T_mid, kl, km, L_r, indices)
+				zr = self._psac_class_D_m2(T_arr, L_full, L_r, indices, rng, 1)[0]
 			else:
 				row1 = L_r.T @ self._psac_theta_S(T_min, indices)
 				row2 = L_r.T @ self._psac_theta_S(T_mid, indices)
 				row3 = L_r.T @ self._psac_theta_S(T_max, indices)
-				A    = np.vstack([row1, row2, row3])
+				A	= np.vstack([row1, row2, row3])
 				if abs(np.linalg.det(A)) < 1e-14:
 					continue
 				try:
 					zr = np.linalg.solve(A, np.array([kl, km, kr]))
 				except np.linalg.LinAlgError:
 					continue
+			#print("L_r.shape =", L_r.shape)
+			#print("zr.shape =", np.shape(zr))
+			#print("indices =", indices)
+			
 			if zr is None:
 				continue
 			if m >= 2 and not self._psac_has_sign_change(
-			        self._psac_dk_S(T_arr, L_r, zr, indices)):
+					self._psac_dk_S(T_arr, L_r, zr, indices)):
 				continue
 			out.append(self._psac_enforce_dn(zr, L_r, indices))
+			_rng_advance_sample(rng)
 		return out[:n_samples]
 
 	# ── public partial-parameter interface ─────────────────────────────
@@ -1443,11 +1966,36 @@ class UncertaintyExtractor(object):
 	# ── public partial-parameter interface ────────────────────────────
 
 	def get_full_sigma_and_L(self):
-		"""Return (Σ, L_full) from self.cov (3×3 Cholesky). 
-		Requires getCovariance() to have been called first."""
-		L     = self.cov
+		"""Return (Σ, L_full) -- the CANONICAL (positive-diagonal) Cholesky
+		factor of Sigma, not self.cov directly.
+
+		CANONICAL-SIGN FIX (2026-08-19, extended from run_sampling_b_partial's
+		m==3-only fix to every caller of get_reduced_cholesky /
+		get_full_sigma_and_L -- i.e. getClassA_partial, getClassB_partial's
+		m==2 path, getClassC_partial, get_fsac_partial, and this class's own
+		is_band_valid). self.cov (set by getCovariance()'s unconstrained
+		SLSQP fit) is only ONE of several valid Cholesky-like factors of
+		Sigma = self.cov @ self.cov.T -- np.linalg.cholesky(Sigma)
+		(positive-diagonal, unique) is a DIFFERENT one whenever SLSQP's
+		diagonal signs don't happen to match, and IdentifiablePRS.
+		build_layout_blocks (what actually screens/scores every sampler's
+		output downstream) always reconstructs the canonical factor from the
+		stored Sigma.csv. A sample that is band-valid under self.cov's own
+		(possibly different-signed) convention is not guaranteed to read as
+		band-valid once screened by the canonical convention used everywhere
+		else -- this was the root of the m==3 class-B bug and is not
+		provably absent from A/C/D-m2, so it is fixed once, here, at the
+		single choke point every partial-parameter sampler routes through,
+		rather than re-patched per call site.
+		"""
+		L	 = self.cov
 		Sigma = L @ L.T
-		return Sigma, L
+		try:
+			L_full = np.linalg.cholesky(Sigma)
+		except np.linalg.LinAlgError:
+			eps = 1e-12 * max(float(np.trace(Sigma)), 1e-10) / 3
+			L_full = np.linalg.cholesky(Sigma + eps * np.eye(3))
+		return Sigma, L_full
 
 	def get_reduced_cholesky(self, param_indices):
 		"""
@@ -1456,7 +2004,7 @@ class UncertaintyExtractor(object):
 		NEVER slices L directly; always reconstructs Σ first.
 		"""
 		_, L_full = self.get_full_sigma_and_L()
-		return self._psac_get_reduced_L(L_full, param_indices)
+		return L_full, (self._psac_get_reduced_L(L_full, param_indices))
 
 	def get_fsac_partial(self, param_indices, n_samples, rng=None):
 		"""
@@ -1466,45 +2014,36 @@ class UncertaintyExtractor(object):
 		"""
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_fsac(self.temperatures, L_r, param_indices, rng, n_samples)
+		L_full,(_, L_r)  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_fsac(self.temperatures, L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
-	def getClassA_partial(self, param_indices, n_samples, rng=None,perturb_fact= None):
+	def getClassA_partial(self, param_indices, n_samples, rng=None):
 		"""Class-A samples for any subset (m=1,2,3). Returns full-space ζ vectors."""
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_class_A(self.temperatures, L_r, param_indices, rng, n_samples,perturb_factor=perturb_fact)
-		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
-	
-	def getClassA_partial_SA(self, param_indices, n_samples, rng=None,perturb_fact= None):
-		"""Class-A samples for any subset (m=1,2,3). Returns full-space ζ vectors."""
-		if rng is None:
-			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_class_A_SA(self.temperatures, L_r, param_indices, rng, n_samples,perturb_factor=perturb_fact)
-		#print(zr_list)
+		L_full, (_, L_r)  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_class_A(self.temperatures, L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
-	def getClassB_partial(self, param_indices, n_samples, rng=None):
+	def getClassB_partial(self, data, param_indices, n_samples, rng=None):
 		"""
 		Class-B samples for a parameter subset.
-		m=1 → empty list (infeasible).
-		m=2 → 2×2 bisection (analytical, ~1 s/batch).
-		m=3 → 3×3 direct solve (analytical, <0.1 s/batch, >10^4× vs SLSQP).
+		m=1 → empty list (infeasible) Ultimately a class-A curves will be generated instead of 				 class-A curves.
+		m=2 → Class-D curves will be generated
+		m=3 → Class-B curves will be generated
 		Returns full-space ζ vectors.
 		"""
-		m = len(param_indices)
-		if m < 2:
-			return []
+		#m = len(param_indices)
+		#if m < 2:
+		#	return []
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r = self.get_reduced_cholesky(param_indices)
-		if m == 2:
-			zr_list = self._psac_class_B_m2(self.temperatures, L_r, param_indices, rng, n_samples)
-		else:
-			zr_list = self._psac_class_B_m3(self.temperatures, L_r, param_indices, rng, n_samples)
+		L_full, (_, L_r)  = self.get_reduced_cholesky(param_indices)
+		#if m == 2:
+		zr_list = self._psac_class_D_m2(self.temperatures, L_full, L_r, param_indices, rng, n_samples)
+		#else:
+		#	zr_list = self._psac_class_B_m3(data, self.temperatures, L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
 	def getClassC_partial(self, param_indices, n_samples, rng=None):
@@ -1518,8 +2057,8 @@ class UncertaintyExtractor(object):
 			return []
 		if rng is None:
 			rng = np.random.default_rng()
-		_, L_r  = self.get_reduced_cholesky(param_indices)
-		zr_list = self._psac_class_C(self.temperatures, L_r, param_indices, rng, n_samples)
+		L_full,(_, L_r)  = self.get_reduced_cholesky(param_indices)
+		zr_list = self._psac_class_C(self.temperatures,L_full, L_r, param_indices, rng, n_samples)
 		return [self._psac_reconstruct_full(zr, param_indices) for zr in zr_list]
 
 	def reconstruct_full_zeta(self, zeta_r, param_indices, full_size=3):
@@ -1527,6 +2066,100 @@ class UncertaintyExtractor(object):
 		return self._psac_reconstruct_full(zeta_r, param_indices, full_size)
 
 	# ── END NEW UncertaintyExtractor methods ──────────────────────────────────
+
+def _normalize_rxn_arrow(s):
+	"""Treat '<=>' (reversible) and '=>' (irreversible) as equivalent when
+	matching an XML uncertainty entry's reaction string against the
+	mechanism's own equation list -- some (uncertainty-file, mechanism)
+	pairs disagree on reversibility notation for the physically same
+	reaction (found 2026-08-19: MB_R_ALL_ECM_2025.xml's Reaction 2204 is
+	written irreversible, MB_MB2D_LALIT_2024.yaml's is reversible), which
+	would otherwise fail an exact-string match even though it is
+	unambiguously the same reaction."""
+	return s.replace("<=>", "=>")
+
+
+def _canon_rxn_equation(equation):
+	"""
+	Order-independent, notation-independent canonical form of a reaction
+	equation string, used as the deepest fallback of _find_rxn_index.
+	(Imported from the FINALIZED_MECH_OPT_SUITE line, 2026-08-26 merge.)
+
+	Real bug (found 2026-07-17): `MechanismParser.Parser(mechPath).rxnList`
+	reads each reaction's `equation:` string VERBATIM from the mechanism
+	YAML file -- but Cantera's own `gas.reaction_equations()`, when loading
+	that exact same file, reorders reactant/product species internally and
+	returns a DIFFERENT string for the identical physical reaction. Any
+	uncertainty XML whose `rxn=` attribute was populated from a live
+	`ct.Solution` then fails an exact-string membership check even though
+	the reaction is genuinely present. Mirrors
+	`rmip.core.graph_builder._canon_formula`'s normalization.
+
+	Also handles (WORKBENCH_AUDIT_2026-08-10, defect B3):
+	1. Stoichiometric-coefficient shorthand ("OH+OH<=>O+H2O" vs
+	   "2 OH <=> O + H2O"): each side is expanded to one token per
+	   stoichiometric unit before sorting.
+	2. Direction disagreement between mechanisms for a REVERSIBLE ("<=>")
+	   reaction: the two expanded sides are additionally sorted AS A PAIR
+	   for reversible reactions only. Irreversible ("=>") equations are
+	   never side-swapped -- reactant/product order is physically
+	   meaningful there.
+	3. Falloff third-body notation: "(+M)"/"(+N2)"/etc. is normalized to
+	   "+ M"/"+ N2" before tokenizing.
+	"""
+	eq = re.sub(r'\(\+\s*(\S+?)\)', r'+ \1', equation)
+	eq = " ".join(eq.split())
+	reversible = True
+	for arrow in (" <=> ", "<=>", " => ", "=>", " = ", "="):
+		if arrow in eq:
+			lhs, rhs = eq.split(arrow, 1)
+			# NOT a plain "'=>' not in arrow" substring check -- "<=>"
+			# itself contains "=>" as a substring, which would misclassify
+			# every reversible reaction as irreversible.
+			reversible = arrow not in (" => ", "=>")
+			break
+	else:
+		return eq.lower()
+
+	def _expand_side(side):
+		"""One token per stoichiometric unit, e.g. "2 OH" -> ["OH", "OH"]."""
+		tokens = []
+		for t in side.split("+"):
+			t = t.strip()
+			if not t:
+				continue
+			m = re.match(r'^(\d+)\s+(.+)$', t)
+			if m:
+				tokens.extend([m.group(2).strip()] * int(m.group(1)))
+			else:
+				tokens.append(t)
+		return " + ".join(sorted(tokens))
+
+	lhs_c, rhs_c = _expand_side(lhs), _expand_side(rhs)
+	if reversible:
+		lhs_c, rhs_c = sorted([lhs_c, rhs_c])
+	return lhs_c + " <=> " + rhs_c
+
+
+def _find_rxn_index(rxn, rxn_list):
+	"""Three-tier match. Tier 1 exact -- preserves existing lookup
+	order/behavior for every currently-working XML/YAML pair unchanged.
+	Tier 2 arrow-agnostic (see _normalize_rxn_arrow). Tier 3
+	order/stoichiometry/notation-independent (see _canon_rxn_equation).
+	Returns None (never raises) if no tier matches, so callers can decide
+	how to handle a genuine mismatch."""
+	if rxn in rxn_list:
+		return rxn_list.index(rxn)
+	target = _normalize_rxn_arrow(rxn)
+	for i, candidate in enumerate(rxn_list):
+		if _normalize_rxn_arrow(candidate) == target:
+			return i
+	canon_target = _canon_rxn_equation(rxn)
+	for i, candidate in enumerate(rxn_list):
+		if _canon_rxn_equation(candidate) == canon_target:
+			return i
+	return None
+
 
 class reaction(UncertaintyExtractor):
 	def __init__(self, Element,mechPath,binary_files):
@@ -1543,19 +2176,9 @@ class reaction(UncertaintyExtractor):
 		self.rIndex = str(Element.attrib["no"])
 		#self.rxn_dict = IFR.MechParsing(mechPath).getKappa(self.rxn)
 		#print(self.rIndex,IFR.MechParsing(mechPath).getArrhenius(self.rxn))
-		if self.rxn in RXN_LIST:
-			self.index = RXN_LIST.index(self.rxn)
-		else:
-			# Fall back to an order-independent match (see _canon_rxn_equation's
-			# docstring) before giving up -- an exact-string miss here is very
-			# often the SAME reaction written with reactants/products in a
-			# different order, not a genuinely absent reaction.
-			canon_target = _canon_rxn_equation(self.rxn)
-			canon_list = [_canon_rxn_equation(r) for r in RXN_LIST]
-			if canon_target in canon_list:
-				self.index = canon_list.index(canon_target)
-			else:
-				raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
+		self.index = _find_rxn_index(self.rxn, RXN_LIST)
+		if self.index is None:
+			raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		for item in Element:
 			if item.tag == "class":
@@ -1755,12 +2378,12 @@ class reaction(UncertaintyExtractor):
 		Extracts a submatrix using x and y vectors based on their non-zero values.
 
 		Parameters:
-		    L (ndarray): Cholesky decomposed covariance matrix (NumPy array).
-		    x (ndarray): Row selector vector (selection_matrix,non-zero indicates rows to include).
-		    y (ndarray): Column selector vector (Zeta,non-zero indicates columns to include).
+			L (ndarray): Cholesky decomposed covariance matrix (NumPy array).
+			x (ndarray): Row selector vector (selection_matrix,non-zero indicates rows to include).
+			y (ndarray): Column selector vector (Zeta,non-zero indicates columns to include).
 
 		Returns:
-		    ndarray: The extracted submatrix.
+			ndarray: The extracted submatrix.
 		"""
 		Sigma = L.dot(L.T)
 		
@@ -1778,12 +2401,12 @@ class reaction(UncertaintyExtractor):
 		Performs Cholesky decomposition and updates p_o based on the reduced cov_matrix and y.
 
 		Parameters:
-		    cov_matrix_reduced (ndarray): The reduced covariance matrix.
-		    p_o (ndarray): The initial vector with values for non-zero indices of y.
-		    y (ndarray): The vector with non-zero entries indicating the indices to update.
+			cov_matrix_reduced (ndarray): The reduced covariance matrix.
+			p_o (ndarray): The initial vector with values for non-zero indices of y.
+			y (ndarray): The vector with non-zero entries indicating the indices to update.
 
 		Returns:
-		    ndarray: Updated vector p.
+			ndarray: Updated vector p.
 		"""
 		# Cholesky decomposition of the reduced covariance matrix
 		L_reduced = np.linalg.cholesky(cov_matrix_reduced)
@@ -2113,18 +2736,9 @@ class PLOG(UncertaintyExtractor):
 		#print(self.rxn)
 		self.rIndex = str(Element.attrib["no"])
 		
-		if self.rxn in RXN_LIST:
-			self.index = RXN_LIST.index(self.rxn)
-		else:
-			# See reaction.__init__'s identical fallback (above in this file)
-			# for why: an exact-string miss is very often the same physical
-			# reaction with reactants/products reordered.
-			canon_target = _canon_rxn_equation(self.rxn)
-			canon_list = [_canon_rxn_equation(r) for r in RXN_LIST]
-			if canon_target in canon_list:
-				self.index = canon_list.index(canon_target)
-			else:
-				raise AssertionError("Rxn not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
+		self.index = _find_rxn_index(self.rxn, RXN_LIST)
+		if self.index is None:
+			raise AssertionError(f"Rxn {self.rxn} not in the mechanism. Kindly check the uncertainty file that you have submitted !!\n")
 		
 		#self.rxn_Details = DATA["reactions"][self.index]
 		#print(self.rxn_Details)
@@ -3202,6 +3816,7 @@ class uncertaintyData:
 		#self.Plog_additional_Rxn = {}
 		self.thermoUnsrt = {}
 		self.transportUnsrt = {}
+		self.skipped_reactions = []   # [(xml rxn string, error message), ...] -- see below
 		self.tree = ET.parse(self.xmlPath)
 		self.root = self.tree.getroot()
 		count_rxn = 0
@@ -3209,16 +3824,36 @@ class uncertaintyData:
 		count_m = 0
 		count_thermo = 0
 		count_transport = 0
-		
+
 		for child in self.root:
 			if child.tag == 'reaction':
-				r = reaction(child,self.mechPath,binary_files)
+				# _find_rxn_index already tolerates the specific mismatch
+				# found in practice (arrow-direction: XML "=>" vs YAML
+				# "<=>" for the same physical reaction, see its docstring)
+				# by falling back to an arrow-agnostic match, so a
+				# reaction like that is now recovered, not skipped. This
+				# try/except is a secondary safety net for any OTHER kind
+				# of genuine mismatch (typo, reaction truly absent from
+				# the mechanism) -- skips just that one malformed entry
+				# (logged to self.skipped_reactions) instead of aborting
+				# construction of the ENTIRE unsrt dict, and changes
+				# nothing for any currently-working XML/YAML pair, since
+				# a well-formed entry never raises here.
+				try:
+					r = reaction(child,self.mechPath,binary_files)
+				except AssertionError as e:
+					self.skipped_reactions.append((child.attrib.get("rxn", "?"), str(e)))
+					continue
 				self.Reactionlist.append(r.nametag)
 				self.reactionUnsrt[r.nametag] = r
 				self.unsrt_data[r.nametag] = r
 				count_rxn +=1
 			if child.tag == 'PLOG':
-				p = PLOG(child,self.mechPath,binary_files)
+				try:
+					p = PLOG(child,self.mechPath,binary_files)
+				except AssertionError as e:
+					self.skipped_reactions.append((child.attrib.get("rxn", "?"), str(e)))
+					continue
 				self.PlogRxnlist.append(p.rIndex)
 				self.PlogRxnIndex[p.rIndex] = p.nametag
 				self.Plog_index[p.rIndex] = p.index
@@ -3233,8 +3868,12 @@ class uncertaintyData:
 				#print(self.PlogRxnIndex)
 				#print(self.Plog_index)
 				for item in child:
-					if item.tag == "InterConnectedRxns":				
-						list_of_PLOG_rxn = item.text.split(",")
+					if item.tag == "InterConnectedRxns":
+						list_of_PLOG_rxn = [
+						rxn.strip()
+						for rxn in item.text.split(",")
+						if rxn.strip()
+						]
 						
 					if item.tag == "RxnCount":
 						count = int(item.text)
@@ -3244,7 +3883,10 @@ class uncertaintyData:
 						#print(i)
 						plog_object_list.append(self.plogUnsrt[self.PlogRxnIndex[i]])
 					else:
-						raise AssertionError(f"Invalid connected reactions are identified. Please check {item.text}")
+						raise AssertionError(
+							f"Invalid connected reaction '{i}'. "
+							f"Connected reactions specified in XML: {list_of_PLOG_rxn}"
+							)
 				for i in range(count):
 					index = i+1
 					

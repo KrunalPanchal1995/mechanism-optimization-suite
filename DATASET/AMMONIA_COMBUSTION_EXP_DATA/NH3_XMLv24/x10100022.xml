@@ -1,0 +1,63 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10100022</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-13</firstPublicationDate>
+    <lastModificationDate>2024-09-13</lastModificationDate>
+    <bibliographyLink>
+        <description>X. Chu, X. Li, Z. Ma, X. Wang, P. Gao, L. Luo, Fuel 361 (2024), 130776</description>
+        <referenceDOI>10.1016/j.fuel.2023.130776</referenceDOI>
+        <location>Main article and SM</location>
+        <table>SM: Table S1, Mixture 8 (initial conditions)</table>
+        <figure>Main article: Fig. 12b, blue stars (measured data)</figure>
+        <details>
+            <author>Chu, Xianglin and Li, Xin and Ma, Zhihao and Wang, Xin and Gao, Peixin and Luo, Linlei</author>
+            <journal>Fuel</journal>
+            <pages>130776</pages>
+            <title>An experimental and kinetic modeling study on the autoignition characteristics of ammonia-based ternary fuels under reflected shock wave conditions</title>
+            <type>Journal Article</type>
+            <volume>361</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"             label="phi"      sourcetype="reported"   units="unitless" ><value>1.0</value></property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="percent" >4.044</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="percent" >0.449</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="percent" >3.258</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"    /><amount units="percent" >92.249</amount></component>
+        </property>
+        <property name="evaluated standard deviation"  label="std_tau"  sourcetype="estimated"  units="unitless"  reference="ignition delay"  kind="relative"  sigmarange="1"  method="combined from scatter and reported uncertainty" ><value>0.209442</value></property>
+        <property name="pressure"                      label="p"        sourcetype="reported"   units="MPa"      ><value>1.0</value></property>
+        <property name="uncertainty"                   sourcetype="reported"   units="K"         reference="temperature"     kind="absolute"  bound="plusminus"  sigmarange="2" ><value>16</value></property>
+        <property name="uncertainty"                   label="d_p"      sourcetype="reported"   units="MPa"       reference="pressure"        kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.01</value></property>
+        <property name="uncertainty"                   label="d_tau"    sourcetype="reported"   units="unitless"  reference="ignition delay"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.2</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"     id="x1"   label="T"    sourcetype="digitized"  units="K"  />
+        <property name="ignition delay"  id="x2"   label="tau"  sourcetype="digitized"  units="us" />
+
+        <dataPoint><x1>1730</x1><x2>112</x2></dataPoint>
+        <dataPoint><x1>1633</x1><x2>197</x2></dataPoint>
+        <dataPoint><x1>1612</x1><x2>212</x2></dataPoint>
+        <dataPoint><x1>1492</x1><x2>605</x2></dataPoint>
+        <dataPoint><x1>1446</x1><x2>1194</x2></dataPoint>
+        <dataPoint><x1>1320</x1><x2>2513</x2></dataPoint>
+    </dataGroup>
+    <ignitionType target="OH*" type="baseline min intercept from d/dt"/>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+    <comment>In Fig. 12, the labelling is wrong: the blue stars in fact refer to the N90H10 data.</comment>
+</experiment>

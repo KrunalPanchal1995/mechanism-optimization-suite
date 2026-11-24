@@ -1,0 +1,71 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100187</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-17</firstPublicationDate>
+    <lastModificationDate>2024-06-17</lastModificationDate>
+    <bibliographyLink>
+        <description>S. Masoumi, E. Houshfar, M. Ashjaee, Fuel 357 (2024), 130081</description>
+        <referenceDOI>10.1016/j.fuel.2023.130081</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1 (initial conditions)</table>
+        <figure>Fig. 3, blue diamonds (EGR = 0.10)</figure>
+        <details>
+            <author>Masoumi, Soheil and Houshfar, Ehsan and Ashjaee, Mehdi</author>
+            <journal>Fuel</journal>
+            <pages>130081</pages>
+            <title>Experimental and numerical analysis of ammonia/hydrogen combustion under artificial exhaust gas recirculation</title>
+            <type>Journal Article</type>
+            <volume>357</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"  label="T"  sourcetype="reported"  units="K"   ><value>450</value></property>
+        <property name="pressure"     label="p"  sourcetype="reported"  units="bar" ><value>1.0</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="initial composition"           id="x2"   label="x_H2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="initial composition"           id="x3"   label="xNH3"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="xO2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x5"   label="xN2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" />
+        </property>
+        <property name="initial composition"           id="x6"   label="x_H2O"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"     chemName="water"    />
+        </property>
+        <property name="laminar burning velocity"      id="x7"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="uncertainty"                   id="x8"   label="d_LBV"    sourcetype="digitized"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x9"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.70</x1><x2>0.066399</x2><x3>0.099599</x3><x4>0.154141</x4><x5>0.649862</x5><x6>0.030000</x6><x7>23.74</x7><x8>0.71</x8><x9>0.5000</x9></dataPoint>
+        <dataPoint><x1>0.80</x1><x2>0.073936</x2><x3>0.110905</x3><x4>0.150183</x4><x5>0.634976</x5><x6>0.030000</x6><x7>29.71</x7><x8>0.85</x8><x9>0.5276</x9></dataPoint>
+        <dataPoint><x1>0.90</x1><x2>0.081097</x2><x3>0.121645</x3><x4>0.146424</x4><x5>0.620834</x5><x6>0.030000</x6><x7>35.25</x7><x8>0.99</x8><x9>0.6192</x9></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>0.087907</x2><x3>0.131861</x3><x4>0.142849</x4><x5>0.607384</x5><x6>0.030000</x6><x7>39.28</x7><x8>1.18</x8><x9>0.7208</x9></dataPoint>
+        <dataPoint><x1>1.10</x1><x2>0.094393</x2><x3>0.141589</x3><x4>0.139444</x4><x5>0.594574</x5><x6>0.030000</x6><x7>41.13</x7><x8>1.18</x8><x9>0.7320</x9></dataPoint>
+        <dataPoint><x1>1.20</x1><x2>0.100577</x2><x3>0.150865</x3><x4>0.136197</x4><x5>0.582361</x5><x6>0.030000</x6><x7>37.81</x7><x8>1.09</x8><x9>0.6732</x9></dataPoint>
+        <dataPoint><x1>1.30</x1><x2>0.106479</x2><x3>0.159718</x3><x4>0.133099</x4><x5>0.570704</x5><x6>0.030000</x6><x7>34.21</x7><x8>0.95</x8><x9>0.5937</x9></dataPoint>
+        <dataPoint><x1>1.40</x1><x2>0.112119</x2><x3>0.168178</x3><x4>0.130138</x4><x5>0.559566</x5><x6>0.030000</x6><x7>30.99</x7><x8>0.90</x8><x9>0.5546</x9></dataPoint>
+        <dataPoint><x1>1.50</x1><x2>0.117513</x2><x3>0.176269</x3><x4>0.127306</x4><x5>0.548912</x5><x6>0.030000</x6><x7>27.29</x7><x8>0.81</x8><x9>0.5000</x9></dataPoint>
+        <dataPoint><x1>1.60</x1><x2>0.122678</x2><x3>0.184016</x3><x4>0.124594</x4><x5>0.538712</x5><x6>0.030000</x6><x7>24.83</x7><x8>0.71</x8><x9>0.5000</x9></dataPoint>
+    </dataGroup>
+</experiment>

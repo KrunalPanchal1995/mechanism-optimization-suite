@@ -1,0 +1,95 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199063</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>6</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2024-11-11</lastModificationDate>
+    <bibliographyLink>
+        <description>A. Karan, G. Dayma, C. Chauveau, F. Halter, Combustion and Flame 236 (2022), 111819</description>
+        <referenceDOI>10.1016/j.combustflame.2021.111819</referenceDOI>
+        <location>Main article</location>
+        <table>Main article: Table 1, row 1 (initial conditions)</table>
+        <figure>Main article: Fig. 3.</figure>
+        <details>
+            <author>Karan, Alka and Dayma, Guillaume and Chauveau, Christian and Halter, Fabien</author>
+            <journal>Combustion and Flame</journal>
+            <pages>111819</pages>
+            <title>Experimental study and numerical validation of oxy-ammonia combustion at elevated temperatures and pressures</title>
+            <type>Journal Article</type>
+            <volume>236</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>constant volume combustion chamber</mode>
+        <mode>premixed</mode>
+        <mode>laminar</mode>
+        <mode>unstretched</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless"      ><value>0.8</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="mole fraction" >0.243</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="mole fraction" >0.227</amount></component>
+            <component><speciesLink preferredKey="He"   CAS="7440-59-7"  InChI="1S/He"        SMILES="[He]"  chemName="helium"  /><amount units="mole fraction" >0.159</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="mole fraction" >0.371</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"     sourcetype="reported"   units="bar"  />
+        <property name="temperature"                   id="x2"   label="T"     sourcetype="reported"   units="K"    />
+        <property name="laminar burning velocity"      id="x3"   label="Sl"    sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x4"   label="d_Sl"  sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus" />
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>2.0336</x1><x2>369.49</x2><x3>44.1</x3><x4>2.2</x4><x5>1.103</x5></dataPoint>
+        <dataPoint><x1>2.1336</x1><x2>375.00</x2><x3>44.8</x3><x4>2.2</x4><x5>1.120</x5></dataPoint>
+        <dataPoint><x1>2.2336</x1><x2>380.32</x2><x3>45.4</x3><x4>2.3</x4><x5>1.135</x5></dataPoint>
+        <dataPoint><x1>2.3336</x1><x2>385.47</x2><x3>46.1</x3><x4>2.3</x4><x5>1.153</x5></dataPoint>
+        <dataPoint><x1>2.4336</x1><x2>390.46</x2><x3>46.7</x3><x4>2.3</x4><x5>1.168</x5></dataPoint>
+        <dataPoint><x1>2.5336</x1><x2>395.31</x2><x3>47.3</x3><x4>2.4</x4><x5>1.183</x5></dataPoint>
+        <dataPoint><x1>2.6336</x1><x2>400.01</x2><x3>47.9</x3><x4>2.4</x4><x5>1.198</x5></dataPoint>
+        <dataPoint><x1>2.7336</x1><x2>404.58</x2><x3>48.5</x3><x4>2.4</x4><x5>1.213</x5></dataPoint>
+        <dataPoint><x1>2.8336</x1><x2>409.03</x2><x3>49.1</x3><x4>2.5</x4><x5>1.228</x5></dataPoint>
+        <dataPoint><x1>2.9336</x1><x2>413.37</x2><x3>49.7</x3><x4>2.5</x4><x5>1.243</x5></dataPoint>
+        <dataPoint><x1>3.0336</x1><x2>417.60</x2><x3>50.2</x3><x4>2.5</x4><x5>1.255</x5></dataPoint>
+        <dataPoint><x1>3.1336</x1><x2>421.72</x2><x3>50.7</x3><x4>2.5</x4><x5>1.268</x5></dataPoint>
+        <dataPoint><x1>3.2336</x1><x2>425.75</x2><x3>51.3</x3><x4>2.6</x4><x5>1.283</x5></dataPoint>
+        <dataPoint><x1>3.3336</x1><x2>429.69</x2><x3>51.8</x3><x4>2.6</x4><x5>1.295</x5></dataPoint>
+        <dataPoint><x1>3.4336</x1><x2>433.53</x2><x3>52.3</x3><x4>2.6</x4><x5>1.308</x5></dataPoint>
+        <dataPoint><x1>3.5336</x1><x2>437.30</x2><x3>52.8</x3><x4>2.6</x4><x5>1.320</x5></dataPoint>
+        <dataPoint><x1>3.6336</x1><x2>440.99</x2><x3>53.3</x3><x4>2.7</x4><x5>1.333</x5></dataPoint>
+        <dataPoint><x1>3.7336</x1><x2>444.60</x2><x3>53.7</x3><x4>2.7</x4><x5>1.343</x5></dataPoint>
+        <dataPoint><x1>3.8336</x1><x2>448.14</x2><x3>54.2</x3><x4>2.7</x4><x5>1.355</x5></dataPoint>
+        <dataPoint><x1>3.9336</x1><x2>451.61</x2><x3>54.7</x3><x4>2.7</x4><x5>1.368</x5></dataPoint>
+        <dataPoint><x1>4.0336</x1><x2>455.02</x2><x3>55.1</x3><x4>2.8</x4><x5>1.378</x5></dataPoint>
+        <dataPoint><x1>4.1336</x1><x2>458.37</x2><x3>55.5</x3><x4>2.8</x4><x5>1.388</x5></dataPoint>
+        <dataPoint><x1>4.2336</x1><x2>461.65</x2><x3>56.0</x3><x4>2.8</x4><x5>1.400</x5></dataPoint>
+        <dataPoint><x1>4.3336</x1><x2>464.87</x2><x3>56.4</x3><x4>2.8</x4><x5>1.410</x5></dataPoint>
+        <dataPoint><x1>4.4336</x1><x2>468.04</x2><x3>56.8</x3><x4>2.8</x4><x5>1.420</x5></dataPoint>
+        <dataPoint><x1>4.5336</x1><x2>471.16</x2><x3>57.2</x3><x4>2.9</x4><x5>1.430</x5></dataPoint>
+        <dataPoint><x1>4.6336</x1><x2>474.23</x2><x3>57.7</x3><x4>2.9</x4><x5>1.443</x5></dataPoint>
+        <dataPoint><x1>4.7336</x1><x2>477.24</x2><x3>58.1</x3><x4>2.9</x4><x5>1.453</x5></dataPoint>
+        <dataPoint><x1>4.8336</x1><x2>480.21</x2><x3>58.5</x3><x4>2.9</x4><x5>1.463</x5></dataPoint>
+        <dataPoint><x1>4.9336</x1><x2>483.13</x2><x3>58.9</x3><x4>2.9</x4><x5>1.473</x5></dataPoint>
+        <dataPoint><x1>5.0336</x1><x2>486.01</x2><x3>59.2</x3><x4>3.0</x4><x5>1.480</x5></dataPoint>
+        <dataPoint><x1>5.1336</x1><x2>488.84</x2><x3>59.6</x3><x4>3.0</x4><x5>1.490</x5></dataPoint>
+        <dataPoint><x1>5.2336</x1><x2>491.64</x2><x3>60.0</x3><x4>3.0</x4><x5>1.500</x5></dataPoint>
+        <dataPoint><x1>5.3336</x1><x2>494.39</x2><x3>60.4</x3><x4>3.0</x4><x5>1.510</x5></dataPoint>
+        <dataPoint><x1>5.4336</x1><x2>497.10</x2><x3>60.7</x3><x4>3.0</x4><x5>1.518</x5></dataPoint>
+        <dataPoint><x1>5.5336</x1><x2>499.78</x2><x3>61.1</x3><x4>3.1</x4><x5>1.528</x5></dataPoint>
+        <dataPoint><x1>5.6336</x1><x2>502.42</x2><x3>61.5</x3><x4>3.1</x4><x5>1.538</x5></dataPoint>
+    </dataGroup>
+    <comment>There was no need for stretch correction since "The experiments were performed in the isochoric condition. The isochoric method helps to retrieve a wide band of flame speed data at elevated conditions. This range has been chosen such that the stretch effects that occur in the initial phase and the heat losses endured when the flame front hits the wall do not affect the propagation of the flame front and hence, the flame speed."</comment>
+    <comment>Tabulated experimental data were obtained through personal communication with the corresponding author.</comment>
+    <comment>Initial state of the gas mixtre: Pu = 1 bar, Tu = 296 K</comment>
+</experiment>

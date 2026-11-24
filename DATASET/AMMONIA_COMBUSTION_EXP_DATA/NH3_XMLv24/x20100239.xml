@@ -1,0 +1,61 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100239</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-12</firstPublicationDate>
+    <lastModificationDate>2024-09-12</lastModificationDate>
+    <bibliographyLink>
+        <description>M. Figueroa-Labastida, L. Zheng, J.W. Streicher, R.K. Hanson, International Journal of Hydrogen Energy 63 (2024), 1137–1146</description>
+        <referenceDOI>10.1016/j.ijhydene.2024.03.255</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>Main Article: Table 1, phi = 1, xH2 = 0.2 (initial compositions); SM: S1 - phi = 1, xH2 = 0.2 (measured data)</table>
+        <figure>Main Article: Fig. 4a, purple triangles (not used)</figure>
+        <details>
+            <author>Figueroa-Labastida, Miguel and Zheng, Lingzhi and Streicher, Jesse W. and Hanson, Ronald K.</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <pages>1137–1146</pages>
+            <title>Ammonia/hydrogen laminar flame speed measurements at elevated temperatures</title>
+            <type>Journal Article</type>
+            <volume>63</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>imaging shock tube</kind>
+        <mode>reflected shock wave, laminar, premixed, extrapolation to zero stretch: area-averaged linear-curvature (AALC) method</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless" ><value>1.0</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="percent" >4.6</amount></component>
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="percent" >18.5</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="percent" >16.1</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"    /><amount units="percent" >60.8</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"        sourcetype="reported"   units="K"    />
+        <property name="uncertainty"                   id="x2"   label="d_T"      sourcetype="reported"   units="K"     reference="temperature"               kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="pressure"                      id="x3"   label="p"        sourcetype="reported"   units="atm"  />
+        <property name="uncertainty"                   id="x4"   label="d_p"      sourcetype="reported"   units="atm"   reference="pressure"                  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x6"   label="d_LBV"    sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>509.2</x1><x2>3.48</x2><x3>1.036</x3><x4>0.0193</x4><x5>74.92</x5><x6>1.52</x6><x7>1.4188</x7></dataPoint>
+        <dataPoint><x1>597.8</x1><x2>4.93</x2><x3>1.026</x3><x4>0.0222</x4><x5>100.39</x5><x6>5.43</x6><x7>3.1536</x7></dataPoint>
+        <dataPoint><x1>676.4</x1><x2>6.764</x2><x3>1.060</x3><x4>0.01908</x4><x5>124.41</x5><x6>4.20</x6><x7>2.8925</x7></dataPoint>
+        <dataPoint><x1>724.8</x1><x2>5.24</x2><x3>1.050</x3><x4>0.018</x4><x5>147.10</x5><x6>3.33</x6><x7>2.8848</x7></dataPoint>
+        <dataPoint><x1>765.7</x1><x2>7.06</x2><x3>1.014</x3><x4>0.0217</x4><x5>168.94</x5><x6>7.99</x6><x7>4.8243</x7></dataPoint>
+        <dataPoint><x1>802.1</x1><x2>1.81</x2><x3>0.983</x3><x4>0.005</x4><x5>192.91</x5><x6>12.91</x6><x7>7.1548</x7></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties were considered the 2sigma limits.</comment>
+</experiment>

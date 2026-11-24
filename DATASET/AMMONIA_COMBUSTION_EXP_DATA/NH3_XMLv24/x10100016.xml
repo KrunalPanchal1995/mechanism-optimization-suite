@@ -1,0 +1,60 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10100016</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-08-23</firstPublicationDate>
+    <lastModificationDate>2024-08-23</lastModificationDate>
+    <bibliographyLink>
+        <description>J.B. Baker, R.K. Rahman, M. Pierro, J. Higgs, J. Urso, C. Kinney, S. Vasu, Journal of Engineering for Gas Turbines and Power 145 (2022)</description>
+        <referenceDOI>10.1115/1.4055721</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1, Mixture 5 (initial conditions)</table>
+        <figure>Fig. 10c, black squares</figure>
+        <details>
+            <author>Baker, Jessica B. and Rahman, Ramees K. and Pierro, Michael and Higgs, Jacklyn and Urso, Justin and Kinney, Cory and Vasu, Subith</author>
+            <journal>Journal of Engineering for Gas Turbines and Power</journal>
+            <number>4</number>
+            <title>Experimental Ignition Delay Time Measurements and Chemical Kinetics Modeling of Hydrogen/Ammonia/Natural Gas Fuels</title>
+            <type>Journal Article</type>
+            <volume>145</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"             label="phi"      sourcetype="reported"   units="unitless" ><value>1</value></property>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="percent" >1</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="percent" >1</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="percent" >1.25</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"    /><amount units="percent" >77.75</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" /><amount units="percent" >19</amount></component>
+        </property>
+        <property name="evaluated standard deviation"  label="std_tau"  sourcetype="estimated"  units="unitless"  reference="ignition delay"  kind="relative"  sigmarange="1"  method="combined from scatter and reported uncertainty" ><value>0.055595</value></property>
+        <property name="uncertainty"                   label="d_tau"    sourcetype="reported"   units="unitless"  reference="ignition delay"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.1</value></property>
+        <property name="pressure"                      label="p"        sourcetype="reported"   units="atm"      ><value>2.2</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"     id="x1"   label="T"    sourcetype="reported"  units="K"  />
+        <property name="ignition delay"  id="x2"   label="tau"  sourcetype="reported"  units="us" />
+
+        <dataPoint><x1>1695</x1><x2>220</x2></dataPoint>
+        <dataPoint><x1>1648</x1><x2>239</x2></dataPoint>
+        <dataPoint><x1>1573</x1><x2>297</x2></dataPoint>
+        <dataPoint><x1>1523</x1><x2>340</x2></dataPoint>
+        <dataPoint><x1>1438</x1><x2>470</x2></dataPoint>
+    </dataGroup>
+    <ignitionType target="OH*" type="max"/>
+    <comment>Reported experimental uncertainties were considered the 2sigma limits.</comment>
+</experiment>

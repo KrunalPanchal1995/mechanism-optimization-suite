@@ -1,0 +1,670 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30199081</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-11-27</firstPublicationDate>
+    <lastModificationDate>2024-11-27</lastModificationDate>
+    <bibliographyLink>
+        <description>P. García-Ruiz, M. Uruén, M. Abián, M.U. Alzueta, Fuel 348 (2023), 128302</description>
+        <referenceDOI>10.1016/j.fuel.2023.128302</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1, Set 8 - initial conditions</table>
+        <figure>Figure 3, bottom right figure (p = 40 bar), black squares (NH3); Figure 6, bottom right figure (p = 40 bar), red circles (N2)</figure>
+        <details>
+            <month>9</month>
+            <pages>128302</pages>
+            <publisher>Elsevier BV</publisher>
+            <author>García-Ruiz, P. and Uruén, M. and Abián, M. and Alzueta, M. U.</author>
+            <journal>Fuel</journal>
+            <title>High pressure ammonia oxidation in a flow reactor</title>
+            <type>Journal Article</type>
+            <volume>348</volume>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+        <mode>laminar, premixed</mode>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"                                 label="p"    sourcetype="reported"  units="bar"       ><value>40</value></property>
+        <property name="initial composition"                     >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="ppm"     >1039</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="ppm"     >765</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="percent" >99.8196</amount></component>
+        </property>
+        <property name="volumetric flow rate in reference state"  label="Q_0"  sourcetype="reported"  units="cm3 min-1" ><value>1000</value></property>
+        <property name="temperature in reference state"           label="T_0"  sourcetype="reported"  units="K"         ><value>273.15</value></property>
+        <property name="pressure in reference state"              label="p_0"  sourcetype="reported"  units="bar"       ><value>1</value></property>
+        <property name="reactor length"                           label="l"    sourcetype="reported"  units="cm"        ><value>153.8</value></property>
+        <property name="reactor diameter"                         label="d"    sourcetype="reported"  units="mm"        ><value>6</value></property>
+        <property name="uncertainty"                              label="d_T"  sourcetype="reported"  units="K"          reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>10</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"        sourcetype="digitized"   units="K"             />
+        <property name="residence time"                id="x2"   label="tau"      sourcetype="calculated"  units="s"             />
+        <property name="composition"                   id="x3"   label="xNH3"     sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="uncertainty"                   id="x4"   label="d_x_NH3"  sourcetype="reported"    units="ppm"            reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+
+        <dataPoint><x1>817</x1><x2>11.342477</x2><x3>1020</x3><x4>51</x4><x5>0.000043</x5><x6>0.000043</x6></dataPoint>
+        <dataPoint><x1>1019</x1><x2>9.091017</x2><x3>1041</x3><x4>52</x4><x5>0.000043</x5><x6>0.000043</x6></dataPoint>
+        <dataPoint><x1>1103</x1><x2>8.398920</x2><x3>1023</x3><x4>51</x4><x5>0.000043</x5><x6>0.000043</x6></dataPoint>
+        <dataPoint><x1>1145</x1><x2>8.092401</x2><x3>952</x3><x4>48</x4><x5>0.000043</x5><x6>0.000043</x6></dataPoint>
+        <dataPoint><x1>1173</x1><x2>7.898332</x2><x3>876</x3><x4>44</x4><x5>0.000042</x5><x6>0.000042</x6></dataPoint>
+        <dataPoint><x1>1200</x1><x2>7.721331</x2><x3>787</x3><x4>39</x4><x5>0.000045</x5><x6>0.000051</x6></dataPoint>
+        <dataPoint><x1>1219</x1><x2>7.598209</x2><x3>684</x3><x4>34</x4><x5>0.000054</x5><x6>0.000059</x6></dataPoint>
+        <dataPoint><x1>1247</x1><x2>7.426868</x2><x3>338</x3><x4>17</x4><x5>0.000063</x5><x6>0.000065</x6></dataPoint>
+        <dataPoint><x1>1276</x1><x2>7.260729</x2><x3>59</x3><x4>5</x4><x5>0.000065</x5><x6>0.000037</x6></dataPoint>
+    </dataGroup>
+    <comment>Recommended simulation settings based on the paper: isothermal-isobaric.</comment>
+    <comment>Based on another work of the authors with the same experimental setup (https://doi.org/10.1021/acs.energyfuels.5b00459), the temperature uncertainty was considered to be 10 K.</comment>
+    <comment>"Standard" conditions were considered as T_0 = 273.15 K and p_0 = 1 bar.</comment>
+    <comment>Wrong initial composition data for NH3 in Table 1 - data for Set 8 is in the row of Set 9. The data from Set 9 was taken.</comment>
+    <dataGroup id="dg2">
+        <property name="temperature"                   id="x1"   label="T"       sourcetype="digitized"   units="K"             />
+        <property name="residence time"                id="x2"   label="tau"     sourcetype="calculated"  units="s"             />
+        <property name="composition"                   id="x3"   label="xN2"     sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="uncertainty"                   id="x4"   label="d_x_N2"  sourcetype="reported"    units="ppm"            reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+
+        <dataPoint><x1>673</x1><x2>13.766879</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>803</x1><x2>11.538086</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1042</x1><x2>8.888275</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1123</x1><x2>8.248469</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1148</x1><x2>8.070022</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1163</x1><x2>7.967336</x2><x3>0</x3><x4>10</x4><x5>0.000007</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1173</x1><x2>7.895574</x2><x3>15</x3><x4>10</x4><x5>0.000008</x5><x6>0.000007</x6></dataPoint>
+        <dataPoint><x1>1198</x1><x2>7.731917</x2><x3>30</x3><x4>10</x4><x5>0.000009</x5><x6>0.000009</x6></dataPoint>
+        <dataPoint><x1>1224</x1><x2>7.568367</x2><x3>70</x3><x4>10</x4><x5>0.000010</x5><x6>0.000009</x6></dataPoint>
+        <dataPoint><x1>1248</x1><x2>7.421004</x2><x3>133</x3><x4>10</x4><x5>0.000024</x5><x6>0.000018</x6></dataPoint>
+        <dataPoint><x1>1273</x1><x2>7.276249</x2><x3>259</x3><x4>13</x4><x5>0.000029</x5><x6>0.000027</x6></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp1" label="817 K" dataPointLink="1">
+        <property name="distance"     id="x1"   label="d"      sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"      sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>383</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>407</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>473</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>595</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>717</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>761</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>798</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>815</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>817</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>816</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>816</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>815</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>817</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>816</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>813</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>795</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>759</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>704</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>642</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>573</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>514</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>454</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>378</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp2" label="1019 K" dataPointLink="2">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>403</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>434</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>548</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>695</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>880</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>948</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>993</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1016</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1020</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1019</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1019</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1018</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1020</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1021</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1020</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>999</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>951</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>885</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>783</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>679</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>593</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>511</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>428</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp3" label="1103 K" dataPointLink="3">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>421</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>459</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>547</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>742</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>950</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1028</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1076</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1102</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1104</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1104</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1103</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1102</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1104</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1105</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1104</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1077</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1022</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>943</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>827</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>716</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>612</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>526</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>430</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp4" label="1145 K" dataPointLink="4">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>414</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>447</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>543</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>742</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>980</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1065</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1118</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1145</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1146</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1146</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1144</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1144</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1145</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1146</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1145</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1116</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1062</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>974</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>847</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>712</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>604</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>525</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>422</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp5" label="1173 K" dataPointLink="5">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>410</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>440</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>540</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>743</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1001</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1090</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1146</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1172</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1172</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1173</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1173</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1143</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1089</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>996</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>861</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>710</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>598</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>524</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>416</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp6" label="1200 K" dataPointLink="6">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>418</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>450</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>557</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>766</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1028</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1117</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1173</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1201</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1200</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1201</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1200</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1200</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1170</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1115</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1022</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>885</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>730</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>614</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>526</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>419</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp7" label="1219 K" dataPointLink="7">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>424</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>457</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>569</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>783</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1048</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1137</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1192</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1218</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1218</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1218</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1189</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1134</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1041</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>903</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>745</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>625</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>528</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>421</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp8" label="1247 K" dataPointLink="8">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>433</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>468</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>587</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>807</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1076</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1165</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1220</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1247</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1246</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1246</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1247</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1246</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1217</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1162</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1068</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>928</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>767</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>642</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>530</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>424</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp9" label="1276 K" dataPointLink="9">
+        <property name="distance"     id="x1"   label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"   label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>441</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>478</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>605</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>831</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1106</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1193</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1277</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1275</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1277</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1274</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1275</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1276</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1275</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1274</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1246</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1190</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1096</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>954</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>788</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>659</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>532</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>427</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp10" label="673 K" dataPointLink="10">
+        <property name="distance"     id="x1"    label="d"      sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"      sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>349</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>365</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>412</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>501</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>589</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>625</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>651</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>666</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>670</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>671</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>671</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>671</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>673</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>671</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>666</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>653</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>628</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>587</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>545</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>498</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>451</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>397</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>344</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp11" label="803 K" dataPointLink="11">
+        <property name="distance"     id="x1"    label="d"      sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"      sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>375</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>398</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>462</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>583</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>706</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>749</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>784</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>801</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>803</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>802</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>802</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>801</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>803</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>802</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>799</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>781</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>748</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>693</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>633</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>566</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>506</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>444</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>363</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp12" label="1042 K" dataPointLink="12">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>412</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>449</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>549</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>715</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>901</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>971</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1016</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1040</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1043</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1043</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1042</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1042</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1043</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1044</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1043</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1021</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>970</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>901</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>795</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>697</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>604</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>518</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>432</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp13" label="1123 K" dataPointLink="13">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>417</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>453</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>545</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>742</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>965</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1046</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1096</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1123</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1124</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1124</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1123</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1122</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1124</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1125</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1123</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1096</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1041</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>958</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>837</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>715</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>608</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>525</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>426</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp14" label="1148 K" dataPointLink="14">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>414</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>447</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>542</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>742</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>983</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1068</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1121</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1148</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1149</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1149</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1147</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1147</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1148</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1149</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1148</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1119</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1065</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>977</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>849</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>712</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>603</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>525</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>421</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp15" label="1163 K" dataPointLink="15">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>411</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>443</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>541</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>743</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>993</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1081</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1136</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1163</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1164</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1164</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1162</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1162</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1163</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1164</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1163</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1133</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1079</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>988</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>856</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>711</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>600</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>524</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>418</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp16" label="1173 K" dataPointLink="16">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>410</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>440</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>540</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>743</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1001</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1091</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1146</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1172</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1172</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1174</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1173</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1143</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1089</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>996</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>861</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>710</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>598</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>524</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>416</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp17" label="1198 K" dataPointLink="17">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>418</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>449</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>556</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>764</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1026</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1116</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1171</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1197</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1197</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1198</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1199</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1197</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1168</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1113</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1020</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>884</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>729</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>613</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>526</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>419</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp18" label="1224 K" dataPointLink="18">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>425</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>459</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>572</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>787</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1053</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1142</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1197</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1225</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1224</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1225</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1223</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1223</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1224</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1224</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1223</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1194</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1139</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1045</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>907</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>749</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>628</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>528</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>421</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp19" label="1248 K" dataPointLink="19">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>433</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>468</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>588</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>808</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1077</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1166</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1221</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1249</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1249</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1247</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1247</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1249</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1248</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1247</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1218</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1163</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1069</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>929</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>767</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>642</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>530</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>424</x2></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp20" label="1273 K" dataPointLink="20">
+        <property name="distance"     id="x1"    label="d"       sourcetype="calculated"  units="cm" />
+        <property name="temperature"  id="x2"    label="T"       sourcetype="calculated"  units="K"  />
+
+        <dataPoint><x1>5</x1><x2>440</x2></dataPoint>
+        <dataPoint><x1>10</x1><x2>477</x2></dataPoint>
+        <dataPoint><x1>20</x1><x2>604</x2></dataPoint>
+        <dataPoint><x1>30</x1><x2>829</x2></dataPoint>
+        <dataPoint><x1>40</x1><x2>1103</x2></dataPoint>
+        <dataPoint><x1>45</x1><x2>1191</x2></dataPoint>
+        <dataPoint><x1>50</x1><x2>1245</x2></dataPoint>
+        <dataPoint><x1>55</x1><x2>1274</x2></dataPoint>
+        <dataPoint><x1>60</x1><x2>1273</x2></dataPoint>
+        <dataPoint><x1>65</x1><x2>1274</x2></dataPoint>
+        <dataPoint><x1>70</x1><x2>1272</x2></dataPoint>
+        <dataPoint><x1>75</x1><x2>1272</x2></dataPoint>
+        <dataPoint><x1>80</x1><x2>1273</x2></dataPoint>
+        <dataPoint><x1>85</x1><x2>1273</x2></dataPoint>
+        <dataPoint><x1>90</x1><x2>1271</x2></dataPoint>
+        <dataPoint><x1>95</x1><x2>1243</x2></dataPoint>
+        <dataPoint><x1>100</x1><x2>1187</x2></dataPoint>
+        <dataPoint><x1>105</x1><x2>1093</x2></dataPoint>
+        <dataPoint><x1>110</x1><x2>952</x2></dataPoint>
+        <dataPoint><x1>115</x1><x2>786</x2></dataPoint>
+        <dataPoint><x1>120</x1><x2>657</x2></dataPoint>
+        <dataPoint><x1>130</x1><x2>532</x2></dataPoint>
+        <dataPoint><x1>140</x1><x2>426</x2></dataPoint>
+    </dataGroup>
+</experiment>

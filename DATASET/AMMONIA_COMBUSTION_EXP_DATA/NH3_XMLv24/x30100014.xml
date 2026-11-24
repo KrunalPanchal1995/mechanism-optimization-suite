@@ -1,0 +1,101 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30100014</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>6</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>M. U. Alzueta, V. Mercader, A. Cuoci, S. Gersen, H. Hashemi, P. Glarborg, Energy &amp;amp; Fuels 38 (2024), 3369--3381</description>
+        <referenceDOI>10.1021/acs.energyfuels.3c03929</referenceDOI>
+        <location>Main article and Supp. Mat.</location>
+        <table>SM: SM003, Sheet 5</table>
+        <figure>Main article: Figure 6, 1205 ppm O2 (green circles)</figure>
+        <details>
+            <month>1</month>
+            <publisher>American Chemical Society (ACS)</publisher>
+            <author>Alzueta, Maria U. and Mercader, Victor and Cuoci, Alberto and Gersen, Sander and Hashemi, Hamid and Glarborg, Peter</author>
+            <journal>Energy &amp; Fuels</journal>
+            <number>4</number>
+            <pages>3369–3381</pages>
+            <title>Flow Reactor Oxidation of Ammonia–Hydrogen Fuel Mixtures</title>
+            <type>Journal Article</type>
+            <volume>38</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+        <mode>laminar, non-premixed</mode>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"             label="p"    sourcetype="reported"  units="atm"     ><value>1</value></property>
+        <property name="initial composition" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="ppm"     >1066</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="ppm"     >1055</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="ppm"     >1205</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" /><amount units="percent" >99.6674</amount></component>
+        </property>
+        <property name="uncertainty"          label="d_T"  sourcetype="reported"  units="K"        reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>5</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"        sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="xNH3"     sourcetype="reported"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="composition"                   id="x3"   label="xH2"      sourcetype="reported"   units="ppm"           >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="composition"                   id="x4"   label="xO2"      sourcetype="reported"   units="ppm"           >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="residence time"                id="x5"   label="tau"      sourcetype="reported"   units="s"             />
+        <property name="uncertainty"                   id="x6"   label="d_x_NH3"  sourcetype="reported"   units="ppm"            reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="uncertainty"                   id="x7"   label="d_x_H2"   sourcetype="reported"   units="ppm"            reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="uncertainty"                   id="x8"   label="d_x_O2"   sourcetype="reported"   units="ppm"            reference="composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="evaluated standard deviation"  id="x9"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x10"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x11"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="evaluated standard deviation"  id="x12"  sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+
+        <dataPoint><x1>773</x1><x2>1066</x2><x3>1055</x3><x4>1205</x4><x5>0.25</x5><x6>53</x6><x7>53</x7><x8>60</x8><x9>0.000036</x9><x10>0.000036</x10><x11>0.000028</x11><x12>0.000036</x12></dataPoint>
+        <dataPoint><x1>873</x1><x2>1063</x2><x3>1044</x3><x4>1189</x4><x5>0.22</x5><x6>53</x6><x7>52</x7><x8>59</x8><x9>0.000036</x9><x10>0.000036</x10><x11>0.000028</x11><x12>0.000035</x12></dataPoint>
+        <dataPoint><x1>973</x1><x2>1048</x2><x3>1015</x3><x4>1160</x4><x5>0.20</x5><x6>52</x6><x7>51</x7><x8>58</x8><x9>0.000035</x9><x10>0.000035</x10><x11>0.000027</x11><x12>0.000035</x12></dataPoint>
+        <dataPoint><x1>1073</x1><x2>839</x2><x3>633</x3><x4>888</x4><x5>0.18</x5><x6>42</x6><x7>32</x7><x8>44</x8><x9>0.000035</x9><x10>0.000035</x10><x11>0.000023</x11><x12>0.000032</x12></dataPoint>
+        <dataPoint><x1>1098</x1><x2>693</x2><x3>487</x3><x4>736</x4><x5>0.18</x5><x6>35</x6><x7>24</x7><x8>37</x8><x9>0.000032</x9><x10>0.000032</x10><x11>0.000019</x11><x12>0.000029</x12></dataPoint>
+        <dataPoint><x1>1123</x1><x2>591</x2><x3>398</x3><x4>646</x4><x5>0.17</x5><x6>30</x6><x7>20</x7><x8>32</x8><x9>0.000031</x9><x10>0.000031</x10><x11>0.000015</x11><x12>0.000027</x12></dataPoint>
+        <dataPoint><x1>1148</x1><x2>467</x2><x3>324</x3><x4>545</x4><x5>0.17</x5><x6>23</x6><x7>16</x7><x8>27</x8><x9>0.000029</x9><x10>0.000029</x10><x11>0.000013</x11><x12>0.000026</x12></dataPoint>
+        <dataPoint><x1>1173</x1><x2>400</x2><x3>283</x3><x4>488</x4><x5>0.17</x5><x6>20</x6><x7>14</x7><x8>24</x8><x9>0.000028</x9><x10>0.000028</x10><x11>0.000013</x11><x12>0.000025</x12></dataPoint>
+        <dataPoint><x1>1198</x1><x2>246</x2><x3>220</x3><x4>357</x4><x5>0.16</x5><x6>12</x6><x7>11</x7><x8>18</x8><x9>0.000027</x9><x10>0.000026</x10><x11>0.000012</x11><x12>0.000023</x12></dataPoint>
+        <dataPoint><x1>1223</x1><x2>144</x2><x3>181</x3><x4>268</x4><x5>0.16</x5><x6>10</x6><x7>10</x7><x8>13</x8><x9>0.000025</x9><x10>0.000025</x10><x11>0.000011</x11><x12>0.000022</x12></dataPoint>
+        <dataPoint><x1>1248</x1><x2>0</x2><x3>144</x3><x4>168</x4><x5>0.16</x5><x6>10</x6><x7>10</x7><x8>10</x8><x9>0.000025</x9><x10>0.000025</x10><x11>0.000011</x11><x12>0.000021</x12></dataPoint>
+        <dataPoint><x1>1273</x1><x2>0</x2><x3>103</x3><x4>100</x4><x5>0.15</x5><x6>10</x6><x7>10</x7><x8>10</x8><x9>0.000025</x9><x10>0.000025</x10><x11>0.000011</x11><x12>0.000021</x12></dataPoint>
+        <dataPoint><x1>1323</x1><x2>0</x2><x3>43</x3><x4>34</x4><x5>0.15</x5><x6>10</x6><x7>10</x7><x8>10</x8><x9>0.000024</x9><x10>0.000024</x10><x11>0.000010</x11><x12>0.000020</x12></dataPoint>
+        <dataPoint><x1>1373</x1><x2>0</x2><x3>40</x3><x4>14</x4><x5>0.14</x5><x6>10</x6><x7>10</x7><x8>10</x8><x9>0.000024</x9><x10>0.000024</x10><x11>0.000010</x11><x12>0.000020</x12></dataPoint>
+    </dataGroup>
+    <comment>The same experimental setup was used in the work of Abian et al., 2021 (https://doi.org/10.1016/j.fuel.2021.120979); therefore, the temperature uncertainty of the isothermal zone was taken from that work.</comment>
+    <comment>Based on personal communication with P. Glarborg, the measured data at 773 K should be considered the initial composition of the gas mixture for each data series.</comment>
+    <comment>Based on the recommendation of the authors in the paper, the measured NO and N2O data will not be used for model validation (and not included in the XMLs) because they are not reliable, only the measured NH3, H2, and O2 data will be used.</comment>
+</experiment>

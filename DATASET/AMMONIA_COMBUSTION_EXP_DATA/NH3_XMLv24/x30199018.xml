@@ -1,0 +1,83 @@
+<experiment>
+    <fileAuthor>Bence Horvath / Andras Szanthoffer (2021); ELTE Chemical Kinetic Laboratory</fileAuthor>
+    <fileDOI>10.24388/x30199018</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-03-13</firstPublicationDate>
+    <lastModificationDate>2023-03-13</lastModificationDate>
+    <bibliographyLink>
+        <description>J.A. Caton, J.K. Narney, H.C. Cariappa, W.R. Laster, The Canadian Journal of Chemical Engineering 73 (1995), 345–350</description>
+        <referenceDOI>10.1002/cjce.5450730311</referenceDOI>
+        <location>Main Article</location>
+        <figure>Fig. 9.</figure>
+        <details>
+            <author>Caton, J. A. and Narney, J. K. and Cariappa, H. C. and Laster, W. R.</author>
+            <journal>The Canadian Journal of Chemical Engineering</journal>
+            <number>3</number>
+            <pages>345–350</pages>
+            <title>The selective non‐catalytic reduction of nitric oxide using ammonia at up to 15% oxygen</title>
+            <type>Journal Article</type>
+            <volume>73</volume>
+            <year>1995</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+        <mode>laminar</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="initial composition"           sourcetype="reported"  >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="mole fraction" >0.000990</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="mole fraction" >0.150</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="mole fraction" >0.84901</amount></component>
+        </property>
+        <property name="pressure"                      label="p"  sourcetype="reported"   units="Pa"            ><value>102000</value></property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+            <value>5e-06</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="digitized"   units="K"             />
+        <property name="residence time"                id="x2"   label="tau"    sourcetype="calculated"  units="s"             />
+        <property name="composition"                   id="x3"   label="x_NO"   sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="composition"                   id="x4"   label="x_N2O"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide" />
+        </property>
+        <property name="composition"                   id="x5"   label="x_NH3"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x7"   sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"    SMILES="N"           chemName="ammonia"       />
+        </property>
+
+        <dataPoint><x1>798</x1><x2>2.696</x2><x3>0</x3><x4>0</x4><x5>980</x5><x6>5e-06</x6><x7>4.9e-05</x7></dataPoint>
+        <dataPoint><x1>849</x1><x2>2.536</x2><x3>0</x3><x4>0</x4><x5>986</x5><x6>5e-06</x6><x7>5e-05</x7></dataPoint>
+        <dataPoint><x1>899</x1><x2>2.393</x2><x3>0</x3><x4>0</x4><x5>985</x5><x6>5e-06</x6><x7>5e-05</x7></dataPoint>
+        <dataPoint><x1>924</x1><x2>2.329</x2><x3>0</x3><x4>0</x4><x5>971</x5><x6>5e-06</x6><x7>4.9e-05</x7></dataPoint>
+        <dataPoint><x1>948</x1><x2>2.270</x2><x3>0</x3><x4>1</x4><x5>943</x5><x6>5e-06</x6><x7>4.8e-05</x7></dataPoint>
+        <dataPoint><x1>973</x1><x2>2.212</x2><x3>0</x3><x4>1</x4><x5>926</x5><x6>5e-06</x6><x7>4.7e-05</x7></dataPoint>
+        <dataPoint><x1>998</x1><x2>2.157</x2><x3>0</x3><x4>3</x4><x5>886</x5><x6>5e-06</x6><x7>4.5e-05</x7></dataPoint>
+        <dataPoint><x1>1024</x1><x2>2.103</x2><x3>0</x3><x4>5</x4><x5>846</x5><x6>5e-06</x6><x7>4.3e-05</x7></dataPoint>
+        <dataPoint><x1>1048</x1><x2>2.053</x2><x3>0</x3><x4>9</x4><x5>762</x5><x6>5e-06</x6><x7>3.8e-05</x7></dataPoint>
+        <dataPoint><x1>1074</x1><x2>2.004</x2><x3>12</x3><x4>16</x4><x5>598</x5><x6>5e-06</x6><x7>3e-05</x7></dataPoint>
+        <dataPoint><x1>1099</x1><x2>1.959</x2><x3>14</x3><x4>29</x4><x5>353</x5><x6>5e-06</x6><x7>1.8e-05</x7></dataPoint>
+        <dataPoint><x1>1125</x1><x2>1.914</x2><x3>25</x3><x4>38</x4><x5>71</x5><x6>5e-06</x6><x7>5e-06</x7></dataPoint>
+        <dataPoint><x1>1149</x1><x2>1.873</x2><x3>35</x3><x4>32</x4><x5>12</x5><x6>5e-06</x6><x7>5e-06</x7></dataPoint>
+        <dataPoint><x1>1174</x1><x2>1.833</x2><x3>35</x3><x4>25</x4><x5>9</x5><x6>5e-06</x6><x7>5e-06</x7></dataPoint>
+        <dataPoint><x1>1200</x1><x2>1.794</x2><x3>43</x3><x4>18</x4><x5>3</x5><x6>6e-06</x6><x7>5e-06</x7></dataPoint>
+    </dataGroup>
+    <comment>The total flow through the reactor was maintained at 1200 mL (STP)/min for these experiments. This constant mass flow rate resulted in different volumetric flow rates at the different reactor temperatures. This resulted in a residence time of 2.1 s for a reactor temperature of 1025 K for the base case conditions.</comment>
+</experiment>

@@ -47,3 +47,10 @@ ERROR condition returned from AURORA
 
 
  Total CPUtime: 10 (seconds)
+ 
+ 
+ 
+ 
+ solve: 
+echo "10.24.0.171   cclicserver" | sudo tee -a /etc/hosts
+

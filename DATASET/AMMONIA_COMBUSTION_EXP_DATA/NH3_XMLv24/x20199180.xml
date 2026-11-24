@@ -1,0 +1,63 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199180</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-25</firstPublicationDate>
+    <lastModificationDate>2024-06-25</lastModificationDate>
+    <bibliographyLink>
+        <description>Y. Zhang, W. Zhang, B. Yu, X. Li, L. Zhang, Y. Zhao, S. Sun, International Journal of Hydrogen Energy 63 (2024), 857–870</description>
+        <referenceDOI>10.1016/j.ijhydene.2024.03.042</referenceDOI>
+        <location>Main Article</location>
+        <figure>Fig. 3c, red circles (400 K)</figure>
+        <details>
+            <author>Zhang, Yu and Zhang, Wenda and Yu, Boshuai and Li, Xincheng and Zhang, Linyao and Zhao, Yijun and Sun, Shaozeng</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <pages>857–870</pages>
+            <title>Experimental and kinetic modeling study on laminar flame speeds and emission characteristics of oxy-ammonia premixed flames</title>
+            <type>Journal Article</type>
+            <volume>63</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>flame area method</kind>
+        <mode>Bunsen burner flame, NH* detection</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"              label="T"      sourcetype="reported"  units="K"   ><value>400</value></property>
+        <property name="pressure"                 label="p"      sourcetype="reported"  units="atm" ><value>1</value></property>
+        <property name="environment temperature"  label="T_env"  sourcetype="reported"  units="K"   ><value>298.15</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="digitized"   units="unitless"      />
+        <property name="initial composition"           id="x2"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia" />
+        </property>
+        <property name="initial composition"           id="x3"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"  />
+        </property>
+        <property name="laminar burning velocity"      id="x4"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="uncertainty"                   id="x5"   label="d_LBV"    sourcetype="digitized"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x6"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.60</x1><x2>0.444444</x2><x3>0.555556</x3><x4>171.07</x4><x5>9.08</x5><x6>6.4794</x6></dataPoint>
+        <dataPoint><x1>0.70</x1><x2>0.482759</x2><x3>0.517241</x3><x4>179.32</x4><x5>8.50</x5><x6>6.4475</x6></dataPoint>
+        <dataPoint><x1>0.80</x1><x2>0.516129</x2><x3>0.483871</x3><x4>182.97</x4><x5>9.54</x5><x6>6.8703</x6></dataPoint>
+        <dataPoint><x1>0.90</x1><x2>0.545455</x2><x3>0.454546</x3><x4>176.98</x4><x5>9.31</x5><x6>6.6739</x6></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>0.571429</x2><x3>0.428571</x3><x4>162.71</x4><x5>8.50</x5><x6>6.1170</x6></dataPoint>
+        <dataPoint><x1>1.10</x1><x2>0.594595</x2><x3>0.405405</x3><x4>142.00</x4><x5>7.47</x5><x6>5.3553</x6></dataPoint>
+        <dataPoint><x1>1.20</x1><x2>0.615385</x2><x3>0.384615</x3><x4>128.65</x4><x5>6.43</x5><x6>4.7376</x6></dataPoint>
+        <dataPoint><x1>1.30</x1><x2>0.634146</x2><x3>0.365854</x3><x4>117.14</x4><x5>4.83</x5><x6>3.9812</x6></dataPoint>
+        <dataPoint><x1>1.40</x1><x2>0.651163</x2><x3>0.348837</x3><x4>103.79</x4><x5>4.25</x5><x6>3.5201</x6></dataPoint>
+        <dataPoint><x1>1.50</x1><x2>0.666667</x2><x3>0.333333</x3><x4>83.78</x4><x5>4.71</x5><x6>3.2675</x6></dataPoint>
+    </dataGroup>
+    <comment>Although the Bunsen burner flame bends and stretches, the stretch effect mainly comes from the curvature part at the flame's tip [https://doi.org/10.1016/j.ijhydene.2015.11.120]. Natarajan et al. [https://doi.org/10.1016/j.combustflame.2007.05.003] found that the flame-area method reduces the effects of flame-bending on flame speed and is in close agreement with the unstretched SL.</comment>
+</experiment>

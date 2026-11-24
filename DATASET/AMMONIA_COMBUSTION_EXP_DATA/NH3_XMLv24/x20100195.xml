@@ -1,0 +1,58 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100195</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-17</firstPublicationDate>
+    <lastModificationDate>2024-06-17</lastModificationDate>
+    <bibliographyLink>
+        <description>S. Masoumi, E. Houshfar, M. Ashjaee, Fuel 357 (2024), 130081</description>
+        <referenceDOI>10.1016/j.fuel.2023.130081</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1 (initial conditions)</table>
+        <figure>Fig. 5b, blue diamonds (EGR = 0.10)</figure>
+        <details>
+            <author>Masoumi, Soheil and Houshfar, Ehsan and Ashjaee, Mehdi</author>
+            <journal>Fuel</journal>
+            <pages>130081</pages>
+            <title>Experimental and numerical analysis of ammonia/hydrogen combustion under artificial exhaust gas recirculation</title>
+            <type>Journal Article</type>
+            <volume>357</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="initial composition"  sourcetype="calculated" >
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="mole fraction" >0.087907</amount></component>
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="mole fraction" >0.131861</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="mole fraction" >0.142849</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" /><amount units="mole fraction" >0.607384</amount></component>
+            <component><speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"     chemName="water"    /><amount units="mole fraction" >0.030000</amount></component>
+        </property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"    units="unitless"      ><value>1</value></property>
+        <property name="temperature"          label="T"    sourcetype="reported"    units="K"             ><value>450</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"   units="bar"  />
+        <property name="laminar burning velocity"      id="x2"   label="LBV"      sourcetype="digitized"  units="cm/s" />
+        <property name="uncertainty"                   id="x3"   label="d_LBV"    sourcetype="digitized"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x4"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>1.00</x1><x2>39.32</x2><x3>1.14</x3><x4>0.6109</x4></dataPoint>
+        <dataPoint><x1>2.00</x1><x2>31.41</x2><x3>1.04</x3><x4>0.5651</x4></dataPoint>
+        <dataPoint><x1>3.00</x1><x2>26.71</x2><x3>1.11</x3><x4>0.5994</x4></dataPoint>
+        <dataPoint><x1>4.00</x1><x2>23.65</x2><x3>1.04</x3><x4>0.5651</x4></dataPoint>
+        <dataPoint><x1>5.00</x1><x2>21.63</x2><x3>0.96</x3><x4>0.5311</x4></dataPoint>
+    </dataGroup>
+</experiment>

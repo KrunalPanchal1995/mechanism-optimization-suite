@@ -1,0 +1,63 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199113</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-01-05</firstPublicationDate>
+    <lastModificationDate>2024-01-05</lastModificationDate>
+    <bibliographyLink>
+        <description>R. Kanoshima, A. Hayakawa, T. Kudo, E.C. Okafor, S. Colson, A. Ichikawa, T. Kudo, H. Kobayashi, Fuel 310 (2022), 122149</description>
+        <referenceDOI>10.1016/j.fuel.2021.122149</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1, T = 500 K, p = 0.1 MPa</table>
+        <figure>Fig. 6a, red squares</figure>
+        <details>
+            <author>Kanoshima, Ryuhei and Hayakawa, Akihiro and Kudo, Takahiro and Okafor, Ekenechukwu C. and Colson, Sophie and Ichikawa, Akinori and Kudo, Taku and Kobayashi, Hideaki</author>
+            <journal>Fuel</journal>
+            <pages>122149</pages>
+            <title>Effects of initial mixture temperature and pressure on laminar burning velocity and Markstein length of ammonia/air premixed laminar flames</title>
+            <type>Journal Article</type>
+            <volume>310</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method to zero stretch: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"     label="p"      sourcetype="reported"   units="MPa"      ><value>0.1</value></property>
+        <property name="temperature"  label="T"      sourcetype="reported"   units="K"        ><value>500</value></property>
+        <property name="uncertainty"  label="d_T"    sourcetype="reported"   units="K"         reference="temperature"               kind="absolute"  bound="plusminus"  sigmarange="2" ><value>8</value></property>
+        <property name="uncertainty"  label="d_LBV"  sourcetype="estimated"  units="unitless"  reference="laminar burning velocity"  kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.167631</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="composition"                   id="x2"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+        </property>
+        <property name="composition"                   id="x3"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+        </property>
+        <property name="composition"                   id="x4"   label="x_N2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="reported"    units="cm/s"          />
+        <property name="evaluated standard deviation"  id="x6"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.8</x1><x2>0.183007</x2><x3>0.171569</x3><x4>0.645425</x4><x5>11.06</x5><x6>1.1979</x6></dataPoint>
+        <dataPoint><x1>0.9</x1><x2>0.201278</x2><x3>0.167732</x3><x4>0.630990</x4><x5>13.86</x5><x6>1.5012</x6></dataPoint>
+        <dataPoint><x1>1.0</x1><x2>0.218750</x2><x3>0.164063</x3><x4>0.617188</x4><x5>19.70</x5><x6>2.1337</x6></dataPoint>
+        <dataPoint><x1>1.1</x1><x2>0.235474</x2><x3>0.160550</x3><x4>0.603976</x4><x5>21.35</x5><x6>2.3124</x6></dataPoint>
+        <dataPoint><x1>1.2</x1><x2>0.251497</x2><x3>0.157186</x3><x4>0.591317</x4><x5>21.17</x5><x6>2.2929</x6></dataPoint>
+    </dataGroup>
+    <comment>Overall experimental uncertainties were not reported in the paper. It was reported that the maximum LBV uncertainty due to temperature uncertainty is 5%. The radiation-induced LBV uncertainty changed between 4% and 16%. According to the authors, LBV uncertainty coming from other factors is negligible rlative to these two contributions. As a conservative estimation, the overall experimental LBV uncertainty was calculated as follows: d_LBV = sqrt(0.05^2+0.16^2) = 0.167631 (16.7631%). This is considered as the 2sigma experimental uncertainty.</comment>
+    <comment>Air was assumed to be composed of 21% O2 and 79% N2.</comment>
+</experiment>

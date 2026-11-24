@@ -1,0 +1,1225 @@
+case,reaction,S_value,abs_S,selected_by_threshold,rescued_by_correlation,correlated_with,final_in_PRS
+0,nc7h16 + h => c7h15-3 + h2,0.135431,0.135431,True,False,,True
+0,nc7h16 => c5h11-1 + c2h5,-0.061278,0.061278,True,False,,True
+0,nc7h16 + oh => c7h15-3 + h2o,0.056721,0.056721,True,False,,True
+0,nc7h16 => pc4h9 + nc3h7,-0.049373,0.049373,False,False,,False
+0,nc7h16 + h => c7h15-4 + h2,-0.049195,0.049195,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+0,nc7h16 + h => c7h15-1 + h2,0.039884,0.039884,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+0,nc7h16 + oh => c7h15-4 + h2o,-0.035664,0.035664,False,False,,False
+0,nc7h16 + oh => c7h15-2 + h2o,-0.016934,0.016934,False,False,,False
+0,nc7h16 + ho2 => c7h15-2 + h2o2,-0.013845,0.013845,False,False,,False
+0,c7h15-3 => c4h8-1 + nc3h7,0.010099,0.010099,False,False,,False
+0,nc7h16 + ho2 => c7h15-4 + h2o2,-0.009063,0.009063,False,False,,False
+0,nc7h16 + ho2 => c7h15-3 + h2o2,-0.008102,0.008102,False,False,,False
+0,nc7h16 + ho2 => c7h15-1 + h2o2,-0.005191,0.005191,False,False,,False
+0,nc7h16 + h => c7h15-2 + h2,-0.004133,0.004133,False,False,,False
+0,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003782,0.003782,False,False,,False
+0,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.003194,0.003194,False,False,,False
+0,c7h15-4 => c2h5 + c5h10-1,-0.001782,0.001782,False,False,,False
+0,c7h15-2 => pc4h9 + c3h6,-0.000348,0.000348,False,False,,False
+1,nc7h16 + h => c7h15-3 + h2,0.128926,0.128926,True,False,,True
+1,nc7h16 => c5h11-1 + c2h5,-0.061469,0.061469,True,False,,True
+1,nc7h16 + oh => c7h15-3 + h2o,0.059952,0.059952,True,False,,True
+1,nc7h16 => pc4h9 + nc3h7,-0.049767,0.049767,False,False,,False
+1,nc7h16 + h => c7h15-4 + h2,-0.045694,0.045694,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+1,nc7h16 + h => c7h15-1 + h2,0.037384,0.037384,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+1,nc7h16 + oh => c7h15-4 + h2o,-0.036416,0.036416,False,False,,False
+1,nc7h16 + oh => c7h15-2 + h2o,-0.020375,0.020375,False,False,,False
+1,nc7h16 + ho2 => c7h15-2 + h2o2,-0.018975,0.018975,False,False,,False
+1,nc7h16 + ho2 => c7h15-4 + h2o2,-0.012135,0.012135,False,False,,False
+1,nc7h16 + ho2 => c7h15-3 + h2o2,-0.011449,0.011449,False,False,,False
+1,nc7h16 + h => c7h15-2 + h2,-0.010428,0.010428,False,False,,False
+1,c7h15-3 => c4h8-1 + nc3h7,0.008845,0.008845,False,False,,False
+1,nc7h16 + ho2 => c7h15-1 + h2o2,-0.007536,0.007536,False,False,,False
+1,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.005388,0.005388,False,False,,False
+1,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.004424,0.004424,False,False,,False
+1,c7h15-4 => c2h5 + c5h10-1,-0.001692,0.001692,False,False,,False
+1,c7h15-2 => pc4h9 + c3h6,-0.000546,0.000546,False,False,,False
+10,nc7h16 + ho2 => c7h15-2 + h2o2,-0.074499,0.074499,True,False,,True
+10,nc7h16 + ho2 => c7h15-3 + h2o2,-0.056339,0.056339,True,False,,True
+10,nc7h16 + oh => c7h15-3 + h2o,0.046674,0.046674,False,False,,False
+10,nc7h16 => c5h11-1 + c2h5,-0.043283,0.043283,False,False,,False
+10,nc7h16 + h => c7h15-3 + h2,0.042408,0.042408,False,False,,False
+10,nc7h16 + ho2 => c7h15-4 + h2o2,-0.040726,0.040726,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.93),True
+10,nc7h16 => pc4h9 + nc3h7,-0.035762,0.035762,False,False,,False
+10,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.031857,0.031857,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88),True
+10,nc7h16 + ho2 => c7h15-1 + h2o2,-0.029969,0.029969,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97),True
+10,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.0294,0.0294,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+10,nc7h16 + h => c7h15-2 + h2,-0.026275,0.026275,False,False,,False
+10,nc7h16 + oh => c7h15-2 + h2o,-0.023444,0.023444,False,False,,False
+10,nc7h16 + h => c7h15-4 + h2,-0.016391,0.016391,False,False,,False
+10,nc7h16 + oh => c7h15-4 + h2o,-0.015471,0.015471,False,False,,False
+10,nc7h16 + h => c7h15-1 + h2,0.008686,0.008686,False,False,,False
+10,c7h15-2 => pc4h9 + c3h6,0.002211,0.002211,False,False,,False
+10,c7h15-3 => c4h8-1 + nc3h7,0.000898,0.000898,False,False,,False
+10,c7h15-4 => c2h5 + c5h10-1,-5e-06,5e-06,False,False,,False
+11,nc7h16 + ho2 => c7h15-2 + h2o2,-0.07943,0.07943,True,False,,True
+11,nc7h16 + ho2 => c7h15-3 + h2o2,-0.062285,0.062285,True,False,,True
+11,nc7h16 + ho2 => c7h15-4 + h2o2,-0.043501,0.043501,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.93),True
+11,nc7h16 + oh => c7h15-3 + h2o,0.0431,0.0431,False,False,,False
+11,nc7h16 => c5h11-1 + c2h5,-0.041837,0.041837,False,False,,False
+11,nc7h16 + h => c7h15-3 + h2,0.035925,0.035925,False,False,,False
+11,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.034852,0.034852,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88),True
+11,nc7h16 => pc4h9 + nc3h7,-0.034702,0.034702,False,False,,False
+11,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.032544,0.032544,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+11,nc7h16 + ho2 => c7h15-1 + h2o2,-0.03249,0.03249,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97),True
+11,nc7h16 + h => c7h15-2 + h2,-0.023824,0.023824,False,False,,False
+11,nc7h16 + oh => c7h15-2 + h2o,-0.021607,0.021607,False,False,,False
+11,nc7h16 + h => c7h15-4 + h2,-0.014214,0.014214,False,False,,False
+11,nc7h16 + oh => c7h15-4 + h2o,-0.013804,0.013804,False,False,,False
+11,nc7h16 + h => c7h15-1 + h2,0.007034,0.007034,False,False,,False
+11,c7h15-2 => pc4h9 + c3h6,0.002761,0.002761,False,False,,False
+11,c7h15-3 => c4h8-1 + nc3h7,0.000931,0.000931,False,False,,False
+11,c7h15-4 => c2h5 + c5h10-1,0.000224,0.000224,False,False,,False
+12,nc7h16 + ho2 => c7h15-2 + h2o2,-0.098339,0.098339,True,False,,True
+12,nc7h16 + ho2 => c7h15-3 + h2o2,-0.097666,0.097666,True,False,,True
+12,nc7h16 + ho2 => c7h15-4 + h2o2,-0.05537,0.05537,True,False,,True
+12,nc7h16 + ho2 => c7h15-1 + h2o2,-0.04797,0.04797,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.97),True
+12,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.039434,0.039434,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+12,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.038791,0.038791,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.81),True
+12,nc7h16 => c5h11-1 + c2h5,-0.038483,0.038483,False,False,,False
+12,nc7h16 => pc4h9 + nc3h7,-0.032371,0.032371,False,False,,False
+12,nc7h16 + oh => c7h15-3 + h2o,0.012372,0.012372,False,False,,False
+12,nc7h16 + oh => c7h15-4 + h2o,-0.009934,0.009934,False,False,,False
+12,c7h15-2 => pc4h9 + c3h6,0.008582,0.008582,False,False,,False
+12,nc7h16 + h => c7h15-4 + h2,-0.007256,0.007256,False,False,,False
+12,nc7h16 + h => c7h15-2 + h2,-0.00612,0.00612,False,False,,False
+12,c7h15-3 => c4h8-1 + nc3h7,0.002166,0.002166,False,False,,False
+12,nc7h16 + h => c7h15-3 + h2,0.001222,0.001222,False,False,,False
+12,nc7h16 + oh => c7h15-2 + h2o,-0.000843,0.000843,False,False,,False
+12,c7h15-4 => c2h5 + c5h10-1,0.000604,0.000604,False,False,,False
+12,nc7h16 + h => c7h15-1 + h2,-0.000365,0.000365,False,False,,False
+13,nc7h16 + ho2 => c7h15-3 + h2o2,-0.133235,0.133235,True,False,,True
+13,nc7h16 + ho2 => c7h15-2 + h2o2,-0.126087,0.126087,True,False,,True
+13,nc7h16 + ho2 => c7h15-4 + h2o2,-0.065309,0.065309,True,False,,True
+13,nc7h16 + ho2 => c7h15-1 + h2o2,-0.060396,0.060396,True,False,,True
+13,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.047924,0.047924,False,True,nc7h16 + ho2 => c7h15-1 + h2o2 (r=+0.83); nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+13,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.045809,0.045809,False,True,nc7h16 + ho2 => c7h15-1 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.81),True
+13,c7h15-2 => pc4h9 + c3h6,0.030496,0.030496,False,False,,False
+13,nc7h16 => c5h11-1 + c2h5,-0.022737,0.022737,False,False,,False
+13,nc7h16 => pc4h9 + nc3h7,-0.019475,0.019475,False,False,,False
+13,c7h15-3 => c4h8-1 + nc3h7,0.017034,0.017034,False,False,,False
+13,nc7h16 + h => c7h15-2 + h2,-0.011007,0.011007,False,False,,False
+13,nc7h16 + h => c7h15-3 + h2,-0.010777,0.010777,False,False,,False
+13,nc7h16 + oh => c7h15-4 + h2o,0.008471,0.008471,False,False,,False
+13,c7h15-4 => c2h5 + c5h10-1,0.008439,0.008439,False,False,,False
+13,nc7h16 + oh => c7h15-3 + h2o,-0.005781,0.005781,False,False,,False
+13,nc7h16 + h => c7h15-4 + h2,-0.005003,0.005003,False,False,,False
+13,nc7h16 + h => c7h15-1 + h2,-0.004134,0.004134,False,False,,False
+13,nc7h16 + oh => c7h15-2 + h2o,0.003385,0.003385,False,False,,False
+14,nc7h16 + ho2 => c7h15-3 + h2o2,-0.14132,0.14132,True,False,,True
+14,nc7h16 + ho2 => c7h15-2 + h2o2,-0.135996,0.135996,True,False,,True
+14,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.068126,0.068126,True,False,,True
+14,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.066442,0.066442,True,False,,True
+14,nc7h16 + ho2 => c7h15-4 + h2o2,-0.066243,0.066243,True,False,,True
+14,nc7h16 + ho2 => c7h15-1 + h2o2,-0.06562,0.06562,True,False,,True
+14,c7h15-2 => pc4h9 + c3h6,0.044081,0.044081,False,False,,False
+14,c7h15-3 => c4h8-1 + nc3h7,0.031182,0.031182,False,False,,False
+14,nc7h16 => c5h11-1 + c2h5,-0.021765,0.021765,False,False,,False
+14,nc7h16 => pc4h9 + nc3h7,-0.018581,0.018581,False,False,,False
+14,nc7h16 + h => c7h15-2 + h2,-0.018286,0.018286,False,False,,False
+14,nc7h16 + oh => c7h15-4 + h2o,0.013558,0.013558,False,False,,False
+14,nc7h16 + h => c7h15-3 + h2,-0.012656,0.012656,False,False,,False
+14,c7h15-4 => c2h5 + c5h10-1,0.011909,0.011909,False,False,,False
+14,nc7h16 + h => c7h15-1 + h2,-0.006268,0.006268,False,False,,False
+14,nc7h16 + h => c7h15-4 + h2,-0.006012,0.006012,False,False,,False
+14,nc7h16 + oh => c7h15-2 + h2o,-0.005982,0.005982,False,False,,False
+14,nc7h16 + oh => c7h15-3 + h2o,-0.002925,0.002925,False,False,,False
+15,nc7h16 + h => c7h15-3 + h2,0.120513,0.120513,True,False,,True
+15,nc7h16 + h => c7h15-2 + h2,0.080053,0.080053,True,False,,True
+15,nc7h16 => c5h11-1 + c2h5,-0.044957,0.044957,False,False,,False
+15,nc7h16 + h => c7h15-4 + h2,-0.037104,0.037104,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+15,nc7h16 => pc4h9 + nc3h7,-0.034902,0.034902,False,False,,False
+15,nc7h16 + h => c7h15-1 + h2,0.032148,0.032148,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+15,nc7h16 + oh => c7h15-3 + h2o,0.026467,0.026467,False,False,,False
+15,nc7h16 + oh => c7h15-2 + h2o,0.014564,0.014564,False,False,,False
+15,nc7h16 + oh => c7h15-4 + h2o,-0.013927,0.013927,False,False,,False
+15,c7h15-2 => pc4h9 + c3h6,0.006677,0.006677,False,False,,False
+15,c7h15-3 => c4h8-1 + nc3h7,0.006467,0.006467,False,False,,False
+15,nc7h16 + ho2 => c7h15-2 + h2o2,0.001053,0.001053,False,False,,False
+15,nc7h16 + ho2 => c7h15-3 + h2o2,-0.00093,0.00093,False,False,,False
+15,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000923,0.000923,False,False,,False
+15,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000632,0.000632,False,False,,False
+15,c7h15-4 => c2h5 + c5h10-1,0.000595,0.000595,False,False,,False
+15,nc7h16 + ho2 => c7h15-1 + h2o2,0.000569,0.000569,False,False,,False
+15,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.000377,0.000377,False,False,,False
+16,nc7h16 + h => c7h15-3 + h2,0.144029,0.144029,True,False,,True
+16,nc7h16 + h => c7h15-2 + h2,0.093162,0.093162,True,False,,True
+16,nc7h16 => c5h11-1 + c2h5,-0.049827,0.049827,False,False,,False
+16,nc7h16 + h => c7h15-4 + h2,-0.047874,0.047874,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+16,nc7h16 + h => c7h15-1 + h2,0.043818,0.043818,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+16,nc7h16 => pc4h9 + nc3h7,-0.038928,0.038928,False,False,,False
+16,nc7h16 + oh => c7h15-3 + h2o,0.032168,0.032168,False,False,,False
+16,nc7h16 + oh => c7h15-4 + h2o,-0.019002,0.019002,False,False,,False
+16,nc7h16 + oh => c7h15-2 + h2o,0.015474,0.015474,False,False,,False
+16,c7h15-3 => c4h8-1 + nc3h7,0.009005,0.009005,False,False,,False
+16,c7h15-2 => pc4h9 + c3h6,0.005729,0.005729,False,False,,False
+16,nc7h16 + ho2 => c7h15-3 + h2o2,-0.001117,0.001117,False,False,,False
+16,c7h15-4 => c2h5 + c5h10-1,-0.00086,0.00086,False,False,,False
+16,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000702,0.000702,False,False,,False
+16,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.000353,0.000353,False,False,,False
+16,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000188,0.000188,False,False,,False
+16,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000173,0.000173,False,False,,False
+16,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,1.8e-05,1.8e-05,False,False,,False
+17,nc7h16 + h => c7h15-3 + h2,0.129656,0.129656,True,False,,True
+17,nc7h16 + h => c7h15-2 + h2,0.075173,0.075173,True,False,,True
+17,nc7h16 + h => c7h15-4 + h2,-0.050098,0.050098,True,False,,True
+17,nc7h16 => c5h11-1 + c2h5,-0.04999,0.04999,False,False,,False
+17,nc7h16 => pc4h9 + nc3h7,-0.039137,0.039137,False,False,,False
+17,nc7h16 + h => c7h15-1 + h2,0.032967,0.032967,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+17,nc7h16 + oh => c7h15-3 + h2o,0.031287,0.031287,False,False,,False
+17,nc7h16 + oh => c7h15-4 + h2o,-0.016476,0.016476,False,False,,False
+17,nc7h16 + oh => c7h15-2 + h2o,0.013502,0.013502,False,False,,False
+17,c7h15-3 => c4h8-1 + nc3h7,0.00876,0.00876,False,False,,False
+17,c7h15-2 => pc4h9 + c3h6,0.007074,0.007074,False,False,,False
+17,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.001344,0.001344,False,False,,False
+17,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.001187,0.001187,False,False,,False
+17,nc7h16 + ho2 => c7h15-4 + h2o2,0.001046,0.001046,False,False,,False
+17,nc7h16 + ho2 => c7h15-3 + h2o2,0.000914,0.000914,False,False,,False
+17,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000236,0.000236,False,False,,False
+17,c7h15-4 => c2h5 + c5h10-1,0.000119,0.000119,False,False,,False
+17,nc7h16 + ho2 => c7h15-1 + h2o2,8.9e-05,8.9e-05,False,False,,False
+18,nc7h16 + h => c7h15-3 + h2,0.181657,0.181657,True,False,,True
+18,nc7h16 + h => c7h15-2 + h2,0.082339,0.082339,True,False,,True
+18,nc7h16 + h => c7h15-4 + h2,-0.071729,0.071729,True,False,,True
+18,nc7h16 + h => c7h15-1 + h2,0.059213,0.059213,True,False,,True
+18,nc7h16 => c5h11-1 + c2h5,-0.056325,0.056325,True,False,,True
+18,nc7h16 + oh => c7h15-3 + h2o,0.050134,0.050134,True,False,,True
+18,nc7h16 => pc4h9 + nc3h7,-0.044049,0.044049,False,False,,False
+18,nc7h16 + oh => c7h15-4 + h2o,-0.028974,0.028974,False,False,,False
+18,nc7h16 + oh => c7h15-2 + h2o,0.014239,0.014239,False,False,,False
+18,c7h15-3 => c4h8-1 + nc3h7,0.011946,0.011946,False,False,,False
+18,c7h15-2 => pc4h9 + c3h6,0.003966,0.003966,False,False,,False
+18,c7h15-4 => c2h5 + c5h10-1,-0.001932,0.001932,False,False,,False
+18,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000884,0.000884,False,False,,False
+18,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000484,0.000484,False,False,,False
+18,nc7h16 + ho2 => c7h15-3 + h2o2,0.000265,0.000265,False,False,,False
+18,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000196,0.000196,False,False,,False
+18,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.00018,0.00018,False,False,,False
+18,nc7h16 + ho2 => c7h15-1 + h2o2,-4.8e-05,4.8e-05,False,False,,False
+19,nc7h16 + h => c7h15-3 + h2,0.181485,0.181485,True,False,,True
+19,nc7h16 + h => c7h15-2 + h2,0.08336,0.08336,True,False,,True
+19,nc7h16 + h => c7h15-4 + h2,-0.071551,0.071551,True,False,,True
+19,nc7h16 + h => c7h15-1 + h2,0.059041,0.059041,True,False,,True
+19,nc7h16 => c5h11-1 + c2h5,-0.056371,0.056371,True,False,,True
+19,nc7h16 + oh => c7h15-3 + h2o,0.049947,0.049947,False,False,,False
+19,nc7h16 => pc4h9 + nc3h7,-0.044086,0.044086,False,False,,False
+19,nc7h16 + oh => c7h15-4 + h2o,-0.029285,0.029285,False,False,,False
+19,nc7h16 + oh => c7h15-2 + h2o,0.013988,0.013988,False,False,,False
+19,c7h15-3 => c4h8-1 + nc3h7,0.011644,0.011644,False,False,,False
+19,c7h15-2 => pc4h9 + c3h6,0.004316,0.004316,False,False,,False
+19,c7h15-4 => c2h5 + c5h10-1,-0.001877,0.001877,False,False,,False
+19,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001097,0.001097,False,False,,False
+19,nc7h16 + ho2 => c7h15-2 + h2o2,-0.00079,0.00079,False,False,,False
+19,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000214,0.000214,False,False,,False
+19,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.000164,0.000164,False,False,,False
+19,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000112,0.000112,False,False,,False
+19,nc7h16 + ho2 => c7h15-3 + h2o2,-5.1e-05,5.1e-05,False,False,,False
+2,nc7h16 + h => c7h15-3 + h2,0.081855,0.081855,True,False,,True
+2,nc7h16 + oh => c7h15-3 + h2o,0.062212,0.062212,True,False,,True
+2,nc7h16 => c5h11-1 + c2h5,-0.056119,0.056119,True,False,,True
+2,nc7h16 + ho2 => c7h15-2 + h2o2,-0.051579,0.051579,True,False,,True
+2,nc7h16 => pc4h9 + nc3h7,-0.046026,0.046026,False,False,,False
+2,nc7h16 + ho2 => c7h15-3 + h2o2,-0.036656,0.036656,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.98),True
+2,nc7h16 + oh => c7h15-4 + h2o,-0.032153,0.032153,False,False,,False
+2,nc7h16 + ho2 => c7h15-4 + h2o2,-0.029825,0.029825,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97),True
+2,nc7h16 + oh => c7h15-2 + h2o,-0.027702,0.027702,False,False,,False
+2,nc7h16 + h => c7h15-4 + h2,-0.025896,0.025896,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+2,nc7h16 + h => c7h15-1 + h2,0.022441,0.022441,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+2,nc7h16 + ho2 => c7h15-1 + h2o2,-0.02035,0.02035,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97),True
+2,nc7h16 + h => c7h15-2 + h2,-0.017095,0.017095,False,False,,False
+2,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.014546,0.014546,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87),True
+2,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.012838,0.012838,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84),True
+2,c7h15-3 => c4h8-1 + nc3h7,0.004345,0.004345,False,False,,False
+2,c7h15-4 => c2h5 + c5h10-1,-0.000959,0.000959,False,False,,False
+2,c7h15-2 => pc4h9 + c3h6,0.000588,0.000588,False,False,,False
+20,nc7h16 + h => c7h15-3 + h2,0.073803,0.073803,True,False,,True
+20,nc7h16 + h => c7h15-2 + h2,0.049955,0.049955,False,False,,False
+20,nc7h16 => c5h11-1 + c2h5,-0.032841,0.032841,False,False,,False
+20,nc7h16 => pc4h9 + nc3h7,-0.030857,0.030857,False,False,,False
+20,nc7h16 + h => c7h15-4 + h2,-0.028684,0.028684,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+20,nc7h16 + h => c7h15-1 + h2,0.021749,0.021749,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+20,nc7h16 + oh => c7h15-3 + h2o,0.015923,0.015923,False,False,,False
+20,c7h15-3 => c4h8-1 + nc3h7,0.009566,0.009566,False,False,,False
+20,nc7h16 + oh => c7h15-4 + h2o,-0.008686,0.008686,False,False,,False
+20,nc7h16 + oh => c7h15-2 + h2o,0.007678,0.007678,False,False,,False
+20,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.006012,0.006012,False,False,,False
+20,c7h15-4 => c2h5 + c5h10-1,-0.005587,0.005587,False,False,,False
+20,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.005092,0.005092,False,False,,False
+20,nc7h16 + ho2 => c7h15-4 + h2o2,-0.004112,0.004112,False,False,,False
+20,c7h15-2 => pc4h9 + c3h6,0.003308,0.003308,False,False,,False
+20,nc7h16 + ho2 => c7h15-3 + h2o2,0.002361,0.002361,False,False,,False
+20,nc7h16 + ho2 => c7h15-2 + h2o2,-0.002146,0.002146,False,False,,False
+20,nc7h16 + ho2 => c7h15-1 + h2o2,-0.001578,0.001578,False,False,,False
+21,nc7h16 + h => c7h15-3 + h2,0.065833,0.065833,True,False,,True
+21,nc7h16 + h => c7h15-2 + h2,0.061769,0.061769,True,False,,True
+21,nc7h16 => c5h11-1 + c2h5,-0.033944,0.033944,False,False,,False
+21,nc7h16 + h => c7h15-4 + h2,-0.029362,0.029362,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+21,nc7h16 => pc4h9 + nc3h7,-0.02417,0.02417,False,False,,False
+21,nc7h16 + oh => c7h15-4 + h2o,-0.019722,0.019722,False,False,,False
+21,nc7h16 + h => c7h15-1 + h2,0.019207,0.019207,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+21,nc7h16 + oh => c7h15-2 + h2o,0.013693,0.013693,False,False,,False
+21,nc7h16 + oh => c7h15-3 + h2o,0.008839,0.008839,False,False,,False
+21,nc7h16 + ho2 => c7h15-3 + h2o2,-0.006416,0.006416,False,False,,False
+21,nc7h16 + ho2 => c7h15-1 + h2o2,-0.006413,0.006413,False,False,,False
+21,c7h15-3 => c4h8-1 + nc3h7,0.006239,0.006239,False,False,,False
+21,c7h15-4 => c2h5 + c5h10-1,-0.003875,0.003875,False,False,,False
+21,c7h15-2 => pc4h9 + c3h6,0.003275,0.003275,False,False,,False
+21,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.001963,0.001963,False,False,,False
+21,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.001959,0.001959,False,False,,False
+21,nc7h16 + ho2 => c7h15-2 + h2o2,0.001226,0.001226,False,False,,False
+21,nc7h16 + ho2 => c7h15-4 + h2o2,0.001179,0.001179,False,False,,False
+22,nc7h16 + h => c7h15-3 + h2,0.138771,0.138771,True,False,,True
+22,nc7h16 + h => c7h15-2 + h2,0.095362,0.095362,True,False,,True
+22,nc7h16 => c5h11-1 + c2h5,-0.045734,0.045734,False,False,,False
+22,nc7h16 + h => c7h15-1 + h2,0.044291,0.044291,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+22,nc7h16 + h => c7h15-4 + h2,-0.038255,0.038255,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+22,nc7h16 => pc4h9 + nc3h7,-0.036102,0.036102,False,False,,False
+22,nc7h16 + oh => c7h15-3 + h2o,0.029978,0.029978,False,False,,False
+22,nc7h16 + oh => c7h15-4 + h2o,-0.015628,0.015628,False,False,,False
+22,nc7h16 + oh => c7h15-2 + h2o,0.015001,0.015001,False,False,,False
+22,c7h15-3 => c4h8-1 + nc3h7,0.010627,0.010627,False,False,,False
+22,c7h15-2 => pc4h9 + c3h6,0.006288,0.006288,False,False,,False
+22,nc7h16 + ho2 => c7h15-3 + h2o2,0.0009,0.0009,False,False,,False
+22,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000519,0.000519,False,False,,False
+22,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000518,0.000518,False,False,,False
+22,nc7h16 + ho2 => c7h15-4 + h2o2,0.000425,0.000425,False,False,,False
+22,c7h15-4 => c2h5 + c5h10-1,0.000276,0.000276,False,False,,False
+22,nc7h16 + ho2 => c7h15-1 + h2o2,0.000187,0.000187,False,False,,False
+22,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000125,0.000125,False,False,,False
+23,nc7h16 + h => c7h15-3 + h2,0.076462,0.076462,True,False,,True
+23,nc7h16 + h => c7h15-2 + h2,0.054447,0.054447,True,False,,True
+23,nc7h16 => c5h11-1 + c2h5,-0.038502,0.038502,False,False,,False
+23,nc7h16 => pc4h9 + nc3h7,-0.030013,0.030013,False,False,,False
+23,nc7h16 + h => c7h15-4 + h2,-0.026471,0.026471,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+23,nc7h16 + oh => c7h15-3 + h2o,0.022678,0.022678,False,False,,False
+23,nc7h16 + oh => c7h15-4 + h2o,-0.009648,0.009648,False,False,,False
+23,nc7h16 + ho2 => c7h15-3 + h2o2,-0.009127,0.009127,False,False,,False
+23,nc7h16 + h => c7h15-1 + h2,0.008394,0.008394,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+23,nc7h16 + oh => c7h15-2 + h2o,0.007969,0.007969,False,False,,False
+23,c7h15-4 => c2h5 + c5h10-1,-0.006052,0.006052,False,False,,False
+23,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.004734,0.004734,False,False,,False
+23,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.004712,0.004712,False,False,,False
+23,nc7h16 + ho2 => c7h15-2 + h2o2,-0.003276,0.003276,False,False,,False
+23,c7h15-3 => c4h8-1 + nc3h7,0.002568,0.002568,False,False,,False
+23,nc7h16 + ho2 => c7h15-1 + h2o2,-0.002372,0.002372,False,False,,False
+23,c7h15-2 => pc4h9 + c3h6,-0.001267,0.001267,False,False,,False
+23,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000908,0.000908,False,False,,False
+24,nc7h16 + h => c7h15-3 + h2,0.147831,0.147831,True,False,,True
+24,nc7h16 + h => c7h15-2 + h2,0.091392,0.091392,True,False,,True
+24,nc7h16 + h => c7h15-4 + h2,-0.051466,0.051466,True,False,,True
+24,nc7h16 => c5h11-1 + c2h5,-0.050858,0.050858,True,False,,True
+24,nc7h16 + h => c7h15-1 + h2,0.043977,0.043977,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+24,nc7h16 => pc4h9 + nc3h7,-0.039936,0.039936,False,False,,False
+24,nc7h16 + oh => c7h15-3 + h2o,0.034049,0.034049,False,False,,False
+24,nc7h16 + oh => c7h15-4 + h2o,-0.020357,0.020357,False,False,,False
+24,nc7h16 + oh => c7h15-2 + h2o,0.014444,0.014444,False,False,,False
+24,c7h15-3 => c4h8-1 + nc3h7,0.009396,0.009396,False,False,,False
+24,c7h15-2 => pc4h9 + c3h6,0.005674,0.005674,False,False,,False
+24,c7h15-4 => c2h5 + c5h10-1,-0.001144,0.001144,False,False,,False
+24,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001142,0.001142,False,False,,False
+24,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000814,0.000814,False,False,,False
+24,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000129,0.000129,False,False,,False
+24,nc7h16 + ho2 => c7h15-2 + h2o2,3.9e-05,3.9e-05,False,False,,False
+24,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-1.1e-05,1.1e-05,False,False,,False
+24,nc7h16 + ho2 => c7h15-3 + h2o2,-3e-06,3e-06,False,False,,False
+25,nc7h16 + h => c7h15-3 + h2,0.173691,0.173691,True,False,,True
+25,nc7h16 + h => c7h15-2 + h2,0.100678,0.100678,True,False,,True
+25,nc7h16 + h => c7h15-4 + h2,-0.059969,0.059969,True,False,,True
+25,nc7h16 + h => c7h15-1 + h2,0.05691,0.05691,True,False,,True
+25,nc7h16 => c5h11-1 + c2h5,-0.054045,0.054045,True,False,,True
+25,nc7h16 + oh => c7h15-3 + h2o,0.043273,0.043273,False,False,,False
+25,nc7h16 => pc4h9 + nc3h7,-0.042007,0.042007,False,False,,False
+25,nc7h16 + oh => c7h15-4 + h2o,-0.025361,0.025361,False,False,,False
+25,nc7h16 + oh => c7h15-2 + h2o,0.016703,0.016703,False,False,,False
+25,c7h15-3 => c4h8-1 + nc3h7,0.011743,0.011743,False,False,,False
+25,c7h15-2 => pc4h9 + c3h6,0.006236,0.006236,False,False,,False
+25,c7h15-4 => c2h5 + c5h10-1,-0.001008,0.001008,False,False,,False
+25,nc7h16 + ho2 => c7h15-1 + h2o2,0.000445,0.000445,False,False,,False
+25,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000292,0.000292,False,False,,False
+25,nc7h16 + ho2 => c7h15-3 + h2o2,0.000181,0.000181,False,False,,False
+25,nc7h16 + ho2 => c7h15-4 + h2o2,5.5e-05,5.5e-05,False,False,,False
+25,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-4.3e-05,4.3e-05,False,False,,False
+25,nc7h16 + ho2 => c7h15-2 + h2o2,-3.1e-05,3.1e-05,False,False,,False
+26,nc7h16 + h => c7h15-3 + h2,0.160829,0.160829,True,False,,True
+26,nc7h16 + h => c7h15-2 + h2,0.078693,0.078693,True,False,,True
+26,nc7h16 + h => c7h15-4 + h2,-0.065602,0.065602,True,False,,True
+26,nc7h16 => c5h11-1 + c2h5,-0.055029,0.055029,True,False,,True
+26,nc7h16 + h => c7h15-1 + h2,0.046029,0.046029,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+26,nc7h16 => pc4h9 + nc3h7,-0.043447,0.043447,False,False,,False
+26,nc7h16 + oh => c7h15-3 + h2o,0.04153,0.04153,False,False,,False
+26,nc7h16 + oh => c7h15-4 + h2o,-0.024223,0.024223,False,False,,False
+26,nc7h16 + oh => c7h15-2 + h2o,0.013233,0.013233,False,False,,False
+26,c7h15-3 => c4h8-1 + nc3h7,0.009309,0.009309,False,False,,False
+26,c7h15-2 => pc4h9 + c3h6,0.005422,0.005422,False,False,,False
+26,c7h15-4 => c2h5 + c5h10-1,-0.000822,0.000822,False,False,,False
+26,nc7h16 + ho2 => c7h15-3 + h2o2,0.000475,0.000475,False,False,,False
+26,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000348,0.000348,False,False,,False
+26,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000336,0.000336,False,False,,False
+26,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000274,0.000274,False,False,,False
+26,nc7h16 + ho2 => c7h15-2 + h2o2,-7.1e-05,7.1e-05,False,False,,False
+26,nc7h16 + ho2 => c7h15-1 + h2o2,-4.1e-05,4.1e-05,False,False,,False
+27,nc7h16 + h => c7h15-3 + h2,0.106533,0.106533,True,False,,True
+27,nc7h16 + h => c7h15-2 + h2,0.082464,0.082464,True,False,,True
+27,nc7h16 => c5h11-1 + c2h5,-0.037417,0.037417,False,False,,False
+27,nc7h16 + h => c7h15-4 + h2,-0.031974,0.031974,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+27,nc7h16 + h => c7h15-1 + h2,0.030182,0.030182,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+27,nc7h16 => pc4h9 + nc3h7,-0.028016,0.028016,False,False,,False
+27,nc7h16 + oh => c7h15-3 + h2o,0.023156,0.023156,False,False,,False
+27,nc7h16 + oh => c7h15-2 + h2o,0.01503,0.01503,False,False,,False
+27,c7h15-3 => c4h8-1 + nc3h7,0.009302,0.009302,False,False,,False
+27,nc7h16 + oh => c7h15-4 + h2o,-0.008026,0.008026,False,False,,False
+27,c7h15-2 => pc4h9 + c3h6,0.005958,0.005958,False,False,,False
+27,c7h15-4 => c2h5 + c5h10-1,0.002424,0.002424,False,False,,False
+27,nc7h16 + ho2 => c7h15-3 + h2o2,0.001695,0.001695,False,False,,False
+27,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.001637,0.001637,False,False,,False
+27,nc7h16 + ho2 => c7h15-2 + h2o2,0.000837,0.000837,False,False,,False
+27,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000661,0.000661,False,False,,False
+27,nc7h16 + ho2 => c7h15-4 + h2o2,0.000531,0.000531,False,False,,False
+27,nc7h16 + ho2 => c7h15-1 + h2o2,2e-05,2e-05,False,False,,False
+28,nc7h16 + h => c7h15-3 + h2,0.114456,0.114456,True,False,,True
+28,nc7h16 + h => c7h15-2 + h2,0.075397,0.075397,True,False,,True
+28,nc7h16 + h => c7h15-4 + h2,-0.04671,0.04671,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+28,nc7h16 => c5h11-1 + c2h5,-0.042358,0.042358,False,False,,False
+28,nc7h16 => pc4h9 + nc3h7,-0.032781,0.032781,False,False,,False
+28,nc7h16 + h => c7h15-1 + h2,0.030023,0.030023,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+28,nc7h16 + oh => c7h15-3 + h2o,0.024921,0.024921,False,False,,False
+28,nc7h16 + oh => c7h15-2 + h2o,0.013734,0.013734,False,False,,False
+28,nc7h16 + oh => c7h15-4 + h2o,-0.010106,0.010106,False,False,,False
+28,c7h15-3 => c4h8-1 + nc3h7,0.007384,0.007384,False,False,,False
+28,c7h15-2 => pc4h9 + c3h6,0.00621,0.00621,False,False,,False
+28,nc7h16 + ho2 => c7h15-3 + h2o2,0.001151,0.001151,False,False,,False
+28,nc7h16 + ho2 => c7h15-2 + h2o2,0.001029,0.001029,False,False,,False
+28,nc7h16 + ho2 => c7h15-4 + h2o2,0.000646,0.000646,False,False,,False
+28,nc7h16 + ho2 => c7h15-1 + h2o2,0.000555,0.000555,False,False,,False
+28,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000548,0.000548,False,False,,False
+28,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000452,0.000452,False,False,,False
+28,c7h15-4 => c2h5 + c5h10-1,0.00016,0.00016,False,False,,False
+29,nc7h16 + h => c7h15-3 + h2,0.115352,0.115352,True,False,,True
+29,nc7h16 + h => c7h15-2 + h2,0.074643,0.074643,True,False,,True
+29,nc7h16 + h => c7h15-4 + h2,-0.047406,0.047406,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+29,nc7h16 => c5h11-1 + c2h5,-0.042258,0.042258,False,False,,False
+29,nc7h16 => pc4h9 + nc3h7,-0.032806,0.032806,False,False,,False
+29,nc7h16 + h => c7h15-1 + h2,0.029478,0.029478,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+29,nc7h16 + oh => c7h15-3 + h2o,0.024929,0.024929,False,False,,False
+29,nc7h16 + oh => c7h15-2 + h2o,0.013595,0.013595,False,False,,False
+29,nc7h16 + oh => c7h15-4 + h2o,-0.009544,0.009544,False,False,,False
+29,c7h15-3 => c4h8-1 + nc3h7,0.00746,0.00746,False,False,,False
+29,c7h15-2 => pc4h9 + c3h6,0.005647,0.005647,False,False,,False
+29,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000782,0.000782,False,False,,False
+29,nc7h16 + ho2 => c7h15-3 + h2o2,0.000773,0.000773,False,False,,False
+29,nc7h16 + ho2 => c7h15-4 + h2o2,0.000443,0.000443,False,False,,False
+29,nc7h16 + ho2 => c7h15-2 + h2o2,0.000375,0.000375,False,False,,False
+29,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000264,0.000264,False,False,,False
+29,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.00025,0.00025,False,False,,False
+29,c7h15-4 => c2h5 + c5h10-1,9e-06,9e-06,False,False,,False
+3,nc7h16 + h => c7h15-3 + h2,0.072808,0.072808,True,False,,True
+3,nc7h16 + oh => c7h15-3 + h2o,0.060157,0.060157,True,False,,True
+3,nc7h16 + ho2 => c7h15-2 + h2o2,-0.057657,0.057657,True,False,,True
+3,nc7h16 => c5h11-1 + c2h5,-0.054555,0.054555,True,False,,True
+3,nc7h16 => pc4h9 + nc3h7,-0.044811,0.044811,False,False,,False
+3,nc7h16 + ho2 => c7h15-3 + h2o2,-0.042349,0.042349,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.98),True
+3,nc7h16 + ho2 => c7h15-4 + h2o2,-0.033113,0.033113,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97),True
+3,nc7h16 + oh => c7h15-4 + h2o,-0.030586,0.030586,False,False,,False
+3,nc7h16 + oh => c7h15-2 + h2o,-0.027205,0.027205,False,False,,False
+3,nc7h16 + ho2 => c7h15-1 + h2o2,-0.023065,0.023065,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97),True
+3,nc7h16 + h => c7h15-4 + h2,-0.022891,0.022891,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+3,nc7h16 + h => c7h15-1 + h2,0.019617,0.019617,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+3,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.016592,0.016592,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87),True
+3,nc7h16 + h => c7h15-2 + h2,-0.016232,0.016232,False,False,,False
+3,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.0148,0.0148,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84),True
+3,c7h15-3 => c4h8-1 + nc3h7,0.00366,0.00366,False,False,,False
+3,c7h15-4 => c2h5 + c5h10-1,-0.000925,0.000925,False,False,,False
+3,c7h15-2 => pc4h9 + c3h6,0.000917,0.000917,False,False,,False
+30,nc7h16 + h => c7h15-3 + h2,0.072933,0.072933,True,False,,True
+30,nc7h16 + oh => c7h15-2 + h2o,0.037081,0.037081,False,False,,False
+30,nc7h16 + h => c7h15-2 + h2,0.03661,0.03661,False,False,,False
+30,nc7h16 + h => c7h15-4 + h2,-0.034452,0.034452,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+30,c7h15-2 => pc4h9 + c3h6,0.022585,0.022585,False,False,,False
+30,nc7h16 + oh => c7h15-4 + h2o,0.02019,0.02019,False,False,,False
+30,c7h15-4 => c2h5 + c5h10-1,-0.01799,0.01799,False,False,,False
+30,nc7h16 + h => c7h15-1 + h2,0.017005,0.017005,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+30,nc7h16 => c5h11-1 + c2h5,-0.015443,0.015443,False,False,,False
+30,nc7h16 + oh => c7h15-3 + h2o,-0.010607,0.010607,False,False,,False
+30,c7h15-3 => c4h8-1 + nc3h7,-0.006166,0.006166,False,False,,False
+30,nc7h16 => pc4h9 + nc3h7,0.005809,0.005809,False,False,,False
+30,nc7h16 + ho2 => c7h15-1 + h2o2,0.0,0.0,False,False,,False
+30,nc7h16 + ho2 => c7h15-2 + h2o2,0.0,0.0,False,False,,False
+30,nc7h16 + ho2 => c7h15-4 + h2o2,0.0,0.0,False,False,,False
+30,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.0,0.0,False,False,,False
+30,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.0,0.0,False,False,,False
+30,nc7h16 + ho2 => c7h15-3 + h2o2,0.0,0.0,False,False,,False
+31,nc7h16 + h => c7h15-3 + h2,0.060387,0.060387,True,False,,True
+31,nc7h16 + h => c7h15-2 + h2,0.049233,0.049233,False,False,,False
+31,nc7h16 => c5h11-1 + c2h5,-0.041808,0.041808,False,False,,False
+31,nc7h16 => pc4h9 + nc3h7,-0.028493,0.028493,False,False,,False
+31,nc7h16 + h => c7h15-4 + h2,-0.024474,0.024474,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+31,nc7h16 + ho2 => c7h15-4 + h2o2,-0.0138,0.0138,False,False,,False
+31,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.011783,0.011783,False,False,,False
+31,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.011783,0.011783,False,False,,False
+31,c7h15-4 => c2h5 + c5h10-1,-0.010812,0.010812,False,False,,False
+31,nc7h16 + h => c7h15-1 + h2,0.009888,0.009888,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+31,nc7h16 + ho2 => c7h15-3 + h2o2,-0.009216,0.009216,False,False,,False
+31,nc7h16 + oh => c7h15-4 + h2o,-0.00911,0.00911,False,False,,False
+31,nc7h16 + oh => c7h15-3 + h2o,0.007384,0.007384,False,False,,False
+31,nc7h16 + oh => c7h15-2 + h2o,0.004833,0.004833,False,False,,False
+31,nc7h16 + ho2 => c7h15-1 + h2o2,-0.002653,0.002653,False,False,,False
+31,c7h15-3 => c4h8-1 + nc3h7,-0.001954,0.001954,False,False,,False
+31,c7h15-2 => pc4h9 + c3h6,-0.001014,0.001014,False,False,,False
+31,nc7h16 + ho2 => c7h15-2 + h2o2,0.000788,0.000788,False,False,,False
+32,nc7h16 + h => c7h15-2 + h2,0.070947,0.070947,True,False,,True
+32,nc7h16 + ho2 => c7h15-2 + h2o2,0.060883,0.060883,True,False,,True
+32,nc7h16 + ho2 => c7h15-4 + h2o2,0.060882,0.060882,True,False,,True
+32,nc7h16 => c5h11-1 + c2h5,-0.059022,0.059022,True,False,,True
+32,nc7h16 + h => c7h15-3 + h2,0.057198,0.057198,True,False,,True
+32,nc7h16 + oh => c7h15-3 + h2o,0.040251,0.040251,False,False,,False
+32,nc7h16 + ho2 => c7h15-1 + h2o2,0.039976,0.039976,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.97),True
+32,nc7h16 + ho2 => c7h15-3 + h2o2,0.03997,0.03997,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.98); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.93),True
+32,c7h15-3 => c4h8-1 + nc3h7,0.032548,0.032548,False,False,,False
+32,nc7h16 + oh => c7h15-2 + h2o,0.025455,0.025455,False,False,,False
+32,c7h15-2 => pc4h9 + c3h6,0.016828,0.016828,False,False,,False
+32,nc7h16 + h => c7h15-4 + h2,-0.016421,0.016421,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+32,nc7h16 + h => c7h15-1 + h2,0.006259,0.006259,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+32,nc7h16 => pc4h9 + nc3h7,0.005654,0.005654,False,False,,False
+32,c7h15-4 => c2h5 + c5h10-1,0.00365,0.00365,False,False,,False
+32,nc7h16 + oh => c7h15-4 + h2o,0.002672,0.002672,False,False,,False
+32,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.0,0.0,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.81),True
+32,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.0,0.0,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84),True
+33,nc7h16 + h => c7h15-3 + h2,0.077038,0.077038,True,False,,True
+33,nc7h16 + h => c7h15-2 + h2,0.055144,0.055144,True,False,,True
+33,nc7h16 => c5h11-1 + c2h5,-0.033473,0.033473,False,False,,False
+33,nc7h16 + h => c7h15-4 + h2,-0.021238,0.021238,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+33,nc7h16 + oh => c7h15-3 + h2o,0.020837,0.020837,False,False,,False
+33,nc7h16 => pc4h9 + nc3h7,-0.020594,0.020594,False,False,,False
+33,nc7h16 + h => c7h15-1 + h2,0.018076,0.018076,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+33,c7h15-2 => pc4h9 + c3h6,0.012986,0.012986,False,False,,False
+33,nc7h16 + oh => c7h15-4 + h2o,-0.00944,0.00944,False,False,,False
+33,c7h15-3 => c4h8-1 + nc3h7,0.00815,0.00815,False,False,,False
+33,nc7h16 + oh => c7h15-2 + h2o,0.008022,0.008022,False,False,,False
+33,nc7h16 + ho2 => c7h15-2 + h2o2,-0.005331,0.005331,False,False,,False
+33,nc7h16 + ho2 => c7h15-4 + h2o2,-0.003324,0.003324,False,False,,False
+33,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.003141,0.003141,False,False,,False
+33,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.003135,0.003135,False,False,,False
+33,nc7h16 + ho2 => c7h15-1 + h2o2,0.001186,0.001186,False,False,,False
+33,nc7h16 + ho2 => c7h15-3 + h2o2,-0.000723,0.000723,False,False,,False
+33,c7h15-4 => c2h5 + c5h10-1,0.000113,0.000113,False,False,,False
+34,nc7h16 + h => c7h15-3 + h2,0.087818,0.087818,True,False,,True
+34,nc7h16 => c5h11-1 + c2h5,-0.043103,0.043103,False,False,,False
+34,nc7h16 + h => c7h15-4 + h2,-0.042062,0.042062,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+34,nc7h16 + h => c7h15-2 + h2,0.03995,0.03995,False,False,,False
+34,nc7h16 => pc4h9 + nc3h7,-0.032176,0.032176,False,False,,False
+34,nc7h16 + oh => c7h15-3 + h2o,0.024547,0.024547,False,False,,False
+34,nc7h16 + h => c7h15-1 + h2,0.016885,0.016885,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+34,nc7h16 + oh => c7h15-4 + h2o,-0.015122,0.015122,False,False,,False
+34,c7h15-3 => c4h8-1 + nc3h7,0.008074,0.008074,False,False,,False
+34,c7h15-2 => pc4h9 + c3h6,0.005964,0.005964,False,False,,False
+34,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.004774,0.004774,False,False,,False
+34,nc7h16 + ho2 => c7h15-3 + h2o2,-0.004503,0.004503,False,False,,False
+34,nc7h16 + oh => c7h15-2 + h2o,0.00325,0.00325,False,False,,False
+34,nc7h16 + ho2 => c7h15-1 + h2o2,-0.003088,0.003088,False,False,,False
+34,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.00208,0.00208,False,False,,False
+34,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001848,0.001848,False,False,,False
+34,c7h15-4 => c2h5 + c5h10-1,-0.001814,0.001814,False,False,,False
+34,nc7h16 + ho2 => c7h15-2 + h2o2,-0.001102,0.001102,False,False,,False
+35,nc7h16 + h => c7h15-3 + h2,0.0926,0.0926,True,False,,True
+35,nc7h16 + h => c7h15-4 + h2,-0.048556,0.048556,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+35,nc7h16 => c5h11-1 + c2h5,-0.040236,0.040236,False,False,,False
+35,nc7h16 + h => c7h15-2 + h2,0.03777,0.03777,False,False,,False
+35,nc7h16 => pc4h9 + nc3h7,-0.037219,0.037219,False,False,,False
+35,nc7h16 + oh => c7h15-3 + h2o,0.019581,0.019581,False,False,,False
+35,nc7h16 + oh => c7h15-4 + h2o,-0.018403,0.018403,False,False,,False
+35,nc7h16 + h => c7h15-1 + h2,0.011356,0.011356,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+35,nc7h16 + ho2 => c7h15-1 + h2o2,-0.006634,0.006634,False,False,,False
+35,c7h15-2 => pc4h9 + c3h6,0.005689,0.005689,False,False,,False
+35,nc7h16 + ho2 => c7h15-4 + h2o2,-0.005342,0.005342,False,False,,False
+35,c7h15-3 => c4h8-1 + nc3h7,0.004212,0.004212,False,False,,False
+35,nc7h16 + oh => c7h15-2 + h2o,0.002715,0.002715,False,False,,False
+35,c7h15-4 => c2h5 + c5h10-1,-0.002256,0.002256,False,False,,False
+35,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000733,0.000733,False,False,,False
+35,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000712,0.000712,False,False,,False
+35,nc7h16 + ho2 => c7h15-3 + h2o2,-0.000267,0.000267,False,False,,False
+35,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000157,0.000157,False,False,,False
+36,nc7h16 + h => c7h15-3 + h2,0.097075,0.097075,True,False,,True
+36,nc7h16 + h => c7h15-4 + h2,-0.048127,0.048127,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+36,nc7h16 => c5h11-1 + c2h5,-0.042432,0.042432,False,False,,False
+36,nc7h16 + h => c7h15-2 + h2,0.037628,0.037628,False,False,,False
+36,nc7h16 => pc4h9 + nc3h7,-0.036667,0.036667,False,False,,False
+36,nc7h16 + oh => c7h15-3 + h2o,0.028121,0.028121,False,False,,False
+36,nc7h16 + h => c7h15-1 + h2,0.017921,0.017921,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+36,nc7h16 + oh => c7h15-4 + h2o,-0.01761,0.01761,False,False,,False
+36,nc7h16 + oh => c7h15-2 + h2o,0.005415,0.005415,False,False,,False
+36,c7h15-2 => pc4h9 + c3h6,0.003351,0.003351,False,False,,False
+36,c7h15-3 => c4h8-1 + nc3h7,0.003116,0.003116,False,False,,False
+36,nc7h16 + ho2 => c7h15-2 + h2o2,-0.002813,0.002813,False,False,,False
+36,nc7h16 + ho2 => c7h15-4 + h2o2,-0.002439,0.002439,False,False,,False
+36,nc7h16 + ho2 => c7h15-1 + h2o2,0.001665,0.001665,False,False,,False
+36,c7h15-4 => c2h5 + c5h10-1,-0.001025,0.001025,False,False,,False
+36,nc7h16 + ho2 => c7h15-3 + h2o2,0.000497,0.000497,False,False,,False
+36,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000433,0.000433,False,False,,False
+36,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.000138,0.000138,False,False,,False
+37,nc7h16 + h => c7h15-3 + h2,0.10929,0.10929,True,False,,True
+37,nc7h16 + h => c7h15-4 + h2,-0.05269,0.05269,True,False,,True
+37,nc7h16 => c5h11-1 + c2h5,-0.043403,0.043403,False,False,,False
+37,nc7h16 => pc4h9 + nc3h7,-0.036163,0.036163,False,False,,False
+37,nc7h16 + h => c7h15-2 + h2,0.03311,0.03311,False,False,,False
+37,nc7h16 + oh => c7h15-3 + h2o,0.028687,0.028687,False,False,,False
+37,nc7h16 + oh => c7h15-4 + h2o,-0.018215,0.018215,False,False,,False
+37,nc7h16 + h => c7h15-1 + h2,0.0168,0.0168,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+37,c7h15-3 => c4h8-1 + nc3h7,0.010556,0.010556,False,False,,False
+37,nc7h16 + ho2 => c7h15-2 + h2o2,0.005812,0.005812,False,False,,False
+37,nc7h16 + oh => c7h15-2 + h2o,0.005643,0.005643,False,False,,False
+37,c7h15-4 => c2h5 + c5h10-1,0.004386,0.004386,False,False,,False
+37,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.004386,0.004386,False,False,,False
+37,c7h15-2 => pc4h9 + c3h6,0.002934,0.002934,False,False,,False
+37,nc7h16 + ho2 => c7h15-4 + h2o2,0.002152,0.002152,False,False,,False
+37,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.001979,0.001979,False,False,,False
+37,nc7h16 + ho2 => c7h15-1 + h2o2,0.001454,0.001454,False,False,,False
+37,nc7h16 + ho2 => c7h15-3 + h2o2,0.000811,0.000811,False,False,,False
+38,nc7h16 + h => c7h15-3 + h2,0.077525,0.077525,True,False,,True
+38,nc7h16 + h => c7h15-2 + h2,0.060791,0.060791,True,False,,True
+38,nc7h16 => c5h11-1 + c2h5,-0.041088,0.041088,False,False,,False
+38,nc7h16 => pc4h9 + nc3h7,-0.033574,0.033574,False,False,,False
+38,nc7h16 + h => c7h15-4 + h2,-0.024827,0.024827,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+38,nc7h16 + h => c7h15-1 + h2,0.023966,0.023966,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+38,nc7h16 + oh => c7h15-3 + h2o,0.02107,0.02107,False,False,,False
+38,nc7h16 + ho2 => c7h15-1 + h2o2,-0.007628,0.007628,False,False,,False
+38,nc7h16 + oh => c7h15-2 + h2o,0.006579,0.006579,False,False,,False
+38,nc7h16 + oh => c7h15-4 + h2o,-0.00467,0.00467,False,False,,False
+38,c7h15-4 => c2h5 + c5h10-1,-0.004427,0.004427,False,False,,False
+38,nc7h16 + ho2 => c7h15-2 + h2o2,0.004371,0.004371,False,False,,False
+38,nc7h16 + ho2 => c7h15-4 + h2o2,0.004224,0.004224,False,False,,False
+38,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003972,0.003972,False,False,,False
+38,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.003971,0.003971,False,False,,False
+38,c7h15-2 => pc4h9 + c3h6,0.003301,0.003301,False,False,,False
+38,c7h15-3 => c4h8-1 + nc3h7,-0.001125,0.001125,False,False,,False
+38,nc7h16 + ho2 => c7h15-3 + h2o2,3.8e-05,3.8e-05,False,False,,False
+39,nc7h16 + h => c7h15-3 + h2,0.091486,0.091486,True,False,,True
+39,nc7h16 + h => c7h15-2 + h2,0.061779,0.061779,True,False,,True
+39,nc7h16 => pc4h9 + nc3h7,-0.042861,0.042861,False,False,,False
+39,nc7h16 => c5h11-1 + c2h5,-0.040881,0.040881,False,False,,False
+39,nc7h16 + h => c7h15-4 + h2,-0.033973,0.033973,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+39,nc7h16 + oh => c7h15-3 + h2o,0.021372,0.021372,False,False,,False
+39,nc7h16 + h => c7h15-1 + h2,0.018994,0.018994,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+39,nc7h16 + oh => c7h15-4 + h2o,-0.011629,0.011629,False,False,,False
+39,nc7h16 + oh => c7h15-2 + h2o,0.011108,0.011108,False,False,,False
+39,c7h15-4 => c2h5 + c5h10-1,-0.005101,0.005101,False,False,,False
+39,c7h15-3 => c4h8-1 + nc3h7,0.004735,0.004735,False,False,,False
+39,nc7h16 + ho2 => c7h15-4 + h2o2,-0.004238,0.004238,False,False,,False
+39,nc7h16 + ho2 => c7h15-2 + h2o2,-0.003513,0.003513,False,False,,False
+39,c7h15-2 => pc4h9 + c3h6,0.002686,0.002686,False,False,,False
+39,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.002067,0.002067,False,False,,False
+39,nc7h16 + ho2 => c7h15-3 + h2o2,-0.001353,0.001353,False,False,,False
+39,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.00052,0.00052,False,False,,False
+39,nc7h16 + ho2 => c7h15-1 + h2o2,0.00017,0.00017,False,False,,False
+4,nc7h16 + ho2 => c7h15-2 + h2o2,-0.081656,0.081656,True,False,,True
+4,nc7h16 + ho2 => c7h15-3 + h2o2,-0.067714,0.067714,True,False,,True
+4,nc7h16 => c5h11-1 + c2h5,-0.046656,0.046656,False,False,,False
+4,nc7h16 + ho2 => c7h15-4 + h2o2,-0.045996,0.045996,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.93),True
+4,nc7h16 + oh => c7h15-3 + h2o,0.045267,0.045267,False,False,,False
+4,nc7h16 => pc4h9 + nc3h7,-0.038634,0.038634,False,False,,False
+4,nc7h16 + h => c7h15-3 + h2,0.0381,0.0381,False,False,,False
+4,nc7h16 + ho2 => c7h15-1 + h2o2,-0.034443,0.034443,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97),True
+4,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.024982,0.024982,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88),True
+4,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.02345,0.02345,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+4,nc7h16 + oh => c7h15-4 + h2o,-0.021225,0.021225,False,False,,False
+4,nc7h16 + oh => c7h15-2 + h2o,-0.019611,0.019611,False,False,,False
+4,nc7h16 + h => c7h15-4 + h2,-0.012608,0.012608,False,False,,False
+4,nc7h16 + h => c7h15-2 + h2,-0.010686,0.010686,False,False,,False
+4,nc7h16 + h => c7h15-1 + h2,0.009777,0.009777,False,False,,False
+4,c7h15-2 => pc4h9 + c3h6,0.003129,0.003129,False,False,,False
+4,c7h15-3 => c4h8-1 + nc3h7,0.002346,0.002346,False,False,,False
+4,c7h15-4 => c2h5 + c5h10-1,-0.000228,0.000228,False,False,,False
+40,nc7h16 + h => c7h15-2 + h2,0.055333,0.055333,True,False,,True
+40,nc7h16 + h => c7h15-3 + h2,0.052112,0.052112,True,False,,True
+40,nc7h16 => c5h11-1 + c2h5,-0.034387,0.034387,False,False,,False
+40,nc7h16 + ho2 => c7h15-3 + h2o2,-0.02416,0.02416,False,False,,False
+40,nc7h16 + h => c7h15-1 + h2,0.021606,0.021606,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+40,nc7h16 => pc4h9 + nc3h7,-0.021176,0.021176,False,False,,False
+40,nc7h16 + h => c7h15-4 + h2,-0.019928,0.019928,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+40,nc7h16 + oh => c7h15-4 + h2o,-0.015114,0.015114,False,False,,False
+40,c7h15-2 => pc4h9 + c3h6,-0.009548,0.009548,False,False,,False
+40,c7h15-4 => c2h5 + c5h10-1,-0.008839,0.008839,False,False,,False
+40,nc7h16 + ho2 => c7h15-1 + h2o2,-0.008567,0.008567,False,False,,False
+40,nc7h16 + ho2 => c7h15-2 + h2o2,-0.006335,0.006335,False,False,,False
+40,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.004716,0.004716,False,False,,False
+40,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.004716,0.004716,False,False,,False
+40,c7h15-3 => c4h8-1 + nc3h7,-0.004478,0.004478,False,False,,False
+40,nc7h16 + oh => c7h15-3 + h2o,0.002897,0.002897,False,False,,False
+40,nc7h16 + oh => c7h15-2 + h2o,0.002478,0.002478,False,False,,False
+40,nc7h16 + ho2 => c7h15-4 + h2o2,0.001876,0.001876,False,False,,False
+41,nc7h16 + h => c7h15-3 + h2,0.064811,0.064811,True,False,,True
+41,nc7h16 => pc4h9 + nc3h7,-0.051234,0.051234,True,False,,True
+41,nc7h16 => c5h11-1 + c2h5,-0.046687,0.046687,False,False,,False
+41,nc7h16 + h => c7h15-4 + h2,-0.045167,0.045167,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+41,nc7h16 + oh => c7h15-4 + h2o,-0.033622,0.033622,False,False,,False
+41,nc7h16 + h => c7h15-2 + h2,0.031968,0.031968,False,False,,False
+41,nc7h16 + ho2 => c7h15-2 + h2o2,-0.02598,0.02598,False,False,,False
+41,c7h15-4 => c2h5 + c5h10-1,-0.025594,0.025594,False,False,,False
+41,c7h15-2 => pc4h9 + c3h6,-0.014776,0.014776,False,False,,False
+41,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.014218,0.014218,False,False,,False
+41,nc7h16 + ho2 => c7h15-4 + h2o2,-0.008752,0.008752,False,False,,False
+41,nc7h16 + oh => c7h15-3 + h2o,-0.007596,0.007596,False,False,,False
+41,nc7h16 + ho2 => c7h15-1 + h2o2,-0.007489,0.007489,False,False,,False
+41,c7h15-3 => c4h8-1 + nc3h7,-0.00597,0.00597,False,False,,False
+41,nc7h16 + h => c7h15-1 + h2,-0.004353,0.004353,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+41,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003565,0.003565,False,False,,False
+41,nc7h16 + oh => c7h15-2 + h2o,-0.003368,0.003368,False,False,,False
+41,nc7h16 + ho2 => c7h15-3 + h2o2,4e-06,4e-06,False,False,,False
+42,nc7h16 + h => c7h15-3 + h2,0.074186,0.074186,True,False,,True
+42,nc7h16 + h => c7h15-2 + h2,0.073278,0.073278,True,False,,True
+42,nc7h16 => c5h11-1 + c2h5,-0.035099,0.035099,False,False,,False
+42,nc7h16 + oh => c7h15-3 + h2o,0.032314,0.032314,False,False,,False
+42,nc7h16 + h => c7h15-1 + h2,0.032301,0.032301,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+42,nc7h16 => pc4h9 + nc3h7,-0.023942,0.023942,False,False,,False
+42,c7h15-3 => c4h8-1 + nc3h7,0.017737,0.017737,False,False,,False
+42,nc7h16 + oh => c7h15-2 + h2o,0.013841,0.013841,False,False,,False
+42,nc7h16 + ho2 => c7h15-2 + h2o2,0.0133,0.0133,False,False,,False
+42,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.011239,0.011239,False,False,,False
+42,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.011236,0.011236,False,False,,False
+42,nc7h16 + ho2 => c7h15-1 + h2o2,0.009248,0.009248,False,False,,False
+42,c7h15-2 => pc4h9 + c3h6,0.008989,0.008989,False,False,,False
+42,nc7h16 + ho2 => c7h15-3 + h2o2,0.008859,0.008859,False,False,,False
+42,nc7h16 + h => c7h15-4 + h2,-0.006849,0.006849,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+42,c7h15-4 => c2h5 + c5h10-1,0.006608,0.006608,False,False,,False
+42,nc7h16 + oh => c7h15-4 + h2o,0.001641,0.001641,False,False,,False
+42,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001203,0.001203,False,False,,False
+43,nc7h16 + h => c7h15-3 + h2,0.082326,0.082326,True,False,,True
+43,nc7h16 + h => c7h15-2 + h2,0.051949,0.051949,True,False,,True
+43,nc7h16 => c5h11-1 + c2h5,-0.041624,0.041624,False,False,,False
+43,nc7h16 + h => c7h15-1 + h2,0.027789,0.027789,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+43,nc7h16 => pc4h9 + nc3h7,-0.026848,0.026848,False,False,,False
+43,nc7h16 + h => c7h15-4 + h2,-0.026779,0.026779,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+43,nc7h16 + oh => c7h15-2 + h2o,0.023762,0.023762,False,False,,False
+43,nc7h16 + oh => c7h15-3 + h2o,0.010845,0.010845,False,False,,False
+43,c7h15-3 => c4h8-1 + nc3h7,0.0103,0.0103,False,False,,False
+43,nc7h16 + ho2 => c7h15-4 + h2o2,0.009292,0.009292,False,False,,False
+43,nc7h16 + ho2 => c7h15-3 + h2o2,0.009174,0.009174,False,False,,False
+43,nc7h16 + ho2 => c7h15-2 + h2o2,0.009138,0.009138,False,False,,False
+43,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.006146,0.006146,False,False,,False
+43,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.006112,0.006112,False,False,,False
+43,nc7h16 + oh => c7h15-4 + h2o,-0.005985,0.005985,False,False,,False
+43,c7h15-4 => c2h5 + c5h10-1,-0.004178,0.004178,False,False,,False
+43,nc7h16 + ho2 => c7h15-1 + h2o2,0.003319,0.003319,False,False,,False
+43,c7h15-2 => pc4h9 + c3h6,-0.003046,0.003046,False,False,,False
+44,nc7h16 + h => c7h15-3 + h2,0.094459,0.094459,True,False,,True
+44,nc7h16 + h => c7h15-2 + h2,0.062451,0.062451,True,False,,True
+44,nc7h16 => c5h11-1 + c2h5,-0.039694,0.039694,False,False,,False
+44,nc7h16 + oh => c7h15-3 + h2o,0.026657,0.026657,False,False,,False
+44,nc7h16 + h => c7h15-1 + h2,0.019589,0.019589,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+44,nc7h16 => pc4h9 + nc3h7,-0.019547,0.019547,False,False,,False
+44,nc7h16 + h => c7h15-4 + h2,-0.018052,0.018052,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+44,nc7h16 + oh => c7h15-2 + h2o,0.015832,0.015832,False,False,,False
+44,c7h15-3 => c4h8-1 + nc3h7,0.014803,0.014803,False,False,,False
+44,c7h15-2 => pc4h9 + c3h6,0.007885,0.007885,False,False,,False
+44,nc7h16 + oh => c7h15-4 + h2o,-0.0078,0.0078,False,False,,False
+44,nc7h16 + ho2 => c7h15-4 + h2o2,0.005819,0.005819,False,False,,False
+44,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.003334,0.003334,False,False,,False
+44,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.003333,0.003333,False,False,,False
+44,nc7h16 + ho2 => c7h15-2 + h2o2,0.002896,0.002896,False,False,,False
+44,nc7h16 + ho2 => c7h15-3 + h2o2,0.001877,0.001877,False,False,,False
+44,c7h15-4 => c2h5 + c5h10-1,-0.001374,0.001374,False,False,,False
+44,nc7h16 + ho2 => c7h15-1 + h2o2,7.3e-05,7.3e-05,False,False,,False
+45,nc7h16 + h => c7h15-3 + h2,0.105947,0.105947,True,False,,True
+45,nc7h16 + h => c7h15-2 + h2,0.063439,0.063439,True,False,,True
+45,nc7h16 + h => c7h15-1 + h2,0.045573,0.045573,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+45,nc7h16 + oh => c7h15-3 + h2o,0.040496,0.040496,False,False,,False
+45,nc7h16 => c5h11-1 + c2h5,-0.026524,0.026524,False,False,,False
+45,nc7h16 => pc4h9 + nc3h7,-0.02222,0.02222,False,False,,False
+45,nc7h16 + oh => c7h15-2 + h2o,0.021735,0.021735,False,False,,False
+45,nc7h16 + oh => c7h15-4 + h2o,-0.017011,0.017011,False,False,,False
+45,nc7h16 + h => c7h15-4 + h2,-0.015104,0.015104,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+45,nc7h16 + ho2 => c7h15-3 + h2o2,0.013916,0.013916,False,False,,False
+45,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.0138,0.0138,False,False,,False
+45,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.013792,0.013792,False,False,,False
+45,c7h15-2 => pc4h9 + c3h6,0.012369,0.012369,False,False,,False
+45,nc7h16 + ho2 => c7h15-2 + h2o2,0.008407,0.008407,False,False,,False
+45,c7h15-3 => c4h8-1 + nc3h7,0.007233,0.007233,False,False,,False
+45,c7h15-4 => c2h5 + c5h10-1,0.005659,0.005659,False,False,,False
+45,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001907,0.001907,False,False,,False
+45,nc7h16 + ho2 => c7h15-1 + h2o2,-0.001826,0.001826,False,False,,False
+46,nc7h16 + h => c7h15-3 + h2,0.104415,0.104415,True,False,,True
+46,nc7h16 + h => c7h15-2 + h2,0.059292,0.059292,True,False,,True
+46,nc7h16 => pc4h9 + nc3h7,-0.038545,0.038545,False,False,,False
+46,nc7h16 => c5h11-1 + c2h5,-0.038193,0.038193,False,False,,False
+46,nc7h16 + h => c7h15-4 + h2,-0.035289,0.035289,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+46,nc7h16 + h => c7h15-1 + h2,0.033626,0.033626,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+46,nc7h16 + oh => c7h15-3 + h2o,0.033158,0.033158,False,False,,False
+46,c7h15-3 => c4h8-1 + nc3h7,0.016668,0.016668,False,False,,False
+46,nc7h16 + oh => c7h15-2 + h2o,0.014861,0.014861,False,False,,False
+46,nc7h16 + oh => c7h15-4 + h2o,-0.011116,0.011116,False,False,,False
+46,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.006617,0.006617,False,False,,False
+46,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.006293,0.006293,False,False,,False
+46,nc7h16 + ho2 => c7h15-4 + h2o2,0.005853,0.005853,False,False,,False
+46,nc7h16 + ho2 => c7h15-2 + h2o2,-0.00427,0.00427,False,False,,False
+46,c7h15-2 => pc4h9 + c3h6,0.003834,0.003834,False,False,,False
+46,c7h15-4 => c2h5 + c5h10-1,0.001311,0.001311,False,False,,False
+46,nc7h16 + ho2 => c7h15-3 + h2o2,-0.000794,0.000794,False,False,,False
+46,nc7h16 + ho2 => c7h15-1 + h2o2,2.3e-05,2.3e-05,False,False,,False
+47,nc7h16 + h => c7h15-3 + h2,0.119807,0.119807,True,False,,True
+47,nc7h16 => c5h11-1 + c2h5,-0.056659,0.056659,True,False,,True
+47,nc7h16 => pc4h9 + nc3h7,-0.049068,0.049068,False,False,,False
+47,nc7h16 + h => c7h15-2 + h2,0.046591,0.046591,False,False,,False
+47,nc7h16 + h => c7h15-4 + h2,-0.045952,0.045952,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+47,nc7h16 + h => c7h15-1 + h2,0.031119,0.031119,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+47,nc7h16 + oh => c7h15-3 + h2o,0.028533,0.028533,False,False,,False
+47,nc7h16 + oh => c7h15-4 + h2o,-0.022748,0.022748,False,False,,False
+47,nc7h16 + ho2 => c7h15-2 + h2o2,-0.01469,0.01469,False,False,,False
+47,c7h15-3 => c4h8-1 + nc3h7,-0.012331,0.012331,False,False,,False
+47,nc7h16 + ho2 => c7h15-4 + h2o2,-0.010876,0.010876,False,False,,False
+47,nc7h16 + ho2 => c7h15-1 + h2o2,-0.010031,0.010031,False,False,,False
+47,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.009346,0.009346,False,False,,False
+47,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.004527,0.004527,False,False,,False
+47,nc7h16 + oh => c7h15-2 + h2o,-0.004277,0.004277,False,False,,False
+47,nc7h16 + ho2 => c7h15-3 + h2o2,-0.002682,0.002682,False,False,,False
+47,c7h15-2 => pc4h9 + c3h6,0.000814,0.000814,False,False,,False
+47,c7h15-4 => c2h5 + c5h10-1,-0.000127,0.000127,False,False,,False
+48,nc7h16 + h => c7h15-3 + h2,0.145744,0.145744,True,False,,True
+48,nc7h16 + h => c7h15-2 + h2,0.061634,0.061634,True,False,,True
+48,nc7h16 => c5h11-1 + c2h5,-0.054045,0.054045,True,False,,True
+48,nc7h16 + oh => c7h15-3 + h2o,0.045635,0.045635,False,False,,False
+48,nc7h16 + h => c7h15-4 + h2,-0.043237,0.043237,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+48,nc7h16 + h => c7h15-1 + h2,0.041212,0.041212,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+48,nc7h16 => pc4h9 + nc3h7,-0.041052,0.041052,False,False,,False
+48,nc7h16 + oh => c7h15-4 + h2o,-0.026918,0.026918,False,False,,False
+48,c7h15-2 => pc4h9 + c3h6,0.008323,0.008323,False,False,,False
+48,c7h15-3 => c4h8-1 + nc3h7,0.007568,0.007568,False,False,,False
+48,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.005281,0.005281,False,False,,False
+48,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.005026,0.005026,False,False,,False
+48,nc7h16 + ho2 => c7h15-4 + h2o2,0.004815,0.004815,False,False,,False
+48,nc7h16 + ho2 => c7h15-2 + h2o2,0.004341,0.004341,False,False,,False
+48,nc7h16 + ho2 => c7h15-1 + h2o2,0.004103,0.004103,False,False,,False
+48,nc7h16 + oh => c7h15-2 + h2o,0.00333,0.00333,False,False,,False
+48,c7h15-4 => c2h5 + c5h10-1,0.003313,0.003313,False,False,,False
+48,nc7h16 + ho2 => c7h15-3 + h2o2,0.001547,0.001547,False,False,,False
+49,nc7h16 + h => c7h15-3 + h2,0.123096,0.123096,True,False,,True
+49,nc7h16 => c5h11-1 + c2h5,-0.048921,0.048921,False,False,,False
+49,nc7h16 + h => c7h15-2 + h2,0.048558,0.048558,False,False,,False
+49,nc7h16 => pc4h9 + nc3h7,-0.040759,0.040759,False,False,,False
+49,nc7h16 + oh => c7h15-3 + h2o,0.036695,0.036695,False,False,,False
+49,nc7h16 + h => c7h15-4 + h2,-0.026803,0.026803,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+49,nc7h16 + h => c7h15-1 + h2,0.02643,0.02643,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+49,nc7h16 + oh => c7h15-4 + h2o,-0.021647,0.021647,False,False,,False
+49,c7h15-3 => c4h8-1 + nc3h7,0.009644,0.009644,False,False,,False
+49,nc7h16 + ho2 => c7h15-4 + h2o2,0.005323,0.005323,False,False,,False
+49,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.004525,0.004525,False,False,,False
+49,nc7h16 + ho2 => c7h15-2 + h2o2,0.004381,0.004381,False,False,,False
+49,nc7h16 + oh => c7h15-2 + h2o,0.003865,0.003865,False,False,,False
+49,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.003479,0.003479,False,False,,False
+49,nc7h16 + ho2 => c7h15-1 + h2o2,0.00316,0.00316,False,False,,False
+49,nc7h16 + ho2 => c7h15-3 + h2o2,-0.001819,0.001819,False,False,,False
+49,c7h15-2 => pc4h9 + c3h6,0.000773,0.000773,False,False,,False
+49,c7h15-4 => c2h5 + c5h10-1,0.000174,0.000174,False,False,,False
+5,nc7h16 + ho2 => c7h15-2 + h2o2,-0.098186,0.098186,True,False,,True
+5,nc7h16 + ho2 => c7h15-3 + h2o2,-0.089699,0.089699,True,False,,True
+5,nc7h16 + ho2 => c7h15-4 + h2o2,-0.054661,0.054661,True,False,,True
+5,nc7h16 + ho2 => c7h15-1 + h2o2,-0.043001,0.043001,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.97),True
+5,nc7h16 => c5h11-1 + c2h5,-0.039507,0.039507,False,False,,False
+5,nc7h16 => pc4h9 + nc3h7,-0.032962,0.032962,False,False,,False
+5,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.031784,0.031784,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.81),True
+5,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.031229,0.031229,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+5,nc7h16 + oh => c7h15-3 + h2o,0.02834,0.02834,False,False,,False
+5,nc7h16 + h => c7h15-3 + h2,0.016043,0.016043,False,False,,False
+5,nc7h16 + oh => c7h15-4 + h2o,-0.011687,0.011687,False,False,,False
+5,nc7h16 + oh => c7h15-2 + h2o,-0.009485,0.009485,False,False,,False
+5,nc7h16 + h => c7h15-4 + h2,-0.007127,0.007127,False,False,,False
+5,nc7h16 + h => c7h15-2 + h2,-0.007036,0.007036,False,False,,False
+5,c7h15-2 => pc4h9 + c3h6,0.006052,0.006052,False,False,,False
+5,nc7h16 + h => c7h15-1 + h2,0.003989,0.003989,False,False,,False
+5,c7h15-3 => c4h8-1 + nc3h7,0.002606,0.002606,False,False,,False
+5,c7h15-4 => c2h5 + c5h10-1,0.00064,0.00064,False,False,,False
+50,nc7h16 + h => c7h15-3 + h2,0.141951,0.141951,True,False,,True
+50,nc7h16 => c5h11-1 + c2h5,-0.054937,0.054937,True,False,,True
+50,nc7h16 + h => c7h15-2 + h2,0.053206,0.053206,True,False,,True
+50,nc7h16 + h => c7h15-4 + h2,-0.050376,0.050376,True,False,,True
+50,nc7h16 + oh => c7h15-3 + h2o,0.044639,0.044639,False,False,,False
+50,nc7h16 => pc4h9 + nc3h7,-0.040801,0.040801,False,False,,False
+50,nc7h16 + oh => c7h15-4 + h2o,-0.034205,0.034205,False,False,,False
+50,nc7h16 + h => c7h15-1 + h2,0.030804,0.030804,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+50,c7h15-3 => c4h8-1 + nc3h7,0.005287,0.005287,False,False,,False
+50,nc7h16 + ho2 => c7h15-3 + h2o2,0.003725,0.003725,False,False,,False
+50,c7h15-2 => pc4h9 + c3h6,0.003499,0.003499,False,False,,False
+50,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003378,0.003378,False,False,,False
+50,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.002391,0.002391,False,False,,False
+50,nc7h16 + ho2 => c7h15-2 + h2o2,0.00218,0.00218,False,False,,False
+50,c7h15-4 => c2h5 + c5h10-1,-0.001118,0.001118,False,False,,False
+50,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000982,0.000982,False,False,,False
+50,nc7h16 + ho2 => c7h15-1 + h2o2,0.000404,0.000404,False,False,,False
+50,nc7h16 + oh => c7h15-2 + h2o,6.2e-05,6.2e-05,False,False,,False
+51,nc7h16 + h => c7h15-3 + h2,0.140211,0.140211,True,False,,True
+51,nc7h16 + h => c7h15-2 + h2,0.056679,0.056679,True,False,,True
+51,nc7h16 => c5h11-1 + c2h5,-0.053036,0.053036,True,False,,True
+51,nc7h16 + h => c7h15-4 + h2,-0.044429,0.044429,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+51,nc7h16 + oh => c7h15-3 + h2o,0.041839,0.041839,False,False,,False
+51,nc7h16 => pc4h9 + nc3h7,-0.03952,0.03952,False,False,,False
+51,nc7h16 + oh => c7h15-4 + h2o,-0.030958,0.030958,False,False,,False
+51,nc7h16 + h => c7h15-1 + h2,0.030532,0.030532,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+51,c7h15-3 => c4h8-1 + nc3h7,0.008469,0.008469,False,False,,False
+51,nc7h16 + ho2 => c7h15-4 + h2o2,-0.005671,0.005671,False,False,,False
+51,nc7h16 + ho2 => c7h15-3 + h2o2,0.003677,0.003677,False,False,,False
+51,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.002959,0.002959,False,False,,False
+51,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.002678,0.002678,False,False,,False
+51,nc7h16 + ho2 => c7h15-1 + h2o2,0.002137,0.002137,False,False,,False
+51,c7h15-2 => pc4h9 + c3h6,0.002119,0.002119,False,False,,False
+51,c7h15-4 => c2h5 + c5h10-1,0.001683,0.001683,False,False,,False
+51,nc7h16 + oh => c7h15-2 + h2o,0.001055,0.001055,False,False,,False
+51,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000812,0.000812,False,False,,False
+52,c7h15-4 => c2h5 + c5h10-1,-0.044093,0.044093,False,False,,False
+52,nc7h16 => c5h11-1 + c2h5,-0.04397,0.04397,False,False,,False
+52,nc7h16 + h => c7h15-2 + h2,0.038478,0.038478,False,False,,False
+52,c7h15-3 => c4h8-1 + nc3h7,-0.031795,0.031795,False,False,,False
+52,nc7h16 + oh => c7h15-4 + h2o,-0.02757,0.02757,False,False,,False
+52,nc7h16 + ho2 => c7h15-2 + h2o2,-0.026445,0.026445,False,False,,False
+52,nc7h16 + oh => c7h15-2 + h2o,-0.024863,0.024863,False,False,,False
+52,nc7h16 + h => c7h15-3 + h2,0.019195,0.019195,False,False,,False
+52,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.018959,0.018959,False,False,,False
+52,nc7h16 + oh => c7h15-3 + h2o,-0.017691,0.017691,False,False,,False
+52,nc7h16 + h => c7h15-1 + h2,0.014086,0.014086,False,False,,False
+52,nc7h16 + ho2 => c7h15-3 + h2o2,-0.012483,0.012483,False,False,,False
+52,c7h15-2 => pc4h9 + c3h6,0.012025,0.012025,False,False,,False
+52,nc7h16 => pc4h9 + nc3h7,0.007987,0.007987,False,False,,False
+52,nc7h16 + h => c7h15-4 + h2,-0.003806,0.003806,False,False,,False
+52,nc7h16 + ho2 => c7h15-1 + h2o2,2.1e-05,2.1e-05,False,False,,False
+52,nc7h16 + ho2 => c7h15-4 + h2o2,-3e-06,3e-06,False,False,,False
+52,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-3e-06,3e-06,False,False,,False
+53,nc7h16 => c5h11-1 + c2h5,-0.054183,0.054183,True,False,,True
+53,nc7h16 => pc4h9 + nc3h7,-0.042412,0.042412,False,False,,False
+53,nc7h16 + h => c7h15-2 + h2,0.040747,0.040747,False,False,,False
+53,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.03981,0.03981,False,False,,False
+53,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.039809,0.039809,False,False,,False
+53,nc7h16 + oh => c7h15-2 + h2o,-0.03865,0.03865,False,False,,False
+53,nc7h16 + oh => c7h15-4 + h2o,-0.035127,0.035127,False,False,,False
+53,nc7h16 + h => c7h15-4 + h2,-0.032715,0.032715,False,False,,False
+53,nc7h16 + h => c7h15-1 + h2,-0.028925,0.028925,False,False,,False
+53,c7h15-4 => c2h5 + c5h10-1,-0.026463,0.026463,False,False,,False
+53,c7h15-3 => c4h8-1 + nc3h7,-0.020806,0.020806,False,False,,False
+53,c7h15-2 => pc4h9 + c3h6,-0.01915,0.01915,False,False,,False
+53,nc7h16 + oh => c7h15-3 + h2o,-0.015286,0.015286,False,False,,False
+53,nc7h16 + h => c7h15-3 + h2,0.009684,0.009684,False,False,,False
+53,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001615,0.001615,False,False,,False
+53,nc7h16 + ho2 => c7h15-3 + h2o2,-1.1e-05,1.1e-05,False,False,,False
+53,nc7h16 + ho2 => c7h15-1 + h2o2,-7e-06,7e-06,False,False,,False
+53,nc7h16 + ho2 => c7h15-2 + h2o2,-7e-06,7e-06,False,False,,False
+54,nc7h16 + h => c7h15-3 + h2,0.035484,0.035484,False,False,,False
+54,nc7h16 => pc4h9 + nc3h7,-0.027524,0.027524,False,False,,False
+54,nc7h16 + ho2 => c7h15-1 + h2o2,-0.025657,0.025657,False,False,,False
+54,nc7h16 + ho2 => c7h15-3 + h2o2,-0.025573,0.025573,False,False,,False
+54,nc7h16 + ho2 => c7h15-2 + h2o2,-0.025566,0.025566,False,False,,False
+54,nc7h16 + ho2 => c7h15-4 + h2o2,-0.02554,0.02554,False,False,,False
+54,nc7h16 + h => c7h15-2 + h2,0.024882,0.024882,False,False,,False
+54,nc7h16 + oh => c7h15-4 + h2o,-0.024127,0.024127,False,False,,False
+54,nc7h16 + h => c7h15-4 + h2,-0.022865,0.022865,False,False,,False
+54,nc7h16 => c5h11-1 + c2h5,-0.019007,0.019007,False,False,,False
+54,c7h15-2 => pc4h9 + c3h6,0.015907,0.015907,False,False,,False
+54,nc7h16 + oh => c7h15-2 + h2o,0.013006,0.013006,False,False,,False
+54,nc7h16 + h => c7h15-1 + h2,-0.009762,0.009762,False,False,,False
+54,nc7h16 + oh => c7h15-3 + h2o,0.003416,0.003416,False,False,,False
+54,c7h15-4 => c2h5 + c5h10-1,0.003347,0.003347,False,False,,False
+54,c7h15-3 => c4h8-1 + nc3h7,-0.001989,0.001989,False,False,,False
+54,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,8e-05,8e-05,False,False,,False
+54,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,7e-05,7e-05,False,False,,False
+55,nc7h16 + h => c7h15-3 + h2,0.078498,0.078498,True,False,,True
+55,nc7h16 + h => c7h15-2 + h2,0.065919,0.065919,True,False,,True
+55,nc7h16 => c5h11-1 + c2h5,-0.031025,0.031025,False,False,,False
+55,nc7h16 + h => c7h15-4 + h2,-0.021432,0.021432,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+55,nc7h16 => pc4h9 + nc3h7,-0.021045,0.021045,False,False,,False
+55,nc7h16 + h => c7h15-1 + h2,0.019613,0.019613,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+55,nc7h16 + oh => c7h15-3 + h2o,0.015288,0.015288,False,False,,False
+55,nc7h16 + oh => c7h15-2 + h2o,0.006989,0.006989,False,False,,False
+55,nc7h16 + ho2 => c7h15-3 + h2o2,-0.004823,0.004823,False,False,,False
+55,c7h15-4 => c2h5 + c5h10-1,-0.003886,0.003886,False,False,,False
+55,c7h15-2 => pc4h9 + c3h6,0.003767,0.003767,False,False,,False
+55,nc7h16 + oh => c7h15-4 + h2o,-0.003616,0.003616,False,False,,False
+55,nc7h16 + ho2 => c7h15-1 + h2o2,-0.002982,0.002982,False,False,,False
+55,nc7h16 + ho2 => c7h15-4 + h2o2,-0.002689,0.002689,False,False,,False
+55,c7h15-3 => c4h8-1 + nc3h7,0.002391,0.002391,False,False,,False
+55,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.002245,0.002245,False,False,,False
+55,nc7h16 + ho2 => c7h15-2 + h2o2,-0.001534,0.001534,False,False,,False
+55,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.000153,0.000153,False,False,,False
+56,nc7h16 + h => c7h15-3 + h2,0.083418,0.083418,True,False,,True
+56,nc7h16 + h => c7h15-2 + h2,0.06709,0.06709,True,False,,True
+56,nc7h16 + h => c7h15-4 + h2,-0.029953,0.029953,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+56,nc7h16 => c5h11-1 + c2h5,-0.029379,0.029379,False,False,,False
+56,nc7h16 + h => c7h15-1 + h2,0.022687,0.022687,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+56,nc7h16 => pc4h9 + nc3h7,-0.022434,0.022434,False,False,,False
+56,nc7h16 + oh => c7h15-3 + h2o,0.016846,0.016846,False,False,,False
+56,nc7h16 + oh => c7h15-2 + h2o,0.014671,0.014671,False,False,,False
+56,c7h15-3 => c4h8-1 + nc3h7,0.007992,0.007992,False,False,,False
+56,c7h15-2 => pc4h9 + c3h6,0.007496,0.007496,False,False,,False
+56,nc7h16 + oh => c7h15-4 + h2o,-0.00479,0.00479,False,False,,False
+56,c7h15-4 => c2h5 + c5h10-1,0.003876,0.003876,False,False,,False
+56,nc7h16 + ho2 => c7h15-2 + h2o2,-0.001392,0.001392,False,False,,False
+56,nc7h16 + ho2 => c7h15-3 + h2o2,0.001152,0.001152,False,False,,False
+56,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000267,0.000267,False,False,,False
+56,nc7h16 + ho2 => c7h15-4 + h2o2,0.00015,0.00015,False,False,,False
+56,nc7h16 + ho2 => c7h15-1 + h2o2,-7.1e-05,7.1e-05,False,False,,False
+56,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-6.9e-05,6.9e-05,False,False,,False
+57,nc7h16 + h => c7h15-3 + h2,0.087045,0.087045,True,False,,True
+57,nc7h16 + h => c7h15-2 + h2,0.059235,0.059235,True,False,,True
+57,nc7h16 + h => c7h15-4 + h2,-0.039544,0.039544,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+57,nc7h16 => c5h11-1 + c2h5,-0.03616,0.03616,False,False,,False
+57,nc7h16 => pc4h9 + nc3h7,-0.02977,0.02977,False,False,,False
+57,nc7h16 + h => c7h15-1 + h2,0.019273,0.019273,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+57,nc7h16 + oh => c7h15-3 + h2o,0.016482,0.016482,False,False,,False
+57,nc7h16 + oh => c7h15-2 + h2o,0.011331,0.011331,False,False,,False
+57,nc7h16 + oh => c7h15-4 + h2o,-0.006782,0.006782,False,False,,False
+57,c7h15-3 => c4h8-1 + nc3h7,0.00526,0.00526,False,False,,False
+57,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.002754,0.002754,False,False,,False
+57,c7h15-4 => c2h5 + c5h10-1,-0.002523,0.002523,False,False,,False
+57,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001983,0.001983,False,False,,False
+57,c7h15-2 => pc4h9 + c3h6,0.001862,0.001862,False,False,,False
+57,nc7h16 + ho2 => c7h15-3 + h2o2,-0.001744,0.001744,False,False,,False
+57,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.000675,0.000675,False,False,,False
+57,nc7h16 + ho2 => c7h15-2 + h2o2,-0.000498,0.000498,False,False,,False
+57,nc7h16 + ho2 => c7h15-1 + h2o2,0.000114,0.000114,False,False,,False
+58,nc7h16 + h => c7h15-3 + h2,0.025381,0.025381,False,False,,False
+58,nc7h16 => c5h11-1 + c2h5,-0.025112,0.025112,False,False,,False
+58,nc7h16 => pc4h9 + nc3h7,-0.024428,0.024428,False,False,,False
+58,nc7h16 + h => c7h15-1 + h2,0.017601,0.017601,False,False,,False
+58,c7h15-3 => c4h8-1 + nc3h7,-0.016867,0.016867,False,False,,False
+58,nc7h16 + h => c7h15-2 + h2,0.00917,0.00917,False,False,,False
+58,c7h15-2 => pc4h9 + c3h6,0.007764,0.007764,False,False,,False
+58,nc7h16 + oh => c7h15-4 + h2o,0.00629,0.00629,False,False,,False
+58,c7h15-4 => c2h5 + c5h10-1,-0.005605,0.005605,False,False,,False
+58,nc7h16 + oh => c7h15-2 + h2o,-0.003441,0.003441,False,False,,False
+58,nc7h16 + oh => c7h15-3 + h2o,0.003345,0.003345,False,False,,False
+58,nc7h16 + ho2 => c7h15-1 + h2o2,0.002769,0.002769,False,False,,False
+58,nc7h16 + h => c7h15-4 + h2,-0.002636,0.002636,False,False,,False
+58,nc7h16 + ho2 => c7h15-3 + h2o2,0.002391,0.002391,False,False,,False
+58,nc7h16 + ho2 => c7h15-4 + h2o2,0.002358,0.002358,False,False,,False
+58,nc7h16 + ho2 => c7h15-2 + h2o2,0.002217,0.002217,False,False,,False
+58,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.0,0.0,False,False,,False
+58,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.0,0.0,False,False,,False
+59,nc7h16 + h => c7h15-3 + h2,0.080313,0.080313,True,False,,True
+59,nc7h16 + h => c7h15-2 + h2,0.047553,0.047553,False,False,,False
+59,nc7h16 => c5h11-1 + c2h5,-0.041242,0.041242,False,False,,False
+59,nc7h16 + h => c7h15-4 + h2,-0.033357,0.033357,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+59,nc7h16 => pc4h9 + nc3h7,-0.029743,0.029743,False,False,,False
+59,nc7h16 + oh => c7h15-4 + h2o,-0.018657,0.018657,False,False,,False
+59,nc7h16 + oh => c7h15-3 + h2o,0.017987,0.017987,False,False,,False
+59,nc7h16 + oh => c7h15-2 + h2o,0.01054,0.01054,False,False,,False
+59,nc7h16 + h => c7h15-1 + h2,0.00877,0.00877,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+59,c7h15-3 => c4h8-1 + nc3h7,-0.00305,0.00305,False,False,,False
+59,nc7h16 + ho2 => c7h15-2 + h2o2,-0.002922,0.002922,False,False,,False
+59,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.002042,0.002042,False,False,,False
+59,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.002038,0.002038,False,False,,False
+59,nc7h16 + ho2 => c7h15-1 + h2o2,-0.001814,0.001814,False,False,,False
+59,nc7h16 + ho2 => c7h15-3 + h2o2,0.001668,0.001668,False,False,,False
+59,c7h15-4 => c2h5 + c5h10-1,-0.000825,0.000825,False,False,,False
+59,c7h15-2 => pc4h9 + c3h6,-0.000253,0.000253,False,False,,False
+59,nc7h16 + ho2 => c7h15-4 + h2o2,-0.000159,0.000159,False,False,,False
+6,nc7h16 + ho2 => c7h15-2 + h2o2,-0.110385,0.110385,True,False,,True
+6,nc7h16 + ho2 => c7h15-3 + h2o2,-0.10936,0.10936,True,False,,True
+6,nc7h16 + ho2 => c7h15-4 + h2o2,-0.060604,0.060604,True,False,,True
+6,nc7h16 + ho2 => c7h15-1 + h2o2,-0.049913,0.049913,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.97); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.97),True
+6,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.037967,0.037967,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.84); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.87),True
+6,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.037221,0.037221,False,True,nc7h16 + ho2 => c7h15-2 + h2o2 (r=+0.87); nc7h16 + ho2 => c7h15-3 + h2o2 (r=+0.88); nc7h16 + ho2 => c7h15-4 + h2o2 (r=+0.81),True
+6,nc7h16 => c5h11-1 + c2h5,-0.033192,0.033192,False,False,,False
+6,nc7h16 => pc4h9 + nc3h7,-0.02786,0.02786,False,False,,False
+6,nc7h16 + oh => c7h15-3 + h2o,0.012593,0.012593,False,False,,False
+6,c7h15-2 => pc4h9 + c3h6,0.010329,0.010329,False,False,,False
+6,nc7h16 + h => c7h15-2 + h2,-0.005569,0.005569,False,False,,False
+6,c7h15-3 => c4h8-1 + nc3h7,0.004182,0.004182,False,False,,False
+6,nc7h16 + h => c7h15-4 + h2,-0.00409,0.00409,False,False,,False
+6,nc7h16 + oh => c7h15-4 + h2o,-0.002639,0.002639,False,False,,False
+6,nc7h16 + h => c7h15-3 + h2,0.002055,0.002055,False,False,,False
+6,c7h15-4 => c2h5 + c5h10-1,0.002006,0.002006,False,False,,False
+6,nc7h16 + h => c7h15-1 + h2,0.000406,0.000406,False,False,,False
+6,nc7h16 + oh => c7h15-2 + h2o,5.7e-05,5.7e-05,False,False,,False
+60,nc7h16 + h => c7h15-3 + h2,0.080768,0.080768,True,False,,True
+60,nc7h16 + h => c7h15-2 + h2,0.052966,0.052966,True,False,,True
+60,nc7h16 => c5h11-1 + c2h5,-0.035291,0.035291,False,False,,False
+60,nc7h16 => pc4h9 + nc3h7,-0.034516,0.034516,False,False,,False
+60,nc7h16 + h => c7h15-4 + h2,-0.033974,0.033974,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+60,nc7h16 + oh => c7h15-3 + h2o,0.016487,0.016487,False,False,,False
+60,nc7h16 + h => c7h15-1 + h2,0.012559,0.012559,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+60,nc7h16 + oh => c7h15-4 + h2o,-0.008536,0.008536,False,False,,False
+60,nc7h16 + ho2 => c7h15-1 + h2o2,-0.007787,0.007787,False,False,,False
+60,nc7h16 + oh => c7h15-2 + h2o,-0.002205,0.002205,False,False,,False
+60,c7h15-4 => c2h5 + c5h10-1,0.002183,0.002183,False,False,,False
+60,nc7h16 + ho2 => c7h15-4 + h2o2,0.002162,0.002162,False,False,,False
+60,nc7h16 + ho2 => c7h15-2 + h2o2,0.002151,0.002151,False,False,,False
+60,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.002099,0.002099,False,False,,False
+60,c7h15-2 => pc4h9 + c3h6,-0.00124,0.00124,False,False,,False
+60,c7h15-3 => c4h8-1 + nc3h7,0.00047,0.00047,False,False,,False
+60,nc7h16 + ho2 => c7h15-3 + h2o2,-0.00023,0.00023,False,False,,False
+60,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.000103,0.000103,False,False,,False
+61,nc7h16 + h => c7h15-3 + h2,0.043717,0.043717,False,False,,False
+61,nc7h16 + h => c7h15-2 + h2,0.037317,0.037317,False,False,,False
+61,nc7h16 => c5h11-1 + c2h5,-0.032063,0.032063,False,False,,False
+61,nc7h16 => pc4h9 + nc3h7,-0.026281,0.026281,False,False,,False
+61,nc7h16 + h => c7h15-4 + h2,-0.023256,0.023256,False,False,,False
+61,nc7h16 + h => c7h15-1 + h2,-0.017593,0.017593,False,False,,False
+61,c7h15-3 => c4h8-1 + nc3h7,-0.011981,0.011981,False,False,,False
+61,nc7h16 + oh => c7h15-3 + h2o,-0.010659,0.010659,False,False,,False
+61,c7h15-2 => pc4h9 + c3h6,0.009571,0.009571,False,False,,False
+61,nc7h16 + oh => c7h15-4 + h2o,-0.006679,0.006679,False,False,,False
+61,c7h15-4 => c2h5 + c5h10-1,-0.003822,0.003822,False,False,,False
+61,nc7h16 + oh => c7h15-2 + h2o,-0.001045,0.001045,False,False,,False
+61,nc7h16 + ho2 => c7h15-4 + h2o2,-2.3e-05,2.3e-05,False,False,,False
+61,nc7h16 + ho2 => c7h15-2 + h2o2,-2.2e-05,2.2e-05,False,False,,False
+61,nc7h16 + ho2 => c7h15-3 + h2o2,-1.6e-05,1.6e-05,False,False,,False
+61,nc7h16 + ho2 => c7h15-1 + h2o2,-1.5e-05,1.5e-05,False,False,,False
+61,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.0,0.0,False,False,,False
+61,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.0,0.0,False,False,,False
+62,nc7h16 + h => c7h15-3 + h2,0.080072,0.080072,True,False,,True
+62,nc7h16 + h => c7h15-2 + h2,0.053309,0.053309,True,False,,True
+62,nc7h16 => c5h11-1 + c2h5,-0.040199,0.040199,False,False,,False
+62,nc7h16 + h => c7h15-4 + h2,-0.037916,0.037916,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+62,nc7h16 => pc4h9 + nc3h7,-0.032327,0.032327,False,False,,False
+62,nc7h16 + oh => c7h15-3 + h2o,0.020741,0.020741,False,False,,False
+62,nc7h16 + h => c7h15-1 + h2,0.017354,0.017354,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+62,nc7h16 + oh => c7h15-4 + h2o,-0.008637,0.008637,False,False,,False
+62,nc7h16 + oh => c7h15-2 + h2o,0.005588,0.005588,False,False,,False
+62,c7h15-2 => pc4h9 + c3h6,0.002846,0.002846,False,False,,False
+62,c7h15-3 => c4h8-1 + nc3h7,0.001633,0.001633,False,False,,False
+62,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.001139,0.001139,False,False,,False
+62,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,0.001138,0.001138,False,False,,False
+62,c7h15-4 => c2h5 + c5h10-1,0.000931,0.000931,False,False,,False
+62,nc7h16 + ho2 => c7h15-1 + h2o2,0.000107,0.000107,False,False,,False
+62,nc7h16 + ho2 => c7h15-3 + h2o2,0.000106,0.000106,False,False,,False
+62,nc7h16 + ho2 => c7h15-4 + h2o2,7e-06,7e-06,False,False,,False
+62,nc7h16 + ho2 => c7h15-2 + h2o2,1e-06,1e-06,False,False,,False
+63,nc7h16 + h => c7h15-3 + h2,0.09702,0.09702,True,False,,True
+63,nc7h16 + h => c7h15-2 + h2,0.049287,0.049287,False,False,,False
+63,nc7h16 => c5h11-1 + c2h5,-0.047544,0.047544,False,False,,False
+63,nc7h16 + h => c7h15-4 + h2,-0.042966,0.042966,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+63,nc7h16 => pc4h9 + nc3h7,-0.034556,0.034556,False,False,,False
+63,nc7h16 + oh => c7h15-3 + h2o,0.025995,0.025995,False,False,,False
+63,nc7h16 + oh => c7h15-4 + h2o,-0.013838,0.013838,False,False,,False
+63,nc7h16 + h => c7h15-1 + h2,0.009456,0.009456,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+63,nc7h16 + oh => c7h15-2 + h2o,0.004779,0.004779,False,False,,False
+63,c7h15-3 => c4h8-1 + nc3h7,0.00285,0.00285,False,False,,False
+63,c7h15-2 => pc4h9 + c3h6,0.002726,0.002726,False,False,,False
+63,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.002217,0.002217,False,False,,False
+63,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.00219,0.00219,False,False,,False
+63,nc7h16 + ho2 => c7h15-2 + h2o2,-0.002178,0.002178,False,False,,False
+63,nc7h16 + ho2 => c7h15-4 + h2o2,-0.002113,0.002113,False,False,,False
+63,nc7h16 + ho2 => c7h15-3 + h2o2,-0.002037,0.002037,False,False,,False
+63,nc7h16 + ho2 => c7h15-1 + h2o2,-0.001851,0.001851,False,False,,False
+63,c7h15-4 => c2h5 + c5h10-1,-0.001501,0.001501,False,False,,False
+64,nc7h16 + h => c7h15-3 + h2,0.081185,0.081185,True,False,,True
+64,nc7h16 + h => c7h15-2 + h2,0.048269,0.048269,False,False,,False
+64,nc7h16 + h => c7h15-4 + h2,-0.038669,0.038669,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+64,nc7h16 => c5h11-1 + c2h5,-0.037729,0.037729,False,False,,False
+64,nc7h16 => pc4h9 + nc3h7,-0.02646,0.02646,False,False,,False
+64,nc7h16 + h => c7h15-1 + h2,0.021432,0.021432,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+64,nc7h16 + oh => c7h15-3 + h2o,0.017221,0.017221,False,False,,False
+64,nc7h16 + oh => c7h15-4 + h2o,-0.01387,0.01387,False,False,,False
+64,c7h15-2 => pc4h9 + c3h6,0.011619,0.011619,False,False,,False
+64,c7h15-3 => c4h8-1 + nc3h7,0.008639,0.008639,False,False,,False
+64,nc7h16 + oh => c7h15-2 + h2o,0.008001,0.008001,False,False,,False
+64,nc7h16 + ho2 => c7h15-3 + h2o2,0.006335,0.006335,False,False,,False
+64,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,0.005935,0.005935,False,False,,False
+64,nc7h16 + ho2 => c7h15-2 + h2o2,-0.003441,0.003441,False,False,,False
+64,nc7h16 + ho2 => c7h15-4 + h2o2,-0.003417,0.003417,False,False,,False
+64,nc7h16 + ho2 => c7h15-1 + h2o2,0.003215,0.003215,False,False,,False
+64,c7h15-4 => c2h5 + c5h10-1,-0.002346,0.002346,False,False,,False
+64,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.002108,0.002108,False,False,,False
+65,nc7h16 + h => c7h15-3 + h2,0.088494,0.088494,True,False,,True
+65,nc7h16 + h => c7h15-4 + h2,-0.044092,0.044092,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+65,nc7h16 + h => c7h15-2 + h2,0.041379,0.041379,False,False,,False
+65,nc7h16 => c5h11-1 + c2h5,-0.039088,0.039088,False,False,,False
+65,nc7h16 => pc4h9 + nc3h7,-0.031042,0.031042,False,False,,False
+65,nc7h16 + oh => c7h15-4 + h2o,-0.017376,0.017376,False,False,,False
+65,nc7h16 + h => c7h15-1 + h2,0.014665,0.014665,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+65,nc7h16 + oh => c7h15-3 + h2o,0.012965,0.012965,False,False,,False
+65,c7h15-3 => c4h8-1 + nc3h7,0.006152,0.006152,False,False,,False
+65,c7h15-2 => pc4h9 + c3h6,0.004437,0.004437,False,False,,False
+65,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003197,0.003197,False,False,,False
+65,nc7h16 + oh => c7h15-2 + h2o,0.00269,0.00269,False,False,,False
+65,nc7h16 + ho2 => c7h15-3 + h2o2,-0.002505,0.002505,False,False,,False
+65,nc7h16 + ho2 => c7h15-1 + h2o2,-0.002063,0.002063,False,False,,False
+65,nc7h16 + ho2 => c7h15-2 + h2o2,-0.00203,0.00203,False,False,,False
+65,nc7h16 + ho2 => c7h15-4 + h2o2,0.000695,0.000695,False,False,,False
+65,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.000422,0.000422,False,False,,False
+65,c7h15-4 => c2h5 + c5h10-1,4.6e-05,4.6e-05,False,False,,False
+66,nc7h16 + h => c7h15-3 + h2,0.084106,0.084106,True,False,,True
+66,nc7h16 + h => c7h15-2 + h2,0.051521,0.051521,True,False,,True
+66,nc7h16 => c5h11-1 + c2h5,-0.037548,0.037548,False,False,,False
+66,nc7h16 + h => c7h15-4 + h2,-0.035895,0.035895,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+66,nc7h16 => pc4h9 + nc3h7,-0.027968,0.027968,False,False,,False
+66,nc7h16 + h => c7h15-1 + h2,0.017278,0.017278,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+66,nc7h16 + oh => c7h15-2 + h2o,0.011227,0.011227,False,False,,False
+66,nc7h16 + oh => c7h15-3 + h2o,0.009818,0.009818,False,False,,False
+66,nc7h16 + oh => c7h15-4 + h2o,-0.008643,0.008643,False,False,,False
+66,nc7h16 + ho2 => c7h15-3 + h2o2,-0.004384,0.004384,False,False,,False
+66,nc7h16 + ho2 => c7h15-2 + h2o2,-0.004362,0.004362,False,False,,False
+66,c7h15-2 => pc4h9 + c3h6,0.003775,0.003775,False,False,,False
+66,nc7h16 + ho2 => c7h15-4 + h2o2,-0.001907,0.001907,False,False,,False
+66,c7h15-4 => c2h5 + c5h10-1,-0.001713,0.001713,False,False,,False
+66,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.001611,0.001611,False,False,,False
+66,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.001597,0.001597,False,False,,False
+66,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000712,0.000712,False,False,,False
+66,c7h15-3 => c4h8-1 + nc3h7,-0.00066,0.00066,False,False,,False
+67,nc7h16 + h => c7h15-3 + h2,0.086954,0.086954,True,False,,True
+67,nc7h16 + h => c7h15-4 + h2,-0.047891,0.047891,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+67,nc7h16 => c5h11-1 + c2h5,-0.047638,0.047638,False,False,,False
+67,nc7h16 => pc4h9 + nc3h7,-0.037727,0.037727,False,False,,False
+67,nc7h16 + h => c7h15-2 + h2,0.036048,0.036048,False,False,,False
+67,nc7h16 + oh => c7h15-4 + h2o,-0.022527,0.022527,False,False,,False
+67,nc7h16 + oh => c7h15-3 + h2o,0.016808,0.016808,False,False,,False
+67,nc7h16 + h => c7h15-1 + h2,0.009536,0.009536,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+67,c7h15-4 => c2h5 + c5h10-1,-0.008121,0.008121,False,False,,False
+67,nc7h16 + oh => c7h15-2 + h2o,0.004508,0.004508,False,False,,False
+67,c7h15-2 => pc4h9 + c3h6,0.002048,0.002048,False,False,,False
+67,c7h15-3 => c4h8-1 + nc3h7,0.001923,0.001923,False,False,,False
+67,nc7h16 + ho2 => c7h15-1 + h2o2,-0.000774,0.000774,False,False,,False
+67,nc7h16 + ho2 => c7h15-3 + h2o2,0.000538,0.000538,False,False,,False
+67,nc7h16 + ho2 => c7h15-4 + h2o2,0.000427,0.000427,False,False,,False
+67,nc7h16 + ho2 => c7h15-2 + h2o2,0.000189,0.000189,False,False,,False
+67,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-6e-06,6e-06,False,False,,False
+67,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-6e-06,6e-06,False,False,,False
+7,nc7h16 + h => c7h15-3 + h2,0.119435,0.119435,True,False,,True
+7,nc7h16 + h => c7h15-4 + h2,-0.053925,0.053925,True,False,,True
+7,nc7h16 => c5h11-1 + c2h5,-0.053484,0.053484,True,False,,True
+7,nc7h16 + oh => c7h15-3 + h2o,0.042401,0.042401,False,False,,False
+7,nc7h16 => pc4h9 + nc3h7,-0.042205,0.042205,False,False,,False
+7,nc7h16 + h => c7h15-1 + h2,0.033971,0.033971,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+7,nc7h16 + h => c7h15-2 + h2,-0.022185,0.022185,False,False,,False
+7,nc7h16 + oh => c7h15-4 + h2o,-0.019633,0.019633,False,False,,False
+7,nc7h16 + ho2 => c7h15-2 + h2o2,-0.009358,0.009358,False,False,,False
+7,c7h15-3 => c4h8-1 + nc3h7,0.008462,0.008462,False,False,,False
+7,nc7h16 + oh => c7h15-2 + h2o,-0.007704,0.007704,False,False,,False
+7,nc7h16 + ho2 => c7h15-4 + h2o2,-0.006065,0.006065,False,False,,False
+7,nc7h16 + ho2 => c7h15-3 + h2o2,-0.004557,0.004557,False,False,,False
+7,nc7h16 + ho2 => c7h15-1 + h2o2,-0.003693,0.003693,False,False,,False
+7,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.003135,0.003135,False,False,,False
+7,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.003116,0.003116,False,False,,False
+7,c7h15-4 => c2h5 + c5h10-1,-0.001219,0.001219,False,False,,False
+7,c7h15-2 => pc4h9 + c3h6,-0.001155,0.001155,False,False,,False
+8,nc7h16 + h => c7h15-3 + h2,0.099833,0.099833,True,False,,True
+8,nc7h16 + oh => c7h15-3 + h2o,0.055287,0.055287,True,False,,True
+8,nc7h16 => c5h11-1 + c2h5,-0.053791,0.053791,True,False,,True
+8,nc7h16 => pc4h9 + nc3h7,-0.043721,0.043721,False,False,,False
+8,nc7h16 + h => c7h15-2 + h2,-0.04337,0.04337,False,False,,False
+8,nc7h16 + h => c7h15-4 + h2,-0.039244,0.039244,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+8,nc7h16 + ho2 => c7h15-2 + h2o2,-0.031297,0.031297,False,False,,False
+8,nc7h16 + h => c7h15-1 + h2,0.025316,0.025316,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+8,nc7h16 + oh => c7h15-2 + h2o,-0.023086,0.023086,False,False,,False
+8,nc7h16 + oh => c7h15-4 + h2o,-0.022391,0.022391,False,False,,False
+8,nc7h16 + ho2 => c7h15-3 + h2o2,-0.017858,0.017858,False,False,,False
+8,nc7h16 + ho2 => c7h15-4 + h2o2,-0.017807,0.017807,False,False,,False
+8,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.01157,0.01157,False,False,,False
+8,nc7h16 + ho2 => c7h15-1 + h2o2,-0.011109,0.011109,False,False,,False
+8,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.009854,0.009854,False,False,,False
+8,c7h15-3 => c4h8-1 + nc3h7,0.004096,0.004096,False,False,,False
+8,c7h15-2 => pc4h9 + c3h6,-0.001475,0.001475,False,False,,False
+8,c7h15-4 => c2h5 + c5h10-1,-0.00113,0.00113,False,False,,False
+9,nc7h16 + h => c7h15-3 + h2,0.088466,0.088466,True,False,,True
+9,nc7h16 + oh => c7h15-3 + h2o,0.056573,0.056573,True,False,,True
+9,nc7h16 => c5h11-1 + c2h5,-0.052298,0.052298,True,False,,True
+9,nc7h16 => pc4h9 + nc3h7,-0.042546,0.042546,False,False,,False
+9,nc7h16 + h => c7h15-2 + h2,-0.041969,0.041969,False,False,,False
+9,nc7h16 + ho2 => c7h15-2 + h2o2,-0.040197,0.040197,False,False,,False
+9,nc7h16 + h => c7h15-4 + h2,-0.033848,0.033848,False,True,nc7h16 + h => c7h15-3 + h2 (r=-0.85),True
+9,nc7h16 + oh => c7h15-2 + h2o,-0.025625,0.025625,False,False,,False
+9,nc7h16 + ho2 => c7h15-3 + h2o2,-0.024053,0.024053,False,False,,False
+9,nc7h16 + ho2 => c7h15-4 + h2o2,-0.022514,0.022514,False,False,,False
+9,nc7h16 + oh => c7h15-4 + h2o,-0.02221,0.02221,False,False,,False
+9,nc7h16 + h => c7h15-1 + h2,0.02182,0.02182,False,True,nc7h16 + h => c7h15-3 + h2 (r=+0.86),True
+9,nc7h16 + ch3o2 => c7h15-2 + ch3o2h,-0.015327,0.015327,False,False,,False
+9,nc7h16 + ho2 => c7h15-1 + h2o2,-0.014642,0.014642,False,False,,False
+9,nc7h16 + ch3o2 => c7h15-3 + ch3o2h,-0.013196,0.013196,False,False,,False
+9,c7h15-3 => c4h8-1 + nc3h7,0.002994,0.002994,False,False,,False
+9,c7h15-2 => pc4h9 + c3h6,-0.00099,0.00099,False,False,,False
+9,c7h15-4 => c2h5 + c5h10-1,-0.000625,0.000625,False,False,,False

@@ -1,0 +1,80 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30101006</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-03-13</firstPublicationDate>
+    <lastModificationDate>2023-03-13</lastModificationDate>
+    <bibliographyLink>
+        <description>V.J. Wargadalam, G. Löffler, F. Winter, H. Hofbauer, Combustion and Flame 120 (2000), 465–478</description>
+        <referenceDOI>10.1016/S0010-2180(99)00107-8</referenceDOI>
+        <location>Main article</location>
+        <table>Table 2, mixture 8</table>
+        <figure>Fig. 3., diamonds</figure>
+        <details>
+            <author>Wargadalam, V.J. and Löffler, G. and Winter, F. and Hofbauer, H.</author>
+            <journal>Combustion and Flame</journal>
+            <number>4</number>
+            <pages>465–478</pages>
+            <title>Homogeneous formation of NO and N2O from the oxidation of HCN and NH3 at 600–1000 °C</title>
+            <type>Journal Article</type>
+            <volume>120</volume>
+            <year>2000</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"             label="p"  sourcetype="reported"  units="atm"           ><value>1</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"          chemName="ammonia"         /><amount units="ppm"           >250</amount></component>
+            <component><speciesLink preferredKey="CO"   CAS="630-08-0"   InChI="1S/CO/c1-2"   SMILES="[C-]#[O+]"  chemName="carbon monoxide" /><amount units="ppm"           >1250</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"        chemName="oxygen"          /><amount units="mole fraction" >0.1</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"        chemName="nitrogen"        /><amount units="mole fraction" >0.8985</amount></component>
+        </property>
+        <property name="uncertainty"          sourcetype="reported"  units="K"              reference="temperature"  kind="absolute"  bound="plusminus" ><value>8</value></property>
+        <property name="uncertainty"          sourcetype="reported"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"          chemName="ammonia"         />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"          sourcetype="reported"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"      chemName="nitric oxide"    />
+            <value>0.1</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="residence time"                id="x1"   label="tau"   sourcetype="calculated"  units="s"             />
+        <property name="temperature"                   id="x2"   label="T"     sourcetype="digitized"   units="K"             />
+        <property name="composition"                   id="x3"   label="xNH3"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="composition"                   id="x4"   label="xNO"   sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+
+        <dataPoint><x1>0.388</x1><x2>873</x2><x3>250</x3><x4>0</x4><x5>1.8e-05</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.367</x1><x2>924</x2><x3>250</x3><x4>0</x4><x5>1.8e-05</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.348</x1><x2>974</x2><x3>250</x3><x4>0</x4><x5>1.8e-05</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.331</x1><x2>1024</x2><x3>250</x3><x4>0</x4><x5>1.8e-05</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.316</x1><x2>1074</x2><x3>227</x3><x4>6</x4><x5>1.6e-05</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.302</x1><x2>1124</x2><x3>0</x3><x4>95</x4><x5>5e-06</x5><x6>5e-06</x6></dataPoint>
+        <dataPoint><x1>0.289</x1><x2>1173</x2><x3>0</x3><x4>117</x4><x5>5e-06</x5><x6>7e-06</x6></dataPoint>
+        <dataPoint><x1>0.277</x1><x2>1224</x2><x3>0</x3><x4>133</x4><x5>5e-06</x5><x6>7e-06</x6></dataPoint>
+        <dataPoint><x1>0.266</x1><x2>1273</x2><x3>0</x3><x4>139</x4><x5>5e-06</x5><x6>8e-06</x6></dataPoint>
+    </dataGroup>
+    <comment>For the measured species, the maximum uncertainty was reported to be +/-10%. In the absence of further information, +/-10% is considered as the experimental error (2sigma).</comment>
+</experiment>

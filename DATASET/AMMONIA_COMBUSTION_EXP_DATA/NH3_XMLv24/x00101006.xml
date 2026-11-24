@@ -1,0 +1,108 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00101006</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-03-13</firstPublicationDate>
+    <lastModificationDate>2023-03-13</lastModificationDate>
+    <bibliographyLink>
+        <description>C. Ding, P. Li, K. Wang, G. Shi, F. Wang, Z. Liu, Energy and Fuels 35 (2021), 11445-11456</description>
+        <referenceDOI>10.1021/acs.energyfuels.1c00647</referenceDOI>
+        <location>Main article, Figure 8., red circles (case 5 in Table 2)</location>
+        <details>
+            <author>Ding, Cuijiao and Li, Pengfei and Wang, Kai and Shi, Guodong and Wang, Feifei and Liu, Zhaohui</author>
+            <journal>Energy and Fuels</journal>
+            <number>14</number>
+            <pages>11445-11456</pages>
+            <title>Experimental and Kinetic Study on the Oxidation of Syngas-Ammonia under Both N2 and CO2 Atmospheres in a Jet-Stirred Reactor</title>
+            <volume>35</volume>
+            <year>2021</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>jet stirred reactor</kind>
+    </apparatus>
+    <commonProperties>
+        <property name="initial composition"          >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"          sourcetype="reported"  chemName="ammonia"         /><amount units="ppm" >1000</amount></component>
+            <component><speciesLink preferredKey="CO"   CAS="630-08-0"   InChI="1S/CO/c1-2"   SMILES="[C-]#[O+]"  sourcetype="reported"  chemName="carbon monoxide" /><amount units="ppm" >5000</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"       sourcetype="reported"  chemName="hydrogen"        /><amount units="ppm" >5000</amount></component>
+        </property>
+        <property name="pressure"                      label="p"    sourcetype="reported"    units="atm"           ><value>1</value></property>
+        <property name="volume"                        label="V"    sourcetype="calculated"  units="cm3"           ><value>65.45</value></property>
+        <property name="temperature"                   label="T"    sourcetype="reported"    units="K"             ><value>1300</value></property>
+        <property name="residence time"                label="tau"  sourcetype="reported"    units="s"             ><value>0.91</value></property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide"   />
+            <value>5e-06</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="digitized"   units="unitless"      />
+        <property name="initial composition"           id="x2"   label="[O2]"     sourcetype="calculated"  units="percent"       >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"          />
+        </property>
+        <property name="initial composition"           id="x3"   label="[N2]"     sourcetype="calculated"  units="percent"       >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"   InChI="1S/N2/c1-2"     SMILES="N#N"         chemName="nitrogen"        />
+        </property>
+        <property name="composition"                   id="x4"   label="[O2]"     sourcetype="digitized"   units="percent"       >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"          />
+        </property>
+        <property name="composition"                   id="x5"   label="[CO]"     sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="CO"   CAS="630-08-0"    InChI="1S/CO/c1-2"     SMILES="[C-]#[O+]"   chemName="carbon monoxide" />
+        </property>
+        <property name="composition"                   id="x6"   label="[H2]"     sourcetype="digitized"   units="percent"       >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"        />
+        </property>
+        <property name="composition"                   id="x7"   label="[N2O]"    sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide"   />
+        </property>
+        <property name="composition"                   id="x8"   label="[NO]"     sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"    />
+        </property>
+        <property name="uncertainty"                   id="x9"   label="d_[O2]"   sourcetype="reported"    units="unitless"       reference="composition"  kind="relative"  bound="plusminus" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"          />
+        </property>
+        <property name="uncertainty"                   id="x10"  label="d_[CO]"   sourcetype="reported"    units="unitless"       reference="composition"  kind="relative"  bound="plusminus" >
+            <speciesLink preferredKey="CO"   CAS="630-08-0"    InChI="1S/CO/c1-2"     SMILES="[C-]#[O+]"   chemName="carbon monoxide" />
+        </property>
+        <property name="uncertainty"                   id="x11"  label="d_[H2]"   sourcetype="reported"    units="unitless"       reference="composition"  kind="relative"  bound="plusminus" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"        />
+        </property>
+        <property name="uncertainty"                   id="x12"  label="d_[N2O]"  sourcetype="reported"    units="unitless"       reference="composition"  kind="relative"  bound="plusminus" >
+            <speciesLink preferredKey="N2O"  CAS="10024-97-2"  InChI="1S/N2O/c1-2-3"  SMILES="N#[N+][O-]"  chemName="nitrous oxide"   />
+        </property>
+        <property name="uncertainty"                   id="x13"  label="d_[NO]"   sourcetype="reported"    units="unitless"       reference="composition"  kind="relative"  bound="plusminus" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"    />
+        </property>
+        <property name="evaluated standard deviation"  id="x14"  sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"     SMILES="O=O"         chemName="oxygen"          />
+        </property>
+        <property name="evaluated standard deviation"  id="x15"  sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="CO"   CAS="630-08-0"    InChI="1S/CO/c1-2"     SMILES="[C-]#[O+]"   chemName="carbon monoxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x16"  sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"   InChI="1S/H2/h1H"      SMILES="[HH]"        chemName="hydrogen"        />
+        </property>
+        <property name="evaluated standard deviation"  id="x17"  sourcetype="estimated"   units="mole fraction"  reference="composition"  kind="absolute"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"     SMILES="[N]=O"       chemName="nitric oxide"    />
+        </property>
+
+        <dataPoint><x1>0.43</x1><x2>1.4398</x2><x3>97.4602</x3><x4>0.7620</x4><x5>35</x5><x6>0.0000</x6><x7>10</x7><x8>198</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>0.001333</x14><x15>1.1e-05</x15><x16>5e-06</x16><x17>2.1e-05</x17></dataPoint>
+        <dataPoint><x1>0.57</x1><x2>1.0891</x2><x3>97.8109</x3><x4>0.5494</x4><x5>43</x5><x6>0.0000</x6><x7>9</x7><x8>196</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>0.000961</x14><x15>1.3e-05</x15><x16>5e-06</x16><x17>2.1e-05</x17></dataPoint>
+        <dataPoint><x1>0.64</x1><x2>0.9694</x2><x3>97.9306</x3><x4>0.3490</x4><x5>43</x5><x6>0.0000</x6><x7>9</x7><x8>162</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>0.00061</x14><x15>1.3e-05</x15><x16>5e-06</x16><x17>1.7e-05</x17></dataPoint>
+        <dataPoint><x1>0.77</x1><x2>0.8084</x2><x3>98.0916</x3><x4>0.2491</x4><x5>50</x5><x6>0.0000</x6><x7>10</x7><x8>153</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>0.000436</x14><x15>1.5e-05</x15><x16>5e-06</x16><x17>1.6e-05</x17></dataPoint>
+        <dataPoint><x1>0.99</x1><x2>0.6298</x2><x3>98.2702</x3><x4>0.0366</x4><x5>88</x5><x6>0.0001</x6><x7>10</x7><x8>131</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>6.4e-05</x14><x15>2.7e-05</x15><x16>5e-06</x16><x17>1.4e-05</x17></dataPoint>
+        <dataPoint><x1>1.30</x1><x2>0.4800</x2><x3>98.4200</x3><x4>0.0000</x4><x5>579</x5><x6>0.0391</x6><x7>7</x7><x8>61</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>5e-06</x14><x15>0.000178</x15><x16>1e-05</x16><x17>6e-06</x17></dataPoint>
+        <dataPoint><x1>1.49</x1><x2>0.4201</x2><x3>98.4799</x3><x4>0.0000</x4><x5>693</x5><x6>0.1191</x6><x7>7</x7><x8>50</x8><x9>0.01</x9><x10>0.01</x10><x11>0.01</x11><x12>0.01</x12><x13>0.01</x13><x14>5e-06</x14><x15>0.000213</x15><x16>3e-05</x16><x17>5e-06</x17></dataPoint>
+    </dataGroup>
+    <comment>The pressure was not reported, so 1 atm is assumed.</comment>
+    <comment>The reactor volume was calculated based on the reported JSR diameter (d = 50 mm). The radius is r = 25 mm = 2.5 cm, so the volume is V = 4*r^3*pi/3 = 65.450 cm^3.</comment>
+</experiment>

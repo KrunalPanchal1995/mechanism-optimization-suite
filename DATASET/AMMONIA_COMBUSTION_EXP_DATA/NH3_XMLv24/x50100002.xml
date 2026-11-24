@@ -1,0 +1,74 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x50100002</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>D. Zhu, L. Ruwe, S. Schmitt, B. Shu, K. Kohse-Höinghaus, A. Lucassen, The Journal of Physical Chemistry A (2023)</description>
+        <referenceDOI>10.1021/acs.jpca.2c07784</referenceDOI>
+        <location>Main Article, Supp. Mat.</location>
+        <table>Supp. Mat.: Table S1, Cases 23-33</table>
+        <figure>Main Article, Fig. 7a, green triangles (20% H2)</figure>
+        <details>
+            <author>Zhu, Denghao and Ruwe, Lena and Schmitt, Steffen and Shu, Bo and Kohse-Höinghaus, Katharina and Lucassen, Arnas</author>
+            <journal>The Journal of Physical Chemistry A</journal>
+            <title>Interactions in Ammonia and Hydrogen Oxidation Examined in a Flow Reactor and a Shock Tube</title>
+            <type>Journal Article</type>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>characteristic concentration measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="uncertainty"          label="d_T"    sourcetype="reported"  units="unitless"       reference="temperature"  kind="relative"  bound="plusminus"  sigmarange="1" ><value>0.053</value></property>
+        <property name="uncertainty"          label="d_p"    sourcetype="reported"  units="unitless"       reference="pressure"     kind="relative"  bound="plusminus"  sigmarange="1" ><value>0.015</value></property>
+        <property name="uncertainty"          label="d_xNO"  sourcetype="reported"  units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="1" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>0.122</value>
+        </property>
+        <property name="equivalence ratio"    label="phi"    sourcetype="reported"  units="unitless"      ><value>1.0</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  /><amount units="mole fraction" >0.0470</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   /><amount units="mole fraction" >0.0412</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"    /><amount units="mole fraction" >0.9000</amount></component>
+            <component><speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" /><amount units="mole fraction" >0.0118</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"    sourcetype="reported"   units="K"             />
+        <property name="pressure"                      id="x2"   label="p"    sourcetype="reported"   units="bar"           />
+        <property name="composition"                   id="x3"   label="xNO"  type="max"  sourcetype="reported"   units="ppm"           >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x4"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+
+        <dataPoint><x1>2353</x1><x2>2.81</x2><x3>6740</x3><x4>0.000901</x4><x5>0.000925</x5></dataPoint>
+        <dataPoint><x1>2256</x1><x2>2.97</x2><x3>7044</x3><x4>0.000937</x4><x5>0.000963</x5></dataPoint>
+        <dataPoint><x1>2142</x1><x2>3.06</x2><x3>7031</x3><x4>0.000939</x4><x5>0.000967</x5></dataPoint>
+        <dataPoint><x1>2077</x1><x2>3.21</x2><x3>6546</x3><x4>0.000887</x4><x5>0.000919</x5></dataPoint>
+        <dataPoint><x1>1885</x1><x2>3.03</x2><x3>6133</x3><x4>0.000850</x4><x5>0.000890</x5></dataPoint>
+        <dataPoint><x1>1861</x1><x2>3.21</x2><x3>5614</x3><x4>0.000797</x4><x5>0.000840</x5></dataPoint>
+        <dataPoint><x1>1859</x1><x2>3.45</x2><x3>5776</x3><x4>0.000814</x4><x5>0.000856</x5></dataPoint>
+        <dataPoint><x1>1771</x1><x2>3.43</x2><x3>5399</x3><x4>0.000779</x4><x5>0.000828</x5></dataPoint>
+        <dataPoint><x1>1724</x1><x2>3.51</x2><x3>5304</x3><x4>0.000773</x4><x5>0.000825</x5></dataPoint>
+        <dataPoint><x1>1674</x1><x2>3.56</x2><x3>4738</x3><x4>0.000720</x4><x5>0.000778</x5></dataPoint>
+        <dataPoint><x1>1624</x1><x2>3.59</x2><x3>5354</x3><x4>0.000785</x4><x5>0.000843</x5></dataPoint>
+    </dataGroup>
+    <comment>Based on an earlier publication of the authors (https://doi.org/10.1016/j.combustflame.2022.112087), all uncertainties reported in the paper refer to the 1sigma limits (or the standard error of the mean: (sigma/sqrt(n))). Hence, all reported uncertainties were considered as 1sigma limits.</comment>
+</experiment>

@@ -73,6 +73,57 @@ def three_way_split(n, seed_outer=104, seed_inner=7, train_frac=0.70, val_frac=0
 
 # ─── reduced-covariance / basis helpers (mirror Uncertainty._psac_get_reduced_L) ──
 
+def sigma_from_cholesky(L, n_active=3, full_size=3):
+	"""Full (full_size, full_size) covariance Sigma = L L^T from whatever
+	cholskyDeCorrelateMat holds -- including the A-factor-only ("perturbation_type
+	== 'factor'") 1-element form Uncertainty.py's reaction/PLOG_Interconnectedness/
+	PLOG classes set (`np.array([min(self.uncertainties)])`, a bare sigma_lnA,
+	paired with a length-1 activeParameters list).
+
+	A plain `L @ L.T` on that 1-element array numpy-broadcasts to a 0-d SCALAR
+	(1-D @ 1-D), not a 1x1 matrix -- np.asarray(scalar) is 0-dimensional, and
+	Sigma[np.ix_(idx, idx)] then raises "too many indices for array: array is
+	0-dimensional, but 2 were indexed". This is the exact crash this function
+	fixes (see bug.md / CHANGELOG); the same bug class was already patched once
+	in MechManipulator2_0.py ("FIX-4") but never applied to this path.
+
+	For an m=1 (factor) reaction: theta_full(T)[:, [0]] is a column of ones, so
+	W = 1 * sigma_lnA is constant in T and f_prior = sigma_lnA -- the band
+	ratio |Delta kappa|/f_prior collapses to exactly |zeta|, the sampler's own
+	class-A acceptance test. identifiable_directions then returns a *unit*
+	singular vector regardless of sigma_lnA's value, and fit_feature_map
+	standardizes afterward -- so the specific units/scale convention behind
+	`min(uncertainties)` cancels out and does not need to be resolved here.
+	Zero-padding to full_size x full_size is semantically correct (a factor
+	reaction genuinely carries no n/Ea uncertainty) and, unlike returning a bare
+	1x1, keeps `theta_full(T) @ L_full` well-shaped for fprior_mode="full".
+
+	Raises ValueError if n_active disagrees with L's size (activeParameters and
+	cholskyDeCorrelateMat are set together upstream; this must never silently
+	diverge) or if a 2-D L doesn't come out (n_active, n_active).
+	"""
+	arr = np.asarray(L, dtype=float)
+	if arr.size == 1:
+		if n_active != 1:
+			raise ValueError(
+				f"sigma_from_cholesky: scalar cholskyDeCorrelateMat (size 1) but "
+				f"n_active={n_active} -- activeParameters/cholskyDeCorrelateMat "
+				f"have diverged for this reaction")
+		sigma_lnA = float(arr.reshape(-1)[0])
+		Sigma = np.zeros((full_size, full_size))
+		Sigma[0, 0] = sigma_lnA * sigma_lnA
+		return Sigma
+	mat = np.atleast_2d(arr)
+	if mat.shape[0] != mat.shape[1]:
+		raise ValueError(f"sigma_from_cholesky: expected a square L, got shape {mat.shape}")
+	if mat.shape[0] != n_active:
+		raise ValueError(
+			f"sigma_from_cholesky: L is {mat.shape[0]}x{mat.shape[0]} but "
+			f"n_active={n_active} -- activeParameters/cholskyDeCorrelateMat "
+			f"have diverged for this reaction")
+	return mat @ mat.T
+
+
 def reduced_cholesky(Sigma, indices):
 	"""Sigma_r = Sigma[idx,idx]; L_r = chol(Sigma_r), with a tiny jitter fallback.
 
@@ -83,6 +134,16 @@ def reduced_cholesky(Sigma, indices):
 	"""
 	idx = list(indices)
 	Sigma = np.asarray(Sigma, dtype=float)
+	if Sigma.ndim != 2 or Sigma.shape[0] != Sigma.shape[1]:
+		raise ValueError(
+			f"reduced_cholesky: Sigma must be a square 2-D matrix, got shape "
+			f"{Sigma.shape} (ndim={Sigma.ndim}) -- did a caller pass a raw "
+			f"cholskyDeCorrelateMat straight through L @ L.T instead of "
+			f"sigma_from_cholesky()? A 1-element cholskyDeCorrelateMat "
+			f"(A-factor-only reactions) broadcasts L @ L.T to a 0-d scalar.")
+	if max(idx, default=-1) >= Sigma.shape[0]:
+		raise ValueError(
+			f"reduced_cholesky: indices {idx} out of range for Sigma shape {Sigma.shape}")
 	Sigma_r = Sigma[np.ix_(idx, idx)]
 	try:
 		L_r = np.linalg.cholesky(Sigma_r)
@@ -428,7 +489,8 @@ def fit_prs_with_search(ResponseSurfaceClass, Xtr, ytr, Xval, yval, blocks, n_co
                          order_grid=(2, 3),
                          ridge_grid=(0.0, 1e-7),
                          max_terms_frac=0.4,
-                         band_tolerance_eval=None):
+                         band_tolerance_eval=None,
+                         trace_cb=None):
 	"""
 	Search (band-validity tolerance, subspace dim k, polynomial order, ridge)
 	against a VALIDATION split, fitting the REAL ResponseSurfaceClass every
@@ -447,11 +509,14 @@ def fit_prs_with_search(ResponseSurfaceClass, Xtr, ytr, Xval, yval, blocks, n_co
 
 	Returns a dict:
 	    {tolerance, k, order, ridge_alpha, feature_map,
-	     train_pct, val_pct, keep_mask (bool, into Xtr), n_kept}
+	     train_pct, val_pct, keep_mask (bool, into Xtr), n_kept,
+	     skip_counts (dict, reason -> count, for logging even on success)}
 	for the combo minimizing max(train_pct, val_pct). Raises RuntimeError if
 	no combo in the grid produced a fittable model (e.g. every tolerance
 	leaves too few rows, or every k/order pair fails the feature map's
-	self-check).
+	self-check) -- the message names how many combos were rejected by each
+	guard, so a genuine data-shortfall case is diagnosable from the log
+	instead of a bare "no combination worked".
 	"""
 	os.makedirs(os.path.join(cache_dir, "Data", "ResponseSurface"), exist_ok=True)
 	Xtr = np.asarray(Xtr, dtype=float)
@@ -462,27 +527,34 @@ def fit_prs_with_search(ResponseSurfaceClass, Xtr, ytr, Xval, yval, blocks, n_co
 		vmask = band_valid_mask(Xval, blocks, band_tolerance_eval)
 		Xval, yval = Xval[vmask], yval[vmask]
 
+	skip_counts = {"too_few_train": 0, "feature_map_failed": 0, "too_many_terms": 0}
 	best = None
 	for tol in tol_grid:
 		keep, ratio = screen_rows(Xtr, blocks, tol)
 		Xk, yk = Xtr[keep], ytr[keep]
 		if len(Xk) < max(50, 2 * n_comp):
+			skip_counts["too_few_train"] += len(k_grid) * len(order_grid) * len(ridge_grid)
 			continue
 		for k in k_grid:
 			try:
 				fmap = fit_feature_map(Xk, yk, blocks, n_comp, k=k)
 			except Exception:
+				skip_counts["feature_map_failed"] += len(order_grid) * len(ridge_grid)
 				continue
 			for order in order_grid:
 				from math import comb
 				n_terms_est = sum(comb(fmap.k + d - 1, d) for d in range(order + 1))
 				if n_terms_est > max_terms_frac * len(Xk):
+					skip_counts["too_many_terms"] += len(ridge_grid)
 					continue
 				for ridge_alpha in ridge_grid:
 					mtr, mva = _fit_once(ResponseSurfaceClass, cache_dir, Xk, yk,
 					                      Xval, yval, case, case_index, order, fmap,
 					                      ridge_alpha, prs_type, selected_params, criteria)
 					score = max(mtr, mva)
+					if trace_cb is not None:
+						trace_cb(tol, k, order, ridge_alpha, [mtr, mva], score,
+						         int(keep.sum()))
 					if best is None or _is_better(score, k, best["_score"], best["k"]):
 						best = {"_score": score, "tolerance": tol, "k": k, "order": order,
 						        "ridge_alpha": ridge_alpha, "feature_map": fmap,
@@ -493,7 +565,9 @@ def fit_prs_with_search(ResponseSurfaceClass, Xtr, ytr, Xval, yval, blocks, n_co
 		raise RuntimeError(
 			f"fit_prs_with_search: no (tolerance, k, order, ridge) combination in the "
 			f"grid produced a fittable model for case {case} (n_comp={n_comp}, "
-			f"n_train={len(Xtr)}) -- grids: tol={tol_grid}, k={k_grid}, order={order_grid}")
+			f"n_train={len(Xtr)}) -- grids: tol={tol_grid}, k={k_grid}, order={order_grid} "
+			f"-- combos skipped by guard: {skip_counts}")
+	best["skip_counts"] = skip_counts
 	del best["_score"]
 	return best
 
@@ -508,7 +582,8 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
                             max_terms_frac=0.4,
                             cv_folds=3,
                             cv_seed=13,
-                            band_tolerance_eval=None):
+                            band_tolerance_eval=None,
+                            trace_cb=None):
 	"""
 	K-fold cross-validated (tolerance, k, order, ridge) search -- a more
 	robust alternative to fit_prs_with_search's single train/validation
@@ -558,7 +633,10 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
 
 	Returns the same dict shape as fit_prs_with_search (feature_map here is
 	fit on the full screened pool), plus 'cv_score' (the worst-fold score
-	that won, for logging/diagnostics).
+	that won, for logging/diagnostics) and 'skip_counts' (dict, reason ->
+	number of (tolerance, k, order, ridge) combos rejected by that guard --
+	surfaced even on success so a case that barely cleared CV is visible in
+	the log, not just one that failed outright).
 	"""
 	os.makedirs(os.path.join(cache_dir, "Data", "ResponseSurface"), exist_ok=True)
 	X_pool = np.asarray(X_pool, dtype=float)
@@ -572,6 +650,8 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
 	eval_valid_mask = (band_valid_mask(X_pool, blocks, band_tolerance_eval)
 	                    if band_tolerance_eval is not None else None)
 
+	skip_counts = {"too_few_train": 0, "too_few_eval": 0,
+	               "feature_map_failed": 0, "too_many_terms": 0}
 	best = None
 	from math import comb
 	for tol in tol_grid:
@@ -579,7 +659,9 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
 			for order in order_grid:
 				for ridge_alpha in ridge_grid:
 					fold_scores = []
+					fold_kept_counts = []
 					fold_ok = True
+					fail_reason = None
 					for f in range(cv_folds):
 						tr_idx_all = np.where(fold_of != f)[0]
 						va_idx = np.where(fold_of == f)[0]
@@ -587,27 +669,40 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
 							va_idx = va_idx[eval_valid_mask[va_idx]]
 						keep_tr, _ = screen_rows(X_pool[tr_idx_all], blocks, tol)
 						tr_idx = tr_idx_all[keep_tr]
+						fold_kept_counts.append(int(keep_tr.sum()))
 						Xa, ya = X_pool[tr_idx], y_pool[tr_idx]
 						Xb, yb = X_pool[va_idx], y_pool[va_idx]
-						if len(Xa) < max(20, n_comp) or len(Xb) < 5:
+						if len(Xa) < max(20, n_comp):
 							fold_ok = False
+							fail_reason = "too_few_train"
+							break
+						if len(Xb) < 5:
+							fold_ok = False
+							fail_reason = "too_few_eval"
 							break
 						try:
 							fmap = fit_feature_map(Xa, ya, blocks, n_comp, k=k)
 						except Exception:
 							fold_ok = False
+							fail_reason = "feature_map_failed"
 							break
 						n_terms_est = sum(comb(fmap.k + d - 1, d) for d in range(order + 1))
 						if n_terms_est > max_terms_frac * len(Xa):
 							fold_ok = False
+							fail_reason = "too_many_terms"
 							break
 						mtr, mva = _fit_once(ResponseSurfaceClass, cache_dir, Xa, ya, Xb, yb,
 						                      case, case_index, order, fmap, ridge_alpha,
 						                      prs_type, selected_params, criteria)
 						fold_scores.append(max(mtr, mva))
 					if not fold_ok or not fold_scores:
+						skip_counts[fail_reason or "feature_map_failed"] += 1
 						continue
 					worst_fold_score = max(fold_scores)
+					if trace_cb is not None:
+						trace_cb(tol, k, order, ridge_alpha, fold_scores,
+						         worst_fold_score,
+						         int(np.mean(fold_kept_counts)) if fold_kept_counts else 0)
 					if best is None or _is_better(worst_fold_score, k, best["_score"], best["k"]):
 						# Winning combo: refit on the FULL pool, screened by
 						# the winning tolerance, for the actual model the
@@ -628,6 +723,7 @@ def fit_prs_with_cv_search(ResponseSurfaceClass, X_pool, y_pool, blocks, n_comp,
 			f"fit_prs_with_cv_search: no (tolerance, k, order, ridge) combination in the "
 			f"grid produced a fittable model for case {case} (n_comp={n_comp}, "
 			f"n_pool={len(X_pool)}, cv_folds={cv_folds}) -- grids: tol={tol_grid}, "
-			f"k={k_grid}, order={order_grid}")
+			f"k={k_grid}, order={order_grid} -- combos skipped by guard: {skip_counts}")
+	best["skip_counts"] = skip_counts
 	del best["_score"]
 	return best

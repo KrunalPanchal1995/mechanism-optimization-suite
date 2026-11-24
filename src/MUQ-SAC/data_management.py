@@ -5,18 +5,86 @@ import shutil
 import subprocess
 import subprocess as sub
 import threading
+import logging
 import combustion_target_class
 import make_input_file as MakeFile
 from tqdm import tqdm
 import multiprocessing
 import sys
-import traceback
 from pathlib import Path
 
 # M22: the per-case solver interpreter was hardcoded to "python3.9". Keep that
 # as the default (the pipeline's Cantera/solver deps live there) but let it be
 # overridden without editing source, for machines where the interpreter differs.
 _PY = os.environ.get("MUQSAC_PYTHON", "python3.9")
+
+# ---------------------------------------------------------------------------
+# Logging (2026-08-29): every diagnostic in this module goes to a per-study
+# log file -- the terminal shows ONLY the tqdm progress bar of the re-run
+# pool. The log path is captured at import time (the pipeline imports this
+# module from the study directory) and is overridable via DATA_MGMT_LOG.
+# propagate=False keeps records out of any root logger a host configures with
+# a console handler (mso_compare's setup_logging does exactly that), so the
+# terminal stays clean in every embedding context.
+# ---------------------------------------------------------------------------
+_LOG_PATH = os.path.abspath(
+    os.environ.get("DATA_MGMT_LOG") or os.path.join(os.getcwd(), "data_management.log")
+)
+
+
+class _FlushFileHandler(logging.FileHandler):
+    """FileHandler that flushes after every record.
+
+    Worker.do_job_async ends with pool.terminate(), which SIGTERMs the forked
+    workers without running logging shutdown -- any record still sitting in a
+    worker's buffered stream would be silently lost. Per-record flush makes
+    each record land on disk (O_APPEND, one write syscall) as soon as it is
+    emitted, from any process.
+    """
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
+
+logger = logging.getLogger("data_management")
+logger.propagate = False
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    _fh = _FlushFileHandler(_LOG_PATH, mode="a", encoding="utf-8")
+    _fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(message)s"))
+    logger.addHandler(_fh)
+
+
+def _supports_unicode():
+    """Mirror run_script.py's glyph check so the progress bar's postfix symbols
+    degrade to ASCII when stdout can't encode them."""
+    enc = (getattr(sys.stdout, "encoding", None) or "").lower()
+    try:
+        "✓✗".encode(enc or "utf-8")
+        return bool(enc) and "utf" in enc
+    except Exception:
+        return False
+
+
+_GLYPH = {
+    "ok":   "✓" if _supports_unicode() else "[OK]",
+    "fail": "✗" if _supports_unicode() else "[FAIL]",
+}
+
+
+def _new_pbar(total, desc):
+    """The one progress bar the terminal gets for a re-run pool phase."""
+    return tqdm(
+        total=total,
+        desc=desc,
+        unit="sim",
+        file=sys.stdout,
+        ncols=100,
+        disable=False,       # stdout is a pipe under run_script: the bar must render anyway
+        mininterval=0.25,    # cap tee'd frame spam at ~4 fps
+        bar_format="{desc:30s} {percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} "
+                   "[{elapsed}<{remaining}, {rate_fmt}] {postfix}",
+    )
 
 class RunCmd(threading.Thread):
 	def __init__(self, cmd, timeout):
@@ -135,7 +203,7 @@ def run_sim(index, case, input_, caseID, path, total):
 						ETA = float(_line[1])
 						string = path
 						return (index, eta, ETA, string, total)
-				print(f"[WARN] {path} exists but is malformed -- re-simulating.")
+				logger.warning("[WARN] %s exists but is malformed -- re-simulating.", path)
 			shutil.rmtree(loc_path, ignore_errors=True)
 
 			# Recreate the directory
@@ -143,10 +211,8 @@ def run_sim(index, case, input_, caseID, path, total):
 			#print()
 			#print(f"[INFO] Working directory changed to: {workdir}")
 
-		except Exception as e:
-			print(f"[ERROR] Failed while changing directory to path={loc}")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while changing directory to path=%s", loc)
 			return (index, eta, ETA, string, total)
 
 		# -------------------------------
@@ -171,10 +237,8 @@ def run_sim(index, case, input_, caseID, path, total):
 			#print(f"[INFO] Perturbed_location: {Perturbed_location}")
 			#print(f"[INFO] run_cantera path: {run_cantera}")
 
-		except Exception as e:
-			print("[ERROR] Failed while constructing paths")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while constructing paths")
 			return (index, eta, ETA, string, total)
 
 		# -------------------------------
@@ -207,10 +271,8 @@ def run_sim(index, case, input_, caseID, path, total):
 
 			#print("[INFO] cantera input string created successfully")
 
-		except Exception as e:
-			print("[ERROR] Failed while creating cantera input file content")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while creating cantera input file content")
 			return (index, eta, ETA, string, total)
 
 		# -------------------------------
@@ -225,10 +287,8 @@ def run_sim(index, case, input_, caseID, path, total):
 			if not os.path.exists(run_cantera):
 				raise FileNotFoundError(f"cantera_1.py was not created at {run_cantera}")
 
-		except Exception as e:
-			print("[ERROR] Failed while writing cantera_1.py")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while writing cantera_1.py")
 			return (index, eta, ETA, string, total)
 
 		# -------------------------------
@@ -293,8 +353,8 @@ def run_sim(index, case, input_, caseID, path, total):
 					or not os.path.isfile(os.path.join(workdir, "thermo.dat"))
 				)
 				if _missing_ck_inputs:
-					print(f"[INFO] mechanism.inp/thermo.dat missing in {workdir} -- "
-					      f"regenerating via soln2ck")
+					logger.info("[INFO] mechanism.inp/thermo.dat missing in %s -- "
+					            "regenerating via soln2ck", workdir)
 					with open(log_file,"a") as f:
 
 						subprocess.run(
@@ -307,8 +367,8 @@ def run_sim(index, case, input_, caseID, path, total):
 						    stderr=subprocess.STDOUT,
 						)
 			else:
-				print(f"[INFO] solver={solver!r}: no soln2ck round-trip needed; "
-				      "running cantera directly.")
+				logger.info("[INFO] solver=%r: no soln2ck round-trip needed; "
+				            "running cantera directly.", solver)
 			
 			
 			with open(solve_out, "w") as f:
@@ -325,14 +385,12 @@ def run_sim(index, case, input_, caseID, path, total):
 			# parse tau.out -- that file may be absent or stale from a prior run,
 			# which would silently return a wrong ETA. Report N/A for this case.
 			if result != 0:
-				print(f"[WARNING] cantera_1.py exited with non-zero code: {result}; "
-				      "skipping tau.out parse and reporting N/A for this case.")
+				logger.warning("[WARNING] cantera_1.py exited with non-zero code: %s; "
+				               "skipping tau.out parse and reporting N/A for this case.", result)
 				return (index, eta, ETA, string, total)
 
-		except Exception as e:
-			print("[ERROR] Failed while executing cantera_1.py")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while executing cantera_1.py")
 			return (index, eta, ETA, string, total)
 
 		try:
@@ -351,7 +409,7 @@ def run_sim(index, case, input_, caseID, path, total):
 			)
 
 		except subprocess.CalledProcessError as e:
-			print(f"[WARNING] Cleanup command failed: {e}")
+			logger.warning("[WARNING] Cleanup command failed: %s", e)
 		
 		# -------------------------------
 		# Step 6: Read tau.out
@@ -378,23 +436,20 @@ def run_sim(index, case, input_, caseID, path, total):
 				eta = np.log(float(line[1]) * 10)
 				ETA = float(line[1])
 			else:
-				print("[WARNING] tau.out second line does not have 2 columns, using fallback values")
+				logger.warning("[WARNING] tau.out second line does not have 2 columns, using fallback values")
 				eta = np.log(100 * 10000)
 				ETA = 100 * 10000
 
-		except Exception as e:
-			print("[ERROR] Failed while reading/parsing tau.out")
-			print(f"[ERROR] Exception: {e}")
-			traceback.print_exc()
+		except Exception:
+			logger.exception("[ERROR] Failed while reading/parsing tau.out")
 			return (index, eta, ETA, string, total)
 
 	finally:
 		try:
 			os.chdir(start)
 			#print(f"[INFO] Returned to original cwd: {start}")
-		except Exception as e:
-			print(f"[ERROR] Failed to return to original cwd: {start}")
-			print(f"[ERROR] Exception: {e}")
+		except Exception:
+			logger.exception("[ERROR] Failed to return to original cwd: %s", start)
 
 	return (index, eta, ETA, string, total)
 
@@ -403,30 +458,67 @@ class Worker():
 		self.pool = multiprocessing.Pool(processes=workers)
 		self.results = []
 		self.progress = []
-	def update_progress(self, total):
-			update_progress(self.progress, total)	
+		self._pbar = None
+		self._n_fail = 0
 	def callback_run(self, result):
 		self.results.append(result)
 		self.progress.append(result[0])
-		sys.stdout.write("\t\t\r{:06.2f}% is complete".format(len(self.progress)/float(result[-1])*100))
-		sys.stdout.flush()
-		#f = open('../progress','+a')
-		#f.write(result[0]+"/run"+"\n")
-		#f.close()
-		
+		# Lazy bar: mso_compare/sim_runner._sweep_missing_simulations drives
+		# this pool directly (apply_async + callbacks, no do_job_async), so
+		# create the bar on the first callback using the total carried by the
+		# task tuple (run_sim's last return element).
+		if self._pbar is None:
+			self._pbar = _new_pbar(int(result[-1]), "Re-running simulations")
+		self._pbar.update(1)
+		self._refresh_pbar_postfix()
+		self._maybe_close_pbar()
+
 	def callback_error(self,result):
-		print('error', result)
-  
-	def do_job_async(self,location,case,optInput,caseID):
-		for index,args in enumerate(location):
-			self.pool.apply_async(run_sim, 
-				  args=(index,case,optInput,caseID,args,len(location)), 
-				  callback=self.callback_run,error_callback=self.callback_error)
-		self.pool.close()
-		self.pool.join()
-		self.pool.terminate()	
+		# Log-only: the failure count surfaces on the bar's postfix, never as
+		# an extra terminal line (strictly progress-bar-only terminal).
+		logger.error("pool worker failed: %r", result)
+		self._n_fail += 1
+		if self._pbar is not None:
+			self._refresh_pbar_postfix()
+			self._maybe_close_pbar()
+
+	def _refresh_pbar_postfix(self):
+		if self._pbar is None:
+			return
+		if self._n_fail:
+			self._pbar.set_postfix_str(f"{_GLYPH['fail']}{self._n_fail}")
+		elif self._pbar.n >= self._pbar.total:
+			self._pbar.set_postfix_str(f"{_GLYPH['ok']} done")
+		else:
+			self._pbar.set_postfix_str("")
+
+	def _maybe_close_pbar(self):
+		"""Close once every task has settled (success callback or failure)."""
+		if self._pbar is not None and self._pbar.n + self._n_fail >= self._pbar.total:
+			self._refresh_pbar_postfix()
+			self._pbar.close()
+			self._pbar = None
+
+	def do_job_async(self,location,case,optInput,caseID,desc="Re-running simulations"):
+		# ONE tqdm bar is the terminal's only output for this pool phase; all
+		# diagnostics go to data_management.log and errors show up solely as
+		# the bar's postfix failure count.
+		self._pbar = _new_pbar(len(location), f"{desc} (case-{caseID})")
+		try:
+			for index,args in enumerate(location):
+				self.pool.apply_async(run_sim,
+					  args=(index,case,optInput,caseID,args,len(location)),
+					  callback=self.callback_run,error_callback=self.callback_error)
+			self.pool.close()
+			self.pool.join()
+			self.pool.terminate()
+		finally:
+			if self._pbar is not None:
+				self._refresh_pbar_postfix()
+				self._pbar.close()
+				self._pbar = None
 		self.results.sort(key=lambda x: x[0])  # Sort by the second-to-last element (row identifier)
-		
+
 		# Extract sorted values
 		sorted_eta = [result[1] for result in self.results]
 		sorted_ETA = [result[2] for result in self.results]
@@ -588,13 +680,9 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 	# Re-run failed simulations
 	# --------------------------------------------------
 	if len(re_run_loc) != 0:
-		print("#############______________________################\n")
-		print(
-			f"\t\tFor Case-{case}:\n"
-			f"\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} "
-			f"did not return expected results\n"
-			f"\t\tRe-running those simulations........\n\n\n"
-		)
+		logger.info("For Case-%s: total of %s simulations out of %s did not "
+		            "return expected results -- re-running those simulations.",
+		            case, len(re_run_loc), len(data_loc))
 
 		W = Worker(100)
 
@@ -607,10 +695,7 @@ def generate_SA_target_value_tables(locations, t_list, case, fuel, input_={}):
 
 		del W
 
-		print(
-			f"\t\tSimulations ended successfully\n\n"
-			f"#############______________________################\n"
-		)
+		logger.info("Re-run of %s simulations for Case-%s ended.", len(re_run_loc), case)
 
 	# --------------------------------------------------
 	# Second pass: collect final results
@@ -693,12 +778,15 @@ def generate_target_value_tables(locations, t_list, case, fuel,input_={}):
 
 		if len(re_run_loc) == 0:
 			break
-		print("#############______________________################\n")
-		print(f"\t\tFor Case-{case} (attempt {attempt}/{max_retries}):\n\t\t\tTotal of {len(re_run_loc)} simulations out of {len(data_loc)} did not return expected results\n\t\tRe-running those simulations........\n\n\n")
+		logger.info("For Case-%s (attempt %s/%s): total of %s simulations out of %s "
+		            "did not return expected results -- re-running those simulations.",
+		            case, attempt, max_retries, len(re_run_loc), len(data_loc))
 		W = Worker(input_["Counts"]["parallel_threads"])
-		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(re_run_loc,t_list[case],optInputs,case)
+		sorted_eta,sorted_ETA,sorted_Path = W.do_job_async(
+			re_run_loc,t_list[case],optInputs,case,
+			desc=f"Re-running (attempt {attempt}/{max_retries})")
 		del W
-		print(f"\t\tRe-run attempt {attempt} ended\n\n#############______________________################\n")
+		logger.info("Re-run attempt %s/%s for Case-%s ended.", attempt, max_retries, case)
 	for row_index, (i, start) in enumerate(rows):
 		pathList = i.split("/")
 		file_loc = open("./eta_file_location.txt","+a")
@@ -781,17 +869,16 @@ def _log_missing_solver_output(path, filename):
 	"""
 	case_dir = os.path.dirname(os.path.dirname(os.path.join(path, "")))
 	log_path = os.path.join(case_dir, "solve")
-	print(f"[extract_output] WARNING: {filename} missing in {path!r} "
-	      f"(case dir: {case_dir!r}) -- treating this case as failed "
-	      f"(eta=N/A) rather than aborting the run.")
+	logger.warning("[extract_output] WARNING: %s missing in %r (case dir: %r) -- "
+	               "treating this case as failed (eta=N/A) rather than aborting "
+	               "the run.", filename, path, case_dir)
 	if os.path.isfile(log_path):
 		try:
 			tail = open(log_path).readlines()[-10:]
-			print(f"[extract_output]   tail of {log_path}:")
-			for line in tail:
-				print(f"[extract_output]     {line.rstrip()}")
+			_tail_msg = "\n".join(f"[extract_output]     {line.rstrip()}" for line in tail)
+			logger.warning("[extract_output]   tail of %s:\n%s", log_path, _tail_msg)
 		except OSError as exc:
-			print(f"[extract_output]   (could not read {log_path}: {exc})")
+			logger.warning("[extract_output]   (could not read %s: %s)", log_path, exc)
 
 
 def extract_output(case,fuel,path,index,input_=None,caseID=None):
@@ -1058,7 +1145,7 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 						start_profiles = []
 
 					for count, start_profile in enumerate(start_profiles, 1):
-						print("{}: Using profile {}".format(count, start_profile))
+						logger.info("%s: Using profile %s", count, start_profile)
 						os.chdir(case_dir)
 
 						fm_path  = os.path.join(case_dir, "FlameMaster.input")
@@ -1073,7 +1160,7 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 									fh.write(line)
 						os.replace(tmp_path, fm_path)  # atomic rename
 
-						print("\t Running FlameMaster (timeout 180 s)...")
+						logger.info("\t Running FlameMaster (timeout 180 s)...")
 						RunCmd(["./run"], 180).Run()
 
 						out_dir = os.path.join(case_dir, "output")
@@ -1091,13 +1178,13 @@ def extract_output(case,fuel,path,index,input_=None,caseID=None):
 							if outfile:
 								break
 						if outfile:
-							print("Converged with profile: {}".format(start_profile))
+							logger.info("Converged with profile: %s", start_profile)
 							break
 
 					if not outfile:
 						uid = getattr(case, "uniqueID", path)
-						print("WARNING: Fls case {} did not converge after {} profiles.".format(
-							uid, len(start_profiles)))
+						logger.warning("WARNING: Fls case %s did not converge after %s profiles.",
+						               uid, len(start_profiles))
 			finally:
 				os.chdir(saved_cwd)
 	elif case.target.strip() == "Flf":
@@ -1212,7 +1299,7 @@ def generate_optimized_mechanism(mech_file_location, reaction_index, unsrt_data,
 		w = re.compile(r'\n{}:.*?->.*?a\s*?=.*?(\S*?E\S\d*?\s).*?\}}'.format(i), re.DOTALL | re.IGNORECASE) #Group(1) will extract pre exp factor
 		match = re.search(w, mech)
 		if match == None:
-			print ("Unable to perturb reaction rate... Exiting")
+			logger.error("Unable to perturb reaction rate... Exiting")
 			exit()
 		reaction = match.group()
 		pre_exp = match.group(1)
@@ -1284,12 +1371,12 @@ def find_missing_location(initial, progress):
 	#print(len(progress))
 	missing_locations = []
 	if len(initial) == len(progress):
-		print("All simulations are completed\n")
-	else:	
+		logger.info("All simulations are completed")
+	else:
 		for i in initial:
 			if i not in progress:
 				missing_locations.append(i[:-1])
-		print("Found all missing locations\n")
+		logger.info("Found %s missing locations", len(missing_locations))
 	#print(len(missing_locations))
 	return missing_locations
 	

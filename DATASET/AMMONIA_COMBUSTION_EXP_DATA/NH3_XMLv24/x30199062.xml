@@ -1,0 +1,227 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30199062</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>J. Jian, H. Hashemi, H. Wu, P. Glarborg, Applications in Energy and Combustion Science 14 (2023), 100137</description>
+        <referenceDOI>10.1016/j.jaecs.2023.100137</referenceDOI>
+        <location>Main Article</location>
+        <figure>Figure 2b, red circles</figure>
+        <details>
+            <author>Jian, Jie and Hashemi, Hamid and Wu, Hao and Glarborg, Peter</author>
+            <journal>Applications in Energy and Combustion Science</journal>
+            <pages>100137</pages>
+            <title>Study of ammonia oxidation with ozone addition</title>
+            <type>Journal Article</type>
+            <volume>14</volume>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+        <mode>laminar, premixed</mode>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"                                 label="p"         sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="initial composition"                     >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="ppm"     >2450</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="percent" >3.1</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="percent" >96.6550</amount></component>
+        </property>
+        <property name="uncertainty"                              label="d_T"       sourcetype="reported"  units="K"         reference="temperature"          kind="absolute"  bound="plusminus"  sigmarange="2" ><value>5</value></property>
+        <property name="uncertainty"                              label="d_x_NH3"   sourcetype="reported"  units="unitless"  reference="composition"          kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                              label="d_x_O2_0"  sourcetype="reported"  units="percent"   reference="initial composition"  kind="absolute"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+            <value>0.1</value>
+        </property>
+        <property name="reactor length"                           label="l"         sourcetype="reported"  units="cm"       ><value>60</value></property>
+        <property name="reactor diameter"                         label="d"         sourcetype="reported"  units="mm"       ><value>4</value></property>
+        <property name="volumetric flow rate in reference state"  label="V_0"       sourcetype="reported"  units="L min-1"  ><value>1</value></property>
+        <property name="pressure in reference state"              label="p_0"       sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="temperature in reference state"           label="T_0"       sourcetype="reported"  units="K"        ><value>293.15</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="digitized"   units="K"             />
+        <property name="composition"                   id="x2"   label="x_NH3"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="residence time"                id="x3"   label="tau"    sourcetype="calculated"  units="s"             />
+        <property name="evaluated standard deviation"  id="x4"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+        </property>
+
+        <dataPoint><x1>1173</x1><x2>2229</x2><x3>0.075351</x3><x4>0.000214</x4><x5>0.000214</x5></dataPoint>
+        <dataPoint><x1>1223</x1><x2>2114</x2><x3>0.072277</x3><x4>0.000211</x4><x5>0.000211</x5></dataPoint>
+        <dataPoint><x1>1248</x1><x2>2049</x2><x3>0.070833</x3><x4>0.000210</x4><x5>0.000210</x5></dataPoint>
+        <dataPoint><x1>1273</x1><x2>1979</x2><x3>0.069445</x3><x4>0.000208</x4><x5>0.000208</x5></dataPoint>
+        <dataPoint><x1>1298</x1><x2>1829</x2><x3>0.068110</x3><x4>0.000205</x4><x5>0.000206</x5></dataPoint>
+        <dataPoint><x1>1323</x1><x2>1399</x2><x3>0.066826</x3><x4>0.000204</x4><x5>0.000213</x5></dataPoint>
+        <dataPoint><x1>1348</x1><x2>212</x2><x3>0.065589</x3><x4>0.000203</x4><x5>0.000190</x5></dataPoint>
+        <dataPoint><x1>1363</x1><x2>23</x2><x3>0.064848</x3><x4>0.000184</x4><x5>0.000183</x5></dataPoint>
+    </dataGroup>
+    <comment>Recommended simulation settings based on the paper: isothermal-isobaric. The authors did not use the temperature profiles for the simulations, but it does not matter whether they are used, the simulations give the same results with and without the temperature profiles.</comment>
+    <comment>Residence times were calculated assuming an isothermal reaction zone reported to be 40 cm.</comment>
+    <comment>T-profiles were obtained by linear interpolation using the measured T-profiles published in the Supplementary Material Fig. S1.</comment>
+    <comment>Volumetric flow rate was reported to be 1 NL/min. "Normal" conditions were considered as T_0 = 293.15 K and p_0 = 1 atm.</comment>
+    <dataGroup id="tp1" label="temperature profile" dataPointLink="1">
+        <property name="distance"     id="x3"   label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x4"   label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x3>0</x3><x4>420.18</x4></dataPoint>
+        <dataPoint><x3>5</x3><x4>1021.3</x4></dataPoint>
+        <dataPoint><x3>10</x3><x4>1117.41</x4></dataPoint>
+        <dataPoint><x3>15</x3><x4>1159.35</x4></dataPoint>
+        <dataPoint><x3>20</x3><x4>1173.34</x4></dataPoint>
+        <dataPoint><x3>25</x3><x4>1176.33</x4></dataPoint>
+        <dataPoint><x3>30</x3><x4>1178.33</x4></dataPoint>
+        <dataPoint><x3>35</x3><x4>1177.84</x4></dataPoint>
+        <dataPoint><x3>40</x3><x4>1178.34</x4></dataPoint>
+        <dataPoint><x3>45</x3><x4>1176.34</x4></dataPoint>
+        <dataPoint><x3>50</x3><x4>1166.34</x4></dataPoint>
+        <dataPoint><x3>55</x3><x4>1037.85</x4></dataPoint>
+        <dataPoint><x3>60</x3><x4>702.77</x4></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp2" label="temperature profile" dataPointLink="2">
+        <property name="distance"     id="x5"   label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x6"   label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x5>0</x5><x6>427.16</x6></dataPoint>
+        <dataPoint><x5>5</x5><x6>1061.26</x6></dataPoint>
+        <dataPoint><x5>10</x5><x6>1187.24</x6></dataPoint>
+        <dataPoint><x5>15</x5><x6>1214.24</x6></dataPoint>
+        <dataPoint><x5>20</x5><x6>1223.23</x6></dataPoint>
+        <dataPoint><x5>25</x5><x6>1225.23</x6></dataPoint>
+        <dataPoint><x5>30</x5><x6>1227.23</x6></dataPoint>
+        <dataPoint><x5>35</x5><x6>1228.23</x6></dataPoint>
+        <dataPoint><x5>40</x5><x6>1228.23</x6></dataPoint>
+        <dataPoint><x5>45</x5><x6>1226.23</x6></dataPoint>
+        <dataPoint><x5>50</x5><x6>1218.21</x6></dataPoint>
+        <dataPoint><x5>55</x5><x6>1090.2</x6></dataPoint>
+        <dataPoint><x5>60</x5><x6>600.34</x6></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp3" label="temperature profile" dataPointLink="3">
+        <property name="distance"     id="x7"   label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x8"   label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x7>0</x7><x8>430.65</x8></dataPoint>
+        <dataPoint><x7>5</x7><x8>1096.19</x8></dataPoint>
+        <dataPoint><x7>10</x7><x8>1215.68</x8></dataPoint>
+        <dataPoint><x7>15</x7><x8>1240.68</x8></dataPoint>
+        <dataPoint><x7>20</x7><x8>1248.93</x8></dataPoint>
+        <dataPoint><x7>25</x7><x8>1250.68</x8></dataPoint>
+        <dataPoint><x7>30</x7><x8>1252.18</x8></dataPoint>
+        <dataPoint><x7>35</x7><x8>1253.08</x8></dataPoint>
+        <dataPoint><x7>40</x7><x8>1252.93</x8></dataPoint>
+        <dataPoint><x7>45</x7><x8>1249.68</x8></dataPoint>
+        <dataPoint><x7>50</x7><x8>1237.42</x8></dataPoint>
+        <dataPoint><x7>55</x7><x8>1106.17</x8></dataPoint>
+        <dataPoint><x7>60</x7><x8>659.72</x8></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp4" label="temperature profile" dataPointLink="4">
+        <property name="distance"     id="x9"   label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x10"  label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x9>0</x9><x10>434.15</x10></dataPoint>
+        <dataPoint><x9>5</x9><x10>1131.12</x10></dataPoint>
+        <dataPoint><x9>10</x9><x10>1244.12</x10></dataPoint>
+        <dataPoint><x9>15</x9><x10>1267.12</x10></dataPoint>
+        <dataPoint><x9>20</x9><x10>1274.63</x10></dataPoint>
+        <dataPoint><x9>25</x9><x10>1276.13</x10></dataPoint>
+        <dataPoint><x9>30</x9><x10>1277.13</x10></dataPoint>
+        <dataPoint><x9>35</x9><x10>1277.93</x10></dataPoint>
+        <dataPoint><x9>40</x9><x10>1277.63</x10></dataPoint>
+        <dataPoint><x9>45</x9><x10>1273.13</x10></dataPoint>
+        <dataPoint><x9>50</x9><x10>1256.63</x10></dataPoint>
+        <dataPoint><x9>55</x9><x10>1122.13</x10></dataPoint>
+        <dataPoint><x9>60</x9><x10>719.09</x10></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp5" label="temperature profile" dataPointLink="5">
+        <property name="distance"     id="x11"  label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x12"  label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x11>0</x11><x12>437.64</x12></dataPoint>
+        <dataPoint><x11>5</x11><x12>1166.04</x12></dataPoint>
+        <dataPoint><x11>10</x11><x12>1272.56</x12></dataPoint>
+        <dataPoint><x11>15</x11><x12>1293.57</x12></dataPoint>
+        <dataPoint><x11>20</x11><x12>1300.32</x12></dataPoint>
+        <dataPoint><x11>25</x11><x12>1301.57</x12></dataPoint>
+        <dataPoint><x11>30</x11><x12>1302.07</x12></dataPoint>
+        <dataPoint><x11>35</x11><x12>1302.77</x12></dataPoint>
+        <dataPoint><x11>40</x11><x12>1302.32</x12></dataPoint>
+        <dataPoint><x11>45</x11><x12>1296.58</x12></dataPoint>
+        <dataPoint><x11>50</x11><x12>1275.84</x12></dataPoint>
+        <dataPoint><x11>55</x11><x12>1138.1</x12></dataPoint>
+        <dataPoint><x11>60</x11><x12>778.47</x12></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp6" label="temperature profile" dataPointLink="6">
+        <property name="distance"     id="x13"  label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x14"  label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x13>0</x13><x14>441.13</x14></dataPoint>
+        <dataPoint><x13>5</x13><x14>1200.97</x14></dataPoint>
+        <dataPoint><x13>10</x13><x14>1301</x14></dataPoint>
+        <dataPoint><x13>15</x13><x14>1320.01</x14></dataPoint>
+        <dataPoint><x13>20</x13><x14>1326.02</x14></dataPoint>
+        <dataPoint><x13>25</x13><x14>1327.02</x14></dataPoint>
+        <dataPoint><x13>30</x13><x14>1327.02</x14></dataPoint>
+        <dataPoint><x13>35</x13><x14>1327.62</x14></dataPoint>
+        <dataPoint><x13>40</x13><x14>1327.02</x14></dataPoint>
+        <dataPoint><x13>45</x13><x14>1320.03</x14></dataPoint>
+        <dataPoint><x13>50</x13><x14>1295.05</x14></dataPoint>
+        <dataPoint><x13>55</x13><x14>1154.07</x14></dataPoint>
+        <dataPoint><x13>60</x13><x14>837.84</x14></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp7" label="temperature profile" dataPointLink="7">
+        <property name="distance"     id="x15"  label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x16"  label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x15>0</x15><x16>444.62</x16></dataPoint>
+        <dataPoint><x15>5</x15><x16>1235.9</x16></dataPoint>
+        <dataPoint><x15>10</x15><x16>1329.44</x16></dataPoint>
+        <dataPoint><x15>15</x15><x16>1346.46</x16></dataPoint>
+        <dataPoint><x15>20</x15><x16>1351.71</x16></dataPoint>
+        <dataPoint><x15>25</x15><x16>1352.47</x16></dataPoint>
+        <dataPoint><x15>30</x15><x16>1351.97</x16></dataPoint>
+        <dataPoint><x15>35</x15><x16>1352.47</x16></dataPoint>
+        <dataPoint><x15>40</x15><x16>1351.72</x16></dataPoint>
+        <dataPoint><x15>45</x15><x16>1343.48</x16></dataPoint>
+        <dataPoint><x15>50</x15><x16>1314.26</x16></dataPoint>
+        <dataPoint><x15>55</x15><x16>1170.03</x16></dataPoint>
+        <dataPoint><x15>60</x15><x16>897.22</x16></dataPoint>
+    </dataGroup>
+    <dataGroup id="tp8" label="temperature profile" dataPointLink="8">
+        <property name="distance"     id="x17"  label="x"                    sourcetype="reported"   units="cm" />
+        <property name="temperature"  id="x18"  label="T"                    sourcetype="estimated"  units="K"  />
+
+        <dataPoint><x17>0</x17><x18>446.78</x18></dataPoint>
+        <dataPoint><x17>5</x17><x18>1257.45</x18></dataPoint>
+        <dataPoint><x17>10</x17><x18>1346.99</x18></dataPoint>
+        <dataPoint><x17>15</x17><x18>1362.78</x18></dataPoint>
+        <dataPoint><x17>20</x17><x18>1367.57</x18></dataPoint>
+        <dataPoint><x17>25</x17><x18>1368.17</x18></dataPoint>
+        <dataPoint><x17>30</x17><x18>1367.36</x18></dataPoint>
+        <dataPoint><x17>35</x17><x18>1367.8</x18></dataPoint>
+        <dataPoint><x17>40</x17><x18>1366.96</x18></dataPoint>
+        <dataPoint><x17>45</x17><x18>1357.95</x18></dataPoint>
+        <dataPoint><x17>50</x17><x18>1326.11</x18></dataPoint>
+        <dataPoint><x17>55</x17><x18>1179.89</x18></dataPoint>
+        <dataPoint><x17>60</x17><x18>933.86</x18></dataPoint>
+    </dataGroup>
+</experiment>

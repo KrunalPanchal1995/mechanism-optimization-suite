@@ -1,0 +1,61 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199216</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-17</firstPublicationDate>
+    <lastModificationDate>2024-09-17</lastModificationDate>
+    <bibliographyLink>
+        <description>G. Hashimoto, K. Hadi, Y. Xia, A. Hamid, N. Hashimoto, A. Hayakawa, H. Kobayashi, O. Fujita, Proceedings of the Combustion Institute 38 (2021), 5171–5180</description>
+        <referenceDOI>10.1016/j.proci.2020.08.055</referenceDOI>
+        <location>Main Article</location>
+        <figure>Fig. 5, green hollow circles</figure>
+        <details>
+            <author>Hashimoto, Genya and Hadi, Khalid and Xia, Yu and Hamid, Aainaa and Hashimoto, Nozomu and Hayakawa, Akihiro and Kobayashi, Hideaki and Fujita, Osamu</author>
+            <journal>Proceedings of the Combustion Institute</journal>
+            <number>4</number>
+            <pages>5171–5180</pages>
+            <title>Turbulent flame propagation limits of ammonia/methane/air premixed mixture in a constant volume vessel</title>
+            <type>Journal Article</type>
+            <volume>38</volume>
+            <year>2021</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"     label="p"  sourcetype="estimated"  units="atm" ><value>1</value></property>
+        <property name="temperature"  label="T"  sourcetype="estimated"  units="K"   ><value>298</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="initial composition"           id="x3"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x5"   label="x_N2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x6"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="uncertainty"                   id="x7"   label="d_LBV"    sourcetype="digitized"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x8"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.8</x1><x3>0.183007</x3><x4>0.171569</x4><x5>0.645425</x5><x6>1.0</x6><x7>0.8</x7><x8>1.0042</x8></dataPoint>
+        <dataPoint><x1>0.9</x1><x3>0.201278</x3><x4>0.167732</x4><x5>0.630990</x5><x6>3.0</x6><x7>1.2</x7><x8>1.0923</x8></dataPoint>
+        <dataPoint><x1>1.0</x1><x3>0.218750</x3><x4>0.164063</x4><x5>0.617188</x5><x6>5.9</x6><x7>0.4</x7><x8>0.9374</x8></dataPoint>
+        <dataPoint><x1>1.1</x1><x3>0.235474</x3><x4>0.160551</x4><x5>0.603976</x5><x6>5.6</x6><x7>0.9</x7><x8>1.0170</x8></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties were considered the 2sigma limits.</comment>
+    <comment>The pressure and temperature of the measurements are not reported in the paper. However, in Fig. 5, the data are compared to the data of Hayakawa et al. (2015), measured under the same conditions. The Hayakawa et al. data are for T = 298 K and p = 0.1 MPa. Therefore, it is reasonable to assume that the present data belong to T = 298 K and p = 1 atm (ambient conditions).</comment>
+</experiment>

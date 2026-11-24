@@ -1,0 +1,63 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100204</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-19</firstPublicationDate>
+    <lastModificationDate>2024-06-19</lastModificationDate>
+    <bibliographyLink>
+        <description>P. Ma, H. Deng, X. Wen, J. Song, F. Wang, G. Chen, Journal of the Energy Institute 114 (2024), 101645</description>
+        <referenceDOI>10.1016/j.joei.2024.101645</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1 (initial conditions)</table>
+        <figure>Fig. 3b, ochre squares (measured data)</figure>
+        <details>
+            <author>Ma, Pengcheng and Deng, Haoxin and Wen, Xiaoping and Song, Jun and Wang, Fahui and Chen, Guoyan</author>
+            <journal>Journal of the Energy Institute</journal>
+            <pages>101645</pages>
+            <title>Studies on properties of laminar premixed oxygen-enriched NH3/H2/O2/N2 flames at elevated temperature and pressure</title>
+            <type>Journal Article</type>
+            <volume>114</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: LS</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"  label="T"  sourcetype="reported"  units="K"   ><value>298</value></property>
+        <property name="pressure"     label="p"  sourcetype="reported"  units="atm" ><value>3</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="initial composition"           id="x2"   label="x_H2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="initial composition"           id="x3"   label="xNH3"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="xO2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x5"   label="xN2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x6"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="uncertainty"                   id="x7"   label="d_LBV"    sourcetype="digitized"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x8"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.80</x1><x2>0.102517</x2><x3>0.153776</x3><x4>0.208238</x4><x5>0.535469</x5><x6>26.93</x6><x7>0.50</x7><x8>1.3695</x8></dataPoint>
+        <dataPoint><x1>1.00</x1><x2>0.120430</x2><x3>0.180645</x3><x4>0.195699</x4><x5>0.503226</x5><x6>31.38</x6><x7>1.99</x7><x8>1.8590</x8></dataPoint>
+        <dataPoint><x1>1.20</x1><x2>0.136308</x2><x3>0.204463</x3><x4>0.184584</x4><x5>0.474645</x5><x6>38.65</x6><x7>1.99</x7><x8>2.1749</x8></dataPoint>
+        <dataPoint><x1>1.40</x1><x2>0.150480</x2><x3>0.225720</x3><x4>0.174664</x4><x5>0.449136</x5><x6>25.25</x6><x7>1.50</x7><x8>1.4675</x8></dataPoint>
+    </dataGroup>
+    <comment>Too few data points in the data series, therefore no appropriate fitting could be carried out with Minimal Spline Fit. The measurement-specific standard deviation (5%) is used for std_fit on the absolute scale because the reported LBV uncertainties imply constant absolute error.</comment>
+</experiment>

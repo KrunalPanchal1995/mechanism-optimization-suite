@@ -1,0 +1,58 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199140</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-01-19</firstPublicationDate>
+    <lastModificationDate>2024-01-19</lastModificationDate>
+    <bibliographyLink>
+        <description>X. Chen, Q. Liu, Q. Jing, Z. Mou, Y. Shen, J. Huang, H. Ma, International Journal of Hydrogen Energy 46 (2021), 38504–38518</description>
+        <referenceDOI>10.1016/j.ijhydene.2021.09.099</referenceDOI>
+        <location>Main article</location>
+        <table>Table 3 (initial conditions)</table>
+        <figure>Fig. 18, black squares (measured data)</figure>
+        <details>
+            <author>Chen, Xu and Liu, Qingming and Jing, Qi and Mou, Zonglei and Shen, Yang and Huang, Jinxiang and Ma, Hongrong</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <number>77</number>
+            <pages>38504–38518</pages>
+            <title>Flame front evolution and laminar flame parameter evaluation of buoyancy-affected ammonia/air flames</title>
+            <type>Journal Article</type>
+            <volume>46</volume>
+            <year>2021</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method to zero stretch: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"          label="T"    sourcetype="reported"    units="K"             ><value>298</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"    units="unitless"      ><value>1</value></property>
+        <property name="initial composition"  sourcetype="calculated" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="mole fraction" >0.218750</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="mole fraction" >0.164063</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="mole fraction" >0.617188</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"   units="atm"  />
+        <property name="laminar burning velocity"      id="x2"   label="LBV"      sourcetype="digitized"  units="cm/s" />
+        <property name="uncertainty"                   id="x3"   label="d_LBV"    sourcetype="digitized"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x4"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.3</x1><x2>9.908</x2><x3>0.501</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.5</x1><x2>8.364</x2><x3>0.441</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.7</x1><x2>7.201</x2><x3>0.341</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>1.0</x1><x2>6.559</x2><x3>0.301</x3><x4>0.5000</x4></dataPoint>
+    </dataGroup>
+    <comment>Air was assumed to be composed of 21% O2 and 79% N2.</comment>
+    <comment>The cold gas temperature is reported to be "room temperature". It was assumed to be 298 K.</comment>
+</experiment>

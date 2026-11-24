@@ -1,0 +1,58 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199135</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-01-19</firstPublicationDate>
+    <lastModificationDate>2024-01-19</lastModificationDate>
+    <bibliographyLink>
+        <description>B. Liang, W. Gao, K. Zhang, Y. Li, International Journal of Hydrogen Energy 48 (2023), 20225–20237</description>
+        <referenceDOI>10.1016/j.ijhydene.2023.03.011</referenceDOI>
+        <location>Main article</location>
+        <table>Table 1 (initial conditions)</table>
+        <figure>Fig. 5, right plot, yellow columns (measured data)</figure>
+        <details>
+            <author>Liang, Bo and Gao, Wei and Zhang, Kai and Li, Yanchao</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <number>53</number>
+            <pages>20225–20237</pages>
+            <title>Ammonia-air combustion and explosion characteristics at elevated temperature and elevated pressure</title>
+            <type>Journal Article</type>
+            <volume>48</volume>
+            <year>2023</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method to zero stretch: LC</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"          label="T"    sourcetype="reported"    units="K"             ><value>313.15</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"    units="unitless"      ><value>1.1</value></property>
+        <property name="initial composition"  sourcetype="calculated" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="mole fraction" >0.235474</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="mole fraction" >0.160550</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="mole fraction" >0.603976</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"   units="MPa"  />
+        <property name="laminar burning velocity"      id="x2"   label="LBV"      sourcetype="digitized"  units="cm/s" />
+        <property name="uncertainty"                   id="x3"   label="d_LBV"    sourcetype="digitized"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x4"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.10</x1><x2>8.593</x2><x3>0.508</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.15</x1><x2>8.034</x2><x3>0.788</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.20</x1><x2>7.347</x2><x3>0.432</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.25</x1><x2>6.915</x2><x3>0.737</x3><x4>0.5000</x4></dataPoint>
+        <dataPoint><x1>0.30</x1><x2>6.305</x2><x3>0.610</x3><x4>0.5000</x4></dataPoint>
+    </dataGroup>
+    <comment>Air was assumed to be composed of 21% O2 and 79% N2.</comment>
+</experiment>

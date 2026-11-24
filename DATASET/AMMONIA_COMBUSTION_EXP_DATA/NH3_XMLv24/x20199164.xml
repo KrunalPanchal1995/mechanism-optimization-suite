@@ -1,0 +1,57 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199164</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-24</firstPublicationDate>
+    <lastModificationDate>2024-06-24</lastModificationDate>
+    <bibliographyLink>
+        <description>J. Zhang, B. Mei, W. Li, J. Fang, Y. Zhang, C. Cao, Y. Li, Energy &amp; Fuels 36 (2022), 8528–8537</description>
+        <referenceDOI>10.1021/acs.energyfuels.2c01766</referenceDOI>
+        <location>Main Article and SM</location>
+        <table>Main Article: Table 1 (initial conditions); SM#2: NH3/30%O2/70%N2, fi = 1.4 (measured data)</table>
+        <figure>Main Article: Fig. 2a, red circles (fi = 1.4, not used)</figure>
+        <details>
+            <author>Zhang, Jianguo and Mei, Bowen and Li, Wei and Fang, Jun and Zhang, Yan and Cao, Chuangchuang and Li, Yuyang</author>
+            <journal>Energy &amp; Fuels</journal>
+            <number>15</number>
+            <pages>8528–8537</pages>
+            <title>Unraveling Pressure Effects in Laminar Flame Propagation of Ammonia: A Comparative Study with Hydrogen, Methane, and Ammonia/Hydrogen</title>
+            <type>Journal Article</type>
+            <volume>36</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: NQ</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"          label="T"    sourcetype="reported"    units="K"             ><value>298</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"    units="unitless"      ><value>1.4</value></property>
+        <property name="initial composition"  sourcetype="calculated" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="mole fraction" >0.358974</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="mole fraction" >0.192308</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="mole fraction" >0.448718</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"        sourcetype="reported"   units="atm"  />
+        <property name="laminar burning velocity"      id="x2"   label="LBV"      sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x3"   label="d_LBV"    sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x4"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>1</x1><x2>14.91</x2><x3>1.35</x3><x4>1.0057</x4></dataPoint>
+        <dataPoint><x1>3</x1><x2>11.99</x2><x3>1.28</x3><x4>0.8769</x4></dataPoint>
+        <dataPoint><x1>5</x1><x2>10.77</x2><x3>1.23</x3><x4>0.8174</x4></dataPoint>
+        <dataPoint><x1>7</x1><x2>9.33</x2><x3>1.16</x3><x4>0.7443</x4></dataPoint>
+    </dataGroup>
+    <comment>Too few data points in the data series, therefore no appropriate fitting could be carried out when using Minimal Spline Fit. The measurement-specific standard deviation (5%) is used for std_fit.</comment>
+</experiment>

@@ -7,6 +7,7 @@ import numpy as np
 import sys,os
 import reaction_selection as rs
 import simulation_manager as simulator
+import simulation_manager2_0 as simulator2
 import DesignMatrix as DM
 from copy import deepcopy
 import combustion_target_class
@@ -249,8 +250,13 @@ SADir = os.getcwd()
 print("\n\t\t#############################\n\t\t#### Nominal simulations ###\n\t\t#############################")
 
 if os.path.isfile("progress") == False:
-	FlameMaster_Execution_location_x0 = simulator.SM(target_list,optInputs,rxn_dict,design_matrix_x0).make_dir_in_parallel()
-	
+	# Nominal = one sample per case (the unperturbed mechanism), so run all
+	# cases in a single pool via simulation_manager2_0's case-wise parallel
+	# nominal path -- the same entry point mso_compare uses -- instead of
+	# simulation_manager.make_dir_in_parallel's per-case sample loop, which
+	# would serialize the whole nominal run one case at a time.
+	FlameMaster_Execution_location_x0 = simulator2.SM(target_list,optInputs,{},[]).make_nominal_dir_in_parallel()
+
 else:
 	print("\t\tProgress file detected")
 	progress = open(SADir+"/progress",'r').readlines()
@@ -327,11 +333,12 @@ for case in case_dir:
 
 selected_PRS = {}
 for case in case_dir:
+	print(case)
 	T = int(target_list[case].temperature)
 	index = temp_sim_opt_x2[str(case)]["index"]
 	multiply = np.asarray(temp_sim_opt_x2[str(case)]["ETA"])
 	nominal = np.asarray(temp_sim_opt_x0[str(case)]["ETA"])
-	#print(multiply)
+	print(nominal)
 	case_FM = (multiply - nominal)/nominal
 	#print(reaction_dict,index)
 	sens_FM = {}

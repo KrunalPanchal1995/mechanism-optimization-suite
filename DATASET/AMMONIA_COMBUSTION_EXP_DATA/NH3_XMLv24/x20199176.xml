@@ -1,0 +1,62 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199176</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-24</firstPublicationDate>
+    <lastModificationDate>2024-06-24</lastModificationDate>
+    <bibliographyLink>
+        <description>X. Han, S. Zhong, R. Lin, H. Feng, K. Pan, Fuel 369 (2024), 131713</description>
+        <referenceDOI>10.1016/j.fuel.2024.131713</referenceDOI>
+        <location>Main Article and SM</location>
+        <table>Main Article: Table 2 (initial conditions); SM: NH3+O2+Ar, fi = 1.5 (measured data)</table>
+        <figure>Main Article: Fig. 1b, yellow hollow triangles (not used)</figure>
+        <details>
+            <author>Han, Xinlu and Zhong, Shenghui and Lin, Riyi and Feng, Hongqing and Pan, Kang</author>
+            <journal>Fuel</journal>
+            <pages>131713</pages>
+            <title>Laminar burning velocity of NH3 + N2 + O2 and NH3 + Ar + O2 flames at ultra-lean and rich conditions</title>
+            <type>Journal Article</type>
+            <volume>369</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>heat flux method</kind>
+        <mode>laminar, premixed</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"        label="T"    sourcetype="reported"  units="K"        ><value>298</value></property>
+        <property name="pressure"           label="p"    sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="equivalence ratio"  label="phi"  sourcetype="reported"  units="unitless" ><value>1.5</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="uncertainty"                   id="x1"   label="d_phi"    sourcetype="reported"    units="unitless"       reference="equivalence ratio"         kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="initial composition"           id="x2"   label="xNH3"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+        </property>
+        <property name="initial composition"           id="x3"   label="xO2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="xAr"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   />
+        </property>
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="reported"    units="cm/s"          />
+        <property name="uncertainty"                   id="x6"   label="d_LBV"    sourcetype="reported"    units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.056763</x1><x2>0.305556</x2><x3>0.152778</x3><x4>0.541667</x4><x5>11.5</x5><x6>0.7</x6><x7>0.5000</x7></dataPoint>
+        <dataPoint><x1>0.047034</x1><x2>0.324324</x2><x3>0.162162</x3><x4>0.513514</x4><x5>14.2</x5><x6>0.6</x6><x7>0.5000</x7></dataPoint>
+        <dataPoint><x1>0.040868</x1><x2>0.342105</x2><x3>0.171053</x3><x4>0.486842</x4><x5>16.8</x5><x6>0.6</x6><x7>0.5000</x7></dataPoint>
+        <dataPoint><x1>0.036719</x1><x2>0.358974</x2><x3>0.179487</x3><x4>0.461539</x4><x5>19.2</x5><x6>0.5</x6><x7>0.5000</x7></dataPoint>
+        <dataPoint><x1>0.033852</x1><x2>0.375000</x2><x3>0.187500</x3><x4>0.437500</x4><x5>21.4</x5><x6>0.5</x6><x7>0.5000</x7></dataPoint>
+        <dataPoint><x1>0.031667</x1><x2>0.390244</x2><x3>0.195122</x3><x4>0.414634</x4><x5>23.5</x5><x6>0.5</x6><x7>0.5000</x7></dataPoint>
+    </dataGroup>
+</experiment>

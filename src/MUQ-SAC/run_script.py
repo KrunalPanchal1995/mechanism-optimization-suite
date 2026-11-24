@@ -18,7 +18,7 @@ from collections import OrderedDict
 from scipy.linalg import block_diag
 from scipy import optimize as spopt
 mpl.rc('figure', max_open_warning = 0)
-import os, sys, re, threading, subprocess, time, traceback, shutil, glob
+import os, sys, re, threading, subprocess, time, traceback, shutil, glob, select
 from sklearn.model_selection import train_test_split
 sys.path.append('/parallel_yaml_writer.so')
 from scipy.interpolate import Akima1DInterpolator
@@ -131,6 +131,70 @@ def table(headers, rows):
 	for r in rows:
 		print("  " + "  ".join(str(c).ljust(w) for c, w in zip(r, widths)))
 
+def _stream_sa_subprocess(cmd, out_log, tag, heartbeat_s=300):
+	"""Run a Phase-4 sensitivity-analysis subprocess (sens.py / sens_3_params.py)
+	with LIVE streaming instead of capture_output=True.
+
+	The old subprocess.run(..., capture_output=True) held every stdout/stderr
+	line in memory until the child exited, so a multi-hour SA run printed
+	nothing: the terminal (or run_log.txt) looked frozen, and SA_tool.out /
+	SA_tool_3p.out only got written at the very end. Here every chunk the
+	child emits is instead:
+	  * echoed to this process's stdout immediately (raw bytes, so tqdm's
+	    \\r progress bars pass through untouched), and
+	  * appended to `out_log` at the same time (the same SA_tool*.out
+	    artifact the old code produced, just populated live instead of at
+	    exit), and
+	  * if the child stays silent for heartbeat_s seconds (e.g. one long
+	    simulation or YAML chunk), a heartbeat line reports the elapsed
+	    time so the run never looks stuck.
+
+	Returns the child's exit code (old code never inspected it).
+	"""
+	print(f"  [{tag}] launching: {' '.join(cmd)}", flush=True)
+	# PYTHONUNBUFFERED: the child's stdout is a pipe, so Python would
+	# otherwise switch print() to 8 KiB block buffering and progress lines
+	# would arrive late in batches; unbuffered makes every print() reach the
+	# tee/terminal as soon as it is issued.
+	_child_env = dict(os.environ)
+	_child_env.setdefault("PYTHONUNBUFFERED", "1")
+	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+	                        env=_child_env)
+	last_out = time.time()
+	with open(out_log, "a") as fh:
+		while True:
+			r, _, _ = select.select([proc.stdout], [], [], 1.0)
+			if r:
+				chunk = os.read(proc.stdout.fileno(), 65536)
+				if chunk:
+					data = chunk.decode("utf-8", errors="replace")
+					fh.write(data)
+					fh.flush()
+					sys.stdout.write(data)
+					sys.stdout.flush()
+					last_out = time.time()
+					continue
+			if proc.poll() is not None:
+				# drain whatever the child buffered right before exiting
+				while True:
+					chunk = os.read(proc.stdout.fileno(), 65536)
+					if not chunk:
+						break
+					data = chunk.decode("utf-8", errors="replace")
+					fh.write(data)
+					fh.flush()
+					sys.stdout.write(data)
+					sys.stdout.flush()
+				break
+			if time.time() - last_out > heartbeat_s:
+				elapsed = time.time() - _PHASE_T0.get(4, time.time())
+				print(f"  [{tag}] … still running — elapsed {elapsed/60.0:.1f} min "
+				      f"(no new output for {heartbeat_s}s)", flush=True)
+				last_out = time.time()
+	rc = proc.wait()
+	print(f"  [{tag}] subprocess exited with code {rc}", flush=True)
+	return rc
+
 ####################################################################################
 
 ### KEY WORDS #######
@@ -205,7 +269,26 @@ startProfile_location = optInputs[startProfile]
 stats_ = optInputs["Stats"]
 global A_fact_samples
 A_fact_samples = stats_["Sampling_of_PRS"]
-threshold = stats_["cut_off_percentage"]/100
+# SA-stage (Phase 5 correlation-analysis) reaction-selection cutoff, DECOUPLED
+# (2026-08-29) from cut_off_percentage, which remains the p-PRS/training
+# parameter-selection cutoff read directly by PartialPRS (partial_PRS_system.py:78).
+# A single cut_off_percentage used to drive both stages identically; per-study
+# needs diverged (e.g. a stricter 1% SA screen feeding a looser 5% p-PRS/
+# training cutoff), so this is now independently configurable. Default 1.0
+# (=1%) is this project's SA convention; cut_off_percentage's own default is
+# unchanged -- it stays REQUIRED, as before.
+sa_cut_off_percentage = float(stats_.get("sa_cut_off_percentage", 1.0))
+threshold = sa_cut_off_percentage / 100
+# Correlation-based rescue tuning for the SA stage (see correlation_analysis.py):
+# corr_cutoff = |r| trigger to rescue a sub-threshold reaction correlated with
+# a selected one; threshold_corr = rescue eligibility floor on the candidate's
+# own |S| (never rescue pure noise). None for sa_corr_cutoff preserves today's
+# behaviour exactly: run_pipeline() auto-derives it from
+# suggest_corr_cutoff(n_cases, alpha) when not given; only override (for both
+# the diagnostic table and the actual rescued set) when target.opt sets it.
+sa_corr_cutoff = stats_.get("sa_corr_cutoff", None)
+sa_corr_cutoff = float(sa_corr_cutoff) if sa_corr_cutoff is not None else None
+sa_threshold_corr = float(stats_.get("sa_threshold_corr", 0.01))
 unsrt_location = locations[unsrt]
 mech_file_location = locations[mech]
 thermo_file_location = locations[thermoF]
@@ -409,6 +492,61 @@ prs_fit_cfg = {
 	# data-starved case, and should be visible/tunable, not silently fixed.
 	"max_terms_frac":       float(stats_.get("prs_max_terms_frac", 0.4)),
 }
+
+def _dry_run_from_stats(stats_):
+	"""Resolve the resampling live/dry switch from the Stats block.
+
+	'do simulation: true' (user's exact wording) -> False (live chemkin).
+	'do_simulation' is the underscore alias; when NEITHER positive key is
+	present, the legacy negative key 'resample_dry_run' (true = dry-run)
+	is used verbatim. The positive keys invert: they ask FOR simulation,
+	resample_dry_run asks to SKIP it.
+	"""
+	do_sim = stats_.get("do simulation", stats_.get("do_simulation"))
+	if do_sim is not None:
+		return not bool(do_sim)
+	return bool(stats_.get("resample_dry_run", True))
+
+
+# ── Experiment arms (2026-08-28): response coordinate transforms
+#    (encoding/decoding, ResponseEncoder) + correlation-aware resampling
+#    (CorrelationResampler), selectable per run. Default `original` == the
+#    pre-2026-08-28 behavior exactly (missing keys change nothing). Every
+#    value is parsed from the optional target.opt Stats: block; the full
+#    schema and semantics live in phase10_prs.py (EXPERIMENT_DEFAULTS) and
+#    src/MUQ-SAC/Readme.md.
+#      prs_experiment_mode: original | transform | resampling |
+#                           resampling_transform
+experiment_cfg = {
+	"mode":                 str(stats_.get("prs_experiment_mode", "original")),
+	"transform": {
+		"variant":          str(stats_.get("transform_variant", "power")),
+		"P":                float(stats_.get("transform_P", 0.1)),
+		"P_grid":           [float(x) for x in stats_.get(
+			"transform_P_grid", [1.0, 0.5, 0.2, 0.1, 0.05, 0.02])],
+		"standardize":      bool(stats_.get("transform_standardize", False)),
+		"rank_fit_on":      str(stats_.get("transform_rank_fit_on", "all")),
+		"p_lo":             float(stats_.get("transform_p_lo", 0.02)),
+	},
+	"resampling": {
+		"n_new":            int(stats_.get("resample_n_new", 2000)),
+		"empirical_weight": float(stats_.get("resample_empirical_weight", 1.0)),
+		"band_tolerance":   float(stats_.get("resample_band_tolerance", 1.0)),
+		"qmc":              bool(stats_.get("resample_qmc", True)),
+		"seed":             int(stats_.get("resample_seed", 20260828)),
+		"center_mode":      str(stats_.get("resample_center_mode", "pool_center")),
+		"dedup_eps":        float(stats_.get("resample_dedup_eps", 1e-6)),
+		# "do simulation: true" (user's exact wording) is the live-simulation
+		# switch for the resampling arms: true -> dry_run=False (live
+		# chemkin), false/absent -> dry-run. "do_simulation" is the
+		# underscore alias; if neither key exists, the legacy
+		# "resample_dry_run" (true = dry-run) is used verbatim.
+		# NOTE the inversion: do-simulation keys are positive ("run the
+		# sims"), resample_dry_run is negative.
+		"dry_run":          _dry_run_from_stats(stats_),
+	},
+	"stage3_with_transform": bool(stats_.get("stage3_with_transform", False)),
+}
 item(f"Parallel threads: {parallel_threads}")
 targetLines = open(locations[targets],'r').readlines()
 addendum = yaml.safe_load(open(locations[add],'r').read())
@@ -563,8 +701,12 @@ for rxn in unsrt_data:
     # Cholesky matrix
     L = np.asarray(unsrt_data[rxn].cholskyDeCorrelateMat)
 
-    # Covariance matrix
-    Sigma = L @ L.T
+    # Covariance matrix (sigma_from_cholesky normalizes the A-factor-only
+    # 1-element form -- see IdentifiablePRS.py's docstring -- so this
+    # diagnostics artifact matches what the pipeline actually fits with,
+    # instead of a bare L @ L.T scalar for those reactions)
+    Sigma = IPRS.sigma_from_cholesky(
+        L, n_active=len(unsrt_data[rxn].activeParameters))
     
     # Nominal values in uncertainty space
     nominal = np.asarray(unsrt_data[rxn].nominal)
@@ -803,15 +945,17 @@ if PRS_type == "Partial":
 			args = [sys.argv[1], 'rxn_list_a_fact.csv','&>SA.out']
 
 			# Doing A factor sensitivity Analysis
-			result = subprocess.run(['python3.9', binLoc["SA_tool"]] + args, capture_output=True, text=True)
-			f = open("SA_tool.out","+a")
-			f.write(result.stdout+"\n")
-			
+			# Live-streamed (Phase 4 only): the old capture_output=True held
+			# every line until the subprocess exited, so the run looked frozen.
+			_rc = _stream_sa_subprocess(
+				['python3.9', binLoc["SA_tool"]] + args,
+				out_log="SA_tool.out", tag="SA", heartbeat_s=300,
+			)
+
 			print("\n\nSensitivity Analysis for A-factor is Done!!")
-			# Printing the errors of script2.py, if any
-			if result.stderr:
-				f.write("Errors:\n"+result.stderr)	
-			#	raise AssertionError("Sensitivity Analysis Done!!")
+			if _rc != 0:
+				error(f"SA subprocess exited with code {_rc} — check SA_tool.out; "
+				      f"sens_parameters.pkl may be missing")
 			with open('sens_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
 			PICKLE_PATH = 'sens_parameters.pkl'
@@ -827,12 +971,16 @@ if PRS_type == "Partial":
 			status_ = "Pending"
 			args = [sys.argv[1], 'rxn_list.csv','&>SA_3p.out']
 			print("\n\tRunning sens_3_params.py code\n")
-			result = subprocess.run(['python3.9', binLoc["SA_tool_3p"]] + args, capture_output=True, text=True)
-			f = open("SA_tool_3p.out","+a")
-			f.write(result.stdout+"\n")
-			if result.stderr:
-				f.write("Errors:\n"+result.stderr)	
+			# Live-streamed (Phase 4 only): the old capture_output=True held
+			# every line until the subprocess exited, so the run looked frozen.
+			_rc = _stream_sa_subprocess(
+				['python3.9', binLoc["SA_tool_3p"]] + args,
+				out_log="SA_tool_3p.out", tag="SA-3P", heartbeat_s=300,
+			)
 			print("\n\nSensitivity Analysis for 3 parameters is Done!!")
+			if _rc != 0:
+				error(f"SA-3P subprocess exited with code {_rc} — check SA_tool_3p.out; "
+				      f"sens_3p_parameters.pkl may be missing")
 			with open('sens_3p_parameters.pkl', 'rb') as file_:
 				sensitivity_analysis = pickle.load(file_)
 			PICKLE_PATH = 'sens_3p_parameters.pkl'
@@ -861,7 +1009,12 @@ if PRS_type == "Partial":
 	if "A-facto" in design_type:
 		# Per-parameter (A-only) Pearson pipeline.
 		# Returns {case_str -> [rxn_equation, ...]} for the final active set.
-		_final_sets_A = CA.run_pipeline(PICKLE_PATH, OUTPUT_DIR, threshold=threshold)
+		_final_sets_A = CA.run_pipeline(
+			PICKLE_PATH, OUTPUT_DIR, threshold=threshold,
+			corr_cutoff=sa_corr_cutoff,
+			final_set_corr_cutoff=(sa_corr_cutoff if sa_corr_cutoff is not None else 0.9),
+			threshold_corr=sa_threshold_corr,
+		)
 		# Convert reaction-equation strings to activeParameter strings ("R1093_A")
 		# that match PartialPRS.active_params in the A-facto branch.
 		_eq_to_ap = {
@@ -884,8 +1037,8 @@ if PRS_type == "Partial":
 			unsrt_data,
 			OUTPUT_DIR,
 			threshold=threshold,
-			corr_cutoff=0.9,
-			threshold_corr=0.01,
+			corr_cutoff=(sa_corr_cutoff if sa_corr_cutoff is not None else 0.9),
+			threshold_corr=sa_threshold_corr,
 		)
 		for case in case_dir:
 			correlation_results.setdefault(str(case), [])
@@ -906,8 +1059,23 @@ if PRS_type == "Partial":
 	# Stage-3 simulations at all.
 	cost_estimate_dict = {}
 	step(f"Generating partial-PRS design matrices for {len(case_dir)} case(s)")
+	# stale_report: cases whose freshly-computed selection (current
+	# sa_cut_off_percentage/cut_off_percentage + correlation rescue) no longer
+	# matches the DesignMatrix.csv/selected_parameters.csv already cached on
+	# disk for that case (see PartialPRS.__init__'s stale_selection detection,
+	# 2026-08-29). Detected here, across every case, BEFORE anything is built
+	# or simulated for any of them -- deliberately detect-and-report, not
+	# auto-rebuild: rebuilding a case correctly also requires discarding its
+	# real Opt/case-<N>/ simulation output and touching the study-global
+	# Opt/locations / Opt/progress files, which this run must never do
+	# without the operator's say-so.
+	stale_report = []
 	for case in case_dir:
 		PPRS_system = P_PRS.PartialPRS(sensitivity_analysis[str(case)],correlation_results[str(case)],unsrt_data,optInputs,target_list,str(case),activeParameters,design_type,status=status_)
+		if PPRS_system.stale_selection is not None:
+			added, removed = PPRS_system.stale_selection
+			stale_report.append((case, added, removed))
+			continue   # do not build a design matrix or simulate this case this run
 		yaml_loc, p_design_matrix, selected_params, Active_Rxns = PPRS_system.partial_DesignMatrix()
 		partialPRS_Object.append(PPRS_system)
 		no_of_sim[case] = int(PPRS_system.no_of_sim)
@@ -920,6 +1088,33 @@ if PRS_type == "Partial":
 			"Cost_Estimate_pPRS": getSim(Active_Rxns, design_type),
 			"Cost_Estimate_FullPRS": getSim(len(activeParameters), design_type),
 		}
+
+	if stale_report:
+		error(f"{len(stale_report)} case(s) have a STALE cached selection -- their "
+		      f"parameter set changed (new thresholds and/or correlation rescue) since "
+		      f"DM_FOR_PARTIAL_PRS/<case>/ was last built, but the cached design matrix "
+		      f"and simulations reflect the OLD selection. Stopping before any "
+		      f"simulation or PRS fitting runs, rather than silently reusing stale data.")
+		for case, added, removed in stale_report:
+			print(f"\n  Case-{case}: +{added} -{removed}")
+			print(f"    DM_FOR_PARTIAL_PRS/{case}/            (selected_parameters.csv, DesignMatrix.csv, ...)")
+			print(f"    YAML_FILES_FOR_PARTIAL_PRS/{case}/    (regen guard is row-count-only -- must go too)")
+			print(f"    Opt/case-{case}/                      (raw Chemkin simulation output for this case)")
+			print(f"    Opt/Data/Simulations/sim_data_case-{case}.lst")
+			print(f"    Opt/Data/Simulations/failed_sim_data_case-{case}.lst")
+		print(f"\n  Opt/locations and Opt/progress are STUDY-GLOBAL (shared by every case, "
+		      f"not just the ones above):\n"
+		      f"    - Opt/progress gates simulation dispatch for the WHOLE study -- while it "
+		      f"exists, simulations are never (re)launched for any case, changed or not; "
+		      f"remove it so dispatch runs again (unaffected cases are still skipped by "
+		      f"their own per-case existence check, so this alone is safe).\n"
+		      f"    - Opt/locations accumulates one line per simulated row across every "
+		      f"case; after clearing a case's Opt/case-<N>/ above, also drop that case's "
+		      f"lines from Opt/locations so its row bookkeeping doesn't reference "
+		      f"directories that no longer exist.\n"
+		      f"  Clear the paths listed per case above (and re-simulate), then rerun.")
+		sys.exit(1)
+
 	item(f"Design matrices generated for {len(case_dir)} case(s) -- "
 	     f"{sum(no_of_sim.values())} total rows on disk", "ok")
 ##################################################################
@@ -1215,7 +1410,8 @@ for key in case_dict:
 _STUDY_MARKER = os.path.join(os.path.dirname(optDir), ".study_manifest.json")
 
 
-def archive_previous_study(optDir, sample_mode, outlier_cfg):
+def archive_previous_study(optDir, sample_mode, outlier_cfg,
+                           preserve_outlier_sims=False):
 	"""Move the PREVIOUS resampling study's artifacts into
 	CASE_STUDIES/<method>_<params>_<timestamp>/ before this run starts a new
 	one, so each study's simulations/YAMLs/PRS coefficients/plots stay
@@ -1253,6 +1449,13 @@ def archive_previous_study(optDir, sample_mode, outlier_cfg):
 		# lost by truncating it.
 		(os.path.join(run_root, "optimization_cost.csv"), "optimization_cost.csv"),
 		(os.path.join(run_root, "screening_summary.csv"), "screening_summary.csv"),
+		# experiment-arm artifacts (2026-08-28) -- archived like the rest so
+		# successive runs never overwrite a previous run's encoders/plots.
+		(os.path.join(optDir, "Data", "Encoding_Decoding"), os.path.join("Opt", "Data", "Encoding_Decoding")),
+		(os.path.join(run_root, "Plots_transfrom"), "Plots_transfrom"),
+		(os.path.join(run_root, "Plots_re-sampling"), "Plots_re-sampling"),
+		(os.path.join(run_root, "Plots_re-sampling_transform"), "Plots_re-sampling_transform"),
+		(os.path.join(run_root, "prs_experiment_results.csv"), "prs_experiment_results.csv"),
 	]
 	if not any(os.path.exists(src) for src, _ in movable):
 		return  # nothing from a previous study on disk yet -- nothing to archive
@@ -1276,6 +1479,14 @@ def archive_previous_study(optDir, sample_mode, outlier_cfg):
 		if os.path.exists(src):
 			dest = os.path.join(dest_root, rel)
 			os.makedirs(os.path.dirname(dest), exist_ok=True)
+			if preserve_outlier_sims and rel == os.path.join("Opt", "Data", "Outlier_Simulations"):
+				# The cross-arm fingerprint cache: run N+1 (resampling_transform)
+				# must reuse run N's (resampling) augmentation .lst via the
+				# SHA1-verified cache in Phase10PRS._simulate_new_samples --
+				# moving it into the archive would delete that cache. Copy it
+				# (history kept) and leave the live cache in place.
+				shutil.copytree(src, dest, dirs_exist_ok=True)
+				continue
 			shutil.move(src, dest)
 
 	# Opt/Data/ResponseSurface must exist fresh for THIS run's coefficient
@@ -1289,7 +1500,10 @@ def archive_previous_study(optDir, sample_mode, outlier_cfg):
 	print(f"\nArchived previous resampling study ({prev_mode}) -> {dest_root}\n")
 
 
-archive_previous_study(optDir, outlier_cfg["sample_mode"], outlier_cfg)
+_preserve_sims = (experiment_cfg["mode"] in ("resampling", "resampling_transform")
+                  and not experiment_cfg["resampling"]["dry_run"])
+archive_previous_study(optDir, outlier_cfg["sample_mode"], outlier_cfg,
+                       preserve_outlier_sims=_preserve_sims)
 reset_csv(COST_FILE, HEADERS)
 reset_csv(PRS_ERROR_FILE, PRS_HEADER)
 reset_csv(PRS_DETAIL_FILE, PRS_DETAIL_HEADER)
@@ -1394,960 +1608,32 @@ else:
 phase_end(9)
 phase(10, TOTAL_PHASES, "Per-case PRS fitting")
 
-def _mini_dm_fingerprint(prs_rows):
-	"""SHA1 fingerprint of a mini-DM's rows (rounded to tame float noise),
-	used to validate a cached simulation result actually matches the CURRENT
-	pass's mini-DM before reusing it -- see _simulate_new_samples."""
-	arr = np.round(np.asarray(prs_rows, dtype=float), 8)
-	return hashlib.sha1(arr.tobytes()).hexdigest()
+# ── Phase 10 (per-case p-PRS fitting) now lives in phase10_prs.py ──────────
+# (2026-08-27): the whole pipeline -- screening -> 3-way split -> (tol, k,
+# order, ridge) search -> identifiable-subspace PLS + PRS fit -> Stage-3
+# D-optimal outlier retraining -> one-time hold-out verdict -- was moved into
+# the Phase10PRS class with step-by-step STEP tracing. See phase10_prs.py's
+# module docstring for the full walkthrough and the offline reproducer
+# (Phase10CaseDiagnostics) that re-runs one case's fit with no Chemkin.
+from phase10_prs import Phase10PRS
+_phase10 = Phase10PRS({
+	"target_list": target_list, "unsrt_data": unsrt_data, "optInputs": optInputs,
+	"design_matrix_dict": design_matrix_dict, "kept_row_index": kept_row_index,
+	"selected_params_dict": selected_params_dict, "temp_sim_opt": temp_sim_opt,
+	"no_of_sim": no_of_sim, "cost_estimate_dict": cost_estimate_dict,
+	"optDir": optDir, "home_dir": home_dir, "fuel": fuel,
+	"PRS_type": PRS_type, "design_type": design_type, "MRE_criteria": MRE_criteria,
+	"prs_fit_cfg": prs_fit_cfg, "outlier_cfg": outlier_cfg,
+	"experiment_cfg": experiment_cfg,
+	"modules": {"IPRS": IPRS, "PRS": PRS, "AR": AR,
+	            "simulator": simulator, "data_management": data_management},
+	"csv_files": {"PRS_ERROR_FILE": PRS_ERROR_FILE, "PRS_DETAIL_FILE": PRS_DETAIL_FILE,
+	              "SCREENING_SUMMARY_FILE": SCREENING_SUMMARY_FILE, "COST_FILE": COST_FILE},
+	"log": {"step": step, "kv": kv, "table": table, "result": result,
+	        "warn": warn, "error": error, "append_csv_row": append_csv_row},
+})
+ResponseSurfaces = _phase10.run()
 
-
-def _simulate_new_samples(case, prs_rows, full_rows, sel_mask, pass_id, force_resim=False):
-	"""Simulate a mini-DM of new samples, reusing the same SM / data_management
-	machinery as the main flow.
-
-	The whole thing runs inside its own folder tree
-	(Opt/Outlier_Resample/case-<case>/pass-<n>/) so the parallel simulation
-	directories never clobber the original per-case runs. Simulation results are
-	also copied into Opt/Data/Outlier_Simulations/ so the solution can be
-	inspected. Already-generated files are reused (not regenerated) -- but ONLY
-	if a companion fingerprint manifest confirms the cached result actually
-	matches THIS pass's mini-DM (prs_rows), not a stale file left over from an
-	earlier/different attempt. Set force_resim=True (outlier_cfg["force_resim"])
-	to always resimulate regardless of any cache.
-
-	Returns the list of ETA (target) values aligned with the input rows.
-	cwd is assumed to be optDir on entry and is restored on exit.
-	"""
-	# The main flow's case IDs come from `case_dir = range(len(target_list))`, so
-	# SM.make_dir_in_parallel / data_management expect an INTEGER case. In the PRS
-	# loop `case` is the temp_sim_opt string key -- convert it back to int here.
-	case_int = int(case)
-	sim_store = os.path.join(optDir, "Data", "Outlier_Simulations")
-	os.makedirs(sim_store, exist_ok=True)
-	sim_data_file = os.path.join(sim_store, f"sim_data_case-{case_int}_pass-{pass_id}.lst")
-	meta_file = os.path.join(sim_store, f"sim_data_case-{case_int}_pass-{pass_id}.meta.json")
-	fingerprint = _mini_dm_fingerprint(prs_rows)
-
-	# ── Reuse cached simulation results only if the fingerprint of THIS pass's
-	#    mini-DM matches the one recorded when the cache was written -- a
-	#    missing/mismatched manifest (e.g. a stale file from an earlier
-	#    attempt, or one written before this check existed) is NOT reused. ──
-	if not force_resim and os.path.isfile(sim_data_file) and os.path.isfile(meta_file):
-		try:
-			meta = json.load(open(meta_file))
-		except (ValueError, OSError):
-			meta = {}
-		if meta.get("n_rows") == len(prs_rows) and meta.get("fingerprint") == fingerprint:
-			print(f"\t[Case-{case}] pass {pass_id}: reusing cached simulation data "
-				  f"(fingerprint verified)")
-			ETA = [float(l.split("\t")[1]) for l in open(sim_data_file).readlines()]
-			return list(np.asarray(ETA, dtype=float).ravel())
-		print(f"\t[Case-{case}] pass {pass_id}: cached simulation data found but its "
-			  f"fingerprint doesn't match this pass's mini-DM -- resimulating.")
-
-	work_dir = os.path.join(optDir, "Outlier_Resample", f"case-{case_int}", f"pass-{pass_id}")
-	mech_dir = os.path.join(work_dir, "Perturbed_Mech")
-	os.makedirs(mech_dir, exist_ok=True)
-
-	# Non-"Full" tag => SM stores the dict verbatim, so design_matrix_dict[case_int]
-	# is the mini-DM (its length drives how many sim dirs getDirectoryList makes).
-	OSM = simulator.SM(target_list, optInputs, unsrt_data,
-					   {case_int: [list(r) for r in full_rows]}, tag="Outlier")
-
-	# ── Generate perturbed mechanism YAMLs (skip if already generated) ─────
-	yaml_loc = [os.path.join(mech_dir, f"mechanism_{i}.yaml")
-				for i in range(len(prs_rows))]
-	if all(os.path.isfile(p) for p in yaml_loc) and len(yaml_loc) > 0:
-		print(f"\t[Case-{case}] pass {pass_id}: mechanism YAMLs already generated")
-	else:
-		if PRS_type == "Full":
-			yaml_list = OSM.getYAML_List([list(r) for r in full_rows])
-		else:
-			# Partial: SM expects the COMPRESSED rows + full-length selection mask
-			sel_rows = [list(sel_mask) for _ in range(len(prs_rows))]
-			yaml_list = OSM.getYAML_List([list(r) for r in prs_rows], selection=sel_rows)
-		location_mech = [mech_dir for _ in yaml_list]
-		index_list = [str(i) for i in range(len(yaml_list))]
-		OSM.getPerturbedMechLocation(yaml_list, location_mech, index_list)
-
-	# ── Run the simulations INSIDE work_dir for ONLY the resampled case, then
-	#    extract from the created case-<case_int> directory (mirrors the main
-	#    flow's chdir). `cases=[case_int]` restricts SM to this one case so we
-	#    don't waste simulations on the other targets. ──
-	yaml_loc_dict = {case_int: yaml_loc}
-	cwd0 = os.getcwd()
-	os.chdir(work_dir)
-	try:
-		exec_locs = OSM.make_dir_in_parallel(yaml_loc_dict, cases=[case_int])
-		os.chdir(f"case-{case_int}")
-		data_sheet, failed_sim, ETA = data_management.generate_target_value_tables(
-			exec_locs, target_list, case_int, fuel, input_=optInputs)
-	finally:
-		os.chdir(cwd0)
-
-	# ── Persist results to Data/Outlier_Simulations for inspection ─────────
-	open(sim_data_file, "w").write(data_sheet)
-	open(os.path.join(sim_store, f"failed_sim_case-{case_int}_pass-{pass_id}.lst"),
-		 "w").write(failed_sim)
-	json.dump({"n_rows": len(prs_rows), "fingerprint": fingerprint}, open(meta_file, "w"))
-	return list(np.asarray(ETA, dtype=float).ravel())
-
-
-def _write_coef_cache(coef_path, coeff):
-	"""(Re)write the coefficient cache file from an explicit coeff array --
-	used to guarantee the on-disk cache matches `best`, not a rejected trial
-	that happened to write over it (see retrain_around_outlier)."""
-	if os.path.isfile(coef_path):
-		os.remove(coef_path)
-	with open(coef_path, "w") as f:
-		f.write("Coefficients\n")
-		for c in coeff:
-			f.write(f"{float(c)}\n")
-
-
-# ── No-ignition sentinel (2026-08-19) ────────────────────────────────────
-# data_management.extract_output substitutes this EXACT value
-# (ln(100 * 10000) = ln(1e6)) whenever a solver's output file exists but
-# doesn't parse into a real ignition-delay reading -- a fabricated "no
-# ignition found" placeholder, not a real measurement, and previously
-# indistinguishable downstream from a genuine (if extreme) response. Zero
-# occurrences in the current study's data (confirmed by direct scan), but
-# unguarded -- screen_case_samples checks for it explicitly so a future
-# batch containing one can never silently train/score against it.
-NO_IGNITION_SENTINEL = np.log(100 * 10000)
-
-
-def screen_case_samples(case, case_index, xData_raw, yData_raw, orig_row_idx,
-                          blocks, dm_case_dir, band_tolerance_eval):
-	"""Split one case's (design matrix, response) pair into a GOOD submatrix
-	(what the PRS is fit and scored on) and a QUARANTINED remainder, and
-	write the full audit trail to disk under dm_case_dir -- i.e.
-	<this study's own root>/DM_FOR_PARTIAL_PRS/<case_index>/, derived from
-	home_dir at the call site, never hardcoded to another study's path (per
-	instruction).
-
-	This is the load-bearing fix for the 400%-65,372% "holdout(all)" numbers
-	previously reported in Prediction_errors.csv: those were the SAME fit
-	graded against ~88-94% physically-implausible rows the sampler's own
-	acceptance test would have rejected (see Uncertainty.SAMPLER_VERSION's
-	docstring / report_resampling/DEBUG_REPORT.md). Every row here is
-	re-scored against blocks -- the CURRENT band-validity test, using
-	whatever prs_band_fprior/screening config this run's target.opt sets --
-	regardless of when or by which sampler version it was originally
-	generated, so a stale DesignMatrix.csv can never again silently corrupt
-	a fit or a reported error (see partial_PRS_system.py's dm_provenance
-	NOTE for why the raw DesignMatrix.csv itself is deliberately NOT
-	regenerated/discarded).
-
-	Rejection reasons, checked in order (first hit wins):
-	  1. band_invalid  -- IdentifiablePRS.violation_detail(x, blocks) exceeds
-	                       band_tolerance_eval. The dominant, and currently
-	                       only observed, reason in this study.
-	  2. sim_sentinel   -- response equals NO_IGNITION_SENTINEL (a fabricated
-	                       "no ignition found" placeholder, see its own
-	                       docstring above) -- currently 0 occurrences, kept
-	                       so a future batch containing one is caught.
-	  3. non_finite     -- NaN or +-inf response -- currently 0 occurrences.
-	  4. non_physical   -- exp(response) outside (0, 1e6] microseconds --
-	                       currently 0 occurrences (this pipeline's response
-	                       column is ln(10*tau_us), see the note in
-	                       report_resampling/DEBUG_REPORT.md).
-	(sim_failed, a 5th reason for rows generate_target_value_tables dropped
-	entirely because the simulation never returned a usable result, never
-	reaches this function at all -- it is already excluded upstream via
-	kept_row_index / orig_row_idx, and is accounted for separately in the
-	optimization_cost.csv ledger as Samples_Failed_Sim.)
-
-	Returns (xGood, yGood, stats) where stats is a dict with the full
-	per-reason breakdown, used both for optimization_cost.csv's per-case
-	ledger row and screening_summary.csv's study-level rollup.
-	"""
-	xData_raw = np.asarray(xData_raw, dtype=float)
-	yData_raw = np.asarray(yData_raw, dtype=float).ravel()
-	orig_row_idx = np.asarray(orig_row_idx, dtype=int)
-	n = len(yData_raw)
-	reasons = np.array([""] * n, dtype=object)
-
-	ratio, worst_rxn = IPRS.violation_detail(xData_raw, blocks)
-	tol = band_tolerance_eval if band_tolerance_eval is not None else float("inf")
-	band_bad = ratio > tol
-	reasons[band_bad] = "band_invalid"
-
-	is_sentinel = (reasons == "") & np.isclose(yData_raw, NO_IGNITION_SENTINEL, atol=1e-6)
-	reasons[is_sentinel] = "sim_sentinel"
-
-	non_finite = (reasons == "") & (~np.isfinite(yData_raw))
-	reasons[non_finite] = "non_finite"
-
-	with np.errstate(over="ignore"):
-		tau_us = np.exp(np.clip(yData_raw, -700, 700))
-	non_physical = (reasons == "") & ((tau_us <= 0) | (tau_us > 1e6 + 1e-6))
-	reasons[non_physical] = "non_physical"
-
-	good_mask = (reasons == "")
-	os.makedirs(dm_case_dir, exist_ok=True)
-
-	# failed_DM.csv: quarantined rows, same column layout as pDesignMatrix.csv
-	# (feature columns only), with a leading row_index column referencing the
-	# TRUE DesignMatrix.csv row number (not this function's local position --
-	# xData_raw here is already restricted to simulated/kept rows).
-	bad_idx = np.where(~good_mask)[0]
-	with open(os.path.join(dm_case_dir, "failed_DM.csv"), "w") as fh:
-		for i in bad_idx:
-			fh.write(f"{orig_row_idx[i]}," + ",".join(f"{v}" for v in xData_raw[i]) + "\n")
-
-	with open(os.path.join(dm_case_dir, "failed_DM_reasons.csv"), "w") as fh:
-		fh.write("row_index,reason,violation_ratio,worst_reaction,response_value\n")
-		for i in bad_idx:
-			fh.write(f"{orig_row_idx[i]},{reasons[i]},{ratio[i]:.6f},"
-			         f"{worst_rxn[i]},{yData_raw[i]:.6f}\n")
-
-	good_idx = np.where(good_mask)[0]
-	with open(os.path.join(dm_case_dir, "good_DM_index.csv"), "w") as fh:
-		fh.write("row_index\n")
-		for i in good_idx:
-			fh.write(f"{orig_row_idx[i]}\n")
-
-	stats = {
-		"n_generated_kept_for_sim": n,   # rows that reached this function (post sim-failure filtering)
-		"n_band_invalid": int(band_bad.sum()),
-		"n_sentinel": int(is_sentinel.sum()),
-		"n_non_finite": int(non_finite.sum()),
-		"n_non_physical": int(non_physical.sum()),
-		"n_good": int(good_mask.sum()),
-		"good_fraction_pct": float(100.0 * good_mask.sum() / n) if n else 0.0,
-		"worst_violation_ratio": float(ratio.max()) if n else 0.0,
-		"median_violation_ratio": float(np.median(ratio)) if n else 0.0,
-	}
-	with open(os.path.join(dm_case_dir, "screening_summary.json"), "w") as fh:
-		json.dump(stats, fh, indent=2)
-
-	return xData_raw[good_mask], yData_raw[good_mask], stats
-
-
-def retrain_around_outlier(case, case_index, Response, xTrain, yTrain,
-						   xVal, yVal, xData, selectedParams, blocks, search, resampler):
-	"""Adaptive densification around PRS VALIDATION outliers, then refit.
-
-	Both outlier DETECTION and the accept/reject decision below use ONLY
-	xVal/yVal -- the caller's main loop must NEVER pass its final untouched
-	hold-out here (that split is evaluated exactly once, after this function
-	returns, purely for reporting; see the diagnosis in report/ of why the
-	original version's re-use of the SAME xTest for both outlier-selection
-	and scoring was a leakage bug).
-
-	Each pass: build a focused mini-DM around the current worst VALIDATION
-	outliers (via `resampler` -- an AdaptiveResampler.DOptimalResampler,
-	already constructed with THIS case's layout/band-validity settings, or a
-	legacy OutlierResampler mode selected via outlier_cfg["sample_mode"]),
-	simulate the new points, augment the training set, refit a fresh PLS
-	feature map (k/order/ridge stay FIXED at whatever the initial
-	fit_prs_with_search chose) + PRS, and score on xVal/yVal.
-
-	BUG FIX vs. the original: a pass is kept ONLY if it does not make the
-	validation score worse ("accept only if the validation score improves,
-	else revert and stop" -- the original unconditionally did `best = refit`,
-	which is why case-3's retraining used to make the fit monotonically
-	worse, 0.25%->11.8%, once combined with the (separately fixed)
-	data_management.py duplicate-row bug). The on-disk coefficient cache is
-	explicitly rewritten from `best.coeff` before returning, so a rejected
-	trial's write never lingers as the "live" cache for this case_index.
-
-	SECOND BUG FIX (found 2026-07-30, chasing a <1.2% target): accepting on
-	validation ALONE lets TRAIN error drift upward across passes even while
-	validation improves -- observed on Case 3 at MRE_criteria=1.2%: 5 passes
-	all "accepted" by the validation-only rule, walking validation down
-	2.06%->1.17% while TRAIN climbed to 2.04%, silently regressing above the
-	already-achieved 2% criterion this same pipeline met before this run.
-	The accept test now uses max(train, val) -- the identical criterion
-	fit_prs_with_search already uses for its own hyperparameter selection --
-	so a pass cannot be accepted if it trades train error for validation
-	error; it can only be accepted if the WORSE of the two does not worsen.
-
-	THIRD BUG FIX (2026-07-30, 10-fold CV investigation): xVal is now
-	filtered to band-valid rows (prs_fit_cfg["band_tolerance_eval"], default
-	1.0) before outlier detection AND accept/reject, for the same reason
-	Bug 2 above exists -- a band-invalid validation row (physically
-	implausible perturbation, class-B m=3 sampler bug, sec:upstream item 1)
-	is not a fair signal for either "is this case still failing" or "did
-	this pass help", and can only ever look like noise to a fit trained on
-	physically valid data.
-
-	Returns (best_response, resampler) -- the resampler is returned so the
-	caller can inspect/reuse it (e.g. for logging) without reconstructing it.
-
-	Defense-in-depth (2026-07-31): Stage 3 is A1+B1+C1-only (see the call
-	site's own guard in the main per-case loop, above) -- this early return
-	is a second, independent check in case a future caller invokes this
-	function directly without going through that guard.
-	"""
-	if design_type != "A1+B1+C1":
-		print(f"[Case-{case}] retrain_around_outlier called under "
-		      f"{design}={design_type!r} -- returning the caller's Response "
-		      f"unchanged (Stage 3 is supported only for 'A1+B1+C1').")
-		return Response, resampler
-	if prs_fit_cfg["band_tolerance_eval"] is not None:
-		_vmask = IPRS.band_valid_mask(xVal, blocks, prs_fit_cfg["band_tolerance_eval"])
-		if _vmask.any():
-			xVal, yVal = xVal[_vmask], yVal[_vmask]
-	target = outlier_cfg["target_fraction"] * MRE_criteria
-	n_train0 = len(xTrain)
-	X_aug = np.asarray(xTrain, dtype=float)
-	y_aug = np.asarray(yTrain, dtype=float).ravel()
-	xVal = np.asarray(xVal, dtype=float)
-	yVal = np.asarray(yVal, dtype=float).ravel()
-	best = Response
-	# Response.ytestMaxError/.MaxError were set by the CALLER's Response.test
-	# call on the UNFILTERED xVal -- re-score on the (possibly band-valid-
-	# filtered) xVal/yVal above so the baseline is on the same footing as
-	# every subsequent pass's comparison, not an apples-to-oranges mix.
-	best_train_score, best_val_score, _ = Response.test(xVal, yVal)
-	best_score = max(best_train_score, best_val_score)
-	coef_path = os.path.join(optDir, "Data", "ResponseSurface",
-							 f"responsecoef_case-{case_index}.csv")
-	mode = outlier_cfg["sample_mode"]
-
-	# Minimum outlier count, but ONLY on the FIRST pass (it==0): found
-	# 2026-07-30 chasing a <1.2% target -- a handful of borderline VALIDATION
-	# points on a case's very FIRST pass (e.g. Case 1's 3 points out of
-	# ~1,135, straight from the Stage1+2 search) is the same small-
-	# validation-set noise signature already diagnosed for Case 1's
-	# hyperparameter search (report/, Section "Tuning Case 1"), not a broad,
-	# real deficiency -- resampling to chase it measurably made the untouched
-	# hold-out WORSE (0.905/1.847% -> 0.966/2.407%) even though the pass
-	# legitimately improved max(train,val). Applying the SAME guard to LATER
-	# passes is wrong, though: Case 3's pass 2 also had only 3 outliers, but
-	# it was continuing an already-validated improving trend (pass 1 had
-	# genuinely improved max(train,val) via a real, broad 9-point fix) and
-	# itself produced a further genuine improvement (train 2.148%->1.930%,
-	# reproducing this project's historically best Case 3 result) -- blocking
-	# it left Case 3 at 2.148% train, regressing above the already-achieved
-	# 2% criterion. So: skip-for-noise applies only when it==0 (nothing yet
-	# validated this case's direction); once at least one pass has been
-	# accepted, a small residual outlier count is trusted.
-	min_outliers = max(int(outlier_cfg.get("min_outlier_count", 5)),
-						int(np.ceil(outlier_cfg.get("min_outlier_frac", 0.005) * len(yVal))))
-
-	# ── Accounting (2026-08-19, feeds optimization_cost.csv's Stage3_* columns) ──
-	stage3_stats = {"passes_attempted": 0, "passes_accepted": 0,
-	                 "sims_run": 0, "sims_kept": 0, "stalled_passes": 0,
-	                 "aborted_reason": None}
-	stall_count = 0
-	prev_signature = None
-	oversample_boost = 1
-
-	it = 0
-	while it < outlier_cfg["max_iter"]:
-		rel = np.asarray(best.error_testing_relative, dtype=float)
-		worst_abs = float(np.abs(rel).max()) if len(rel) else 0.0
-		still_failing = worst_abs > MRE_criteria
-		# min_passes ENFORCEMENT (2026-08-19): while the case is still above
-		# the RAW criterion, no early-exit path below is allowed to stop
-		# retraining before at least outlier_cfg["min_passes"] passes have
-		# been ATTEMPTED (a stalled pass, see below, does NOT count as
-		# attempted). Fixes the observed gap where a case above 2% could
-		# exit after a single pass (or zero, if the very first candidate
-		# draw stalled) with nothing distinguishing that from "this case
-		# doesn't need help".
-		below_min_passes = stage3_stats["passes_attempted"] < outlier_cfg["min_passes"]
-
-		# Densify around every point still above the tighter TARGET (not just
-		# points above MRE_criteria) so the loop keeps pushing error down to 0.5x.
-		oidx = AR.find_outliers(rel, target, force_worst=False)
-		if oidx.size == 0:
-			if still_failing and below_min_passes:
-				# Structurally rare (target is tighter than MRE_criteria by
-				# default, so 0 target-outliers normally implies the case
-				# already clears MRE_criteria too) but handled explicitly per
-				# instruction: a case that is somehow still above the RAW
-				# criterion with nothing above the tighter target must not be
-				# silently left short of min_passes -- force at least the
-				# single worst point.
-				oidx = AR.find_outliers(rel, target, force_worst=True)
-			else:
-				print(f"\t[Case-{case}] worst VALIDATION error {worst_abs:.3f}% already "
-					  f"<= target {target:.3f}% -- no re-training needed.")
-				break
-		if it == 0 and 0 < oidx.size < min_outliers and not still_failing:
-			# A case above MRE_criteria is NEVER treated as validation-split
-			# noise (that diagnosis only ever applied to a case chasing the
-			# STRICTER target_fraction*MRE_criteria target after already
-			# clearing the raw criterion) -- retrain_around_outlier is only
-			# ever invoked for a case that is already above MRE_criteria (see
-			# the call site's _stage3_needed gate), so this branch is
-			# structurally unreachable at it==0 today; kept for correctness
-			# if a future caller ever invokes this function pre-emptively.
-			print(f"\t[Case-{case}] only {oidx.size} point(s) above target "
-				  f"(< min_outlier threshold {min_outliers}) and case already "
-				  f"clears MRE_criteria -- likely validation-split noise; "
-				  f"skipping further retraining.")
-			break
-
-		# Reseed each pass so successive passes add DIFFERENT local samples.
-		resampler.rng = np.random.default_rng(outlier_cfg["seed"] + it)
-		try:
-			outlier_rows = xVal[oidx]
-			weights = np.abs(rel[oidx])
-			dopt_info = None
-			if mode == "local":
-				prs_rows, full_rows, sel_mask, row_class = resampler.resample(outlier_rows, xData)
-			elif mode == "dm_global":
-				prs_rows, full_rows, sel_mask, row_class = resampler.resample_global(outlier_rows, xData)
-			elif mode == "gap_fill":
-				ref_rows = (np.vstack([xData, X_aug[n_train0:]])
-							if len(X_aug) > n_train0 else xData)
-				prs_rows, full_rows, sel_mask, row_class = resampler.resample_gap_fill(
-					outlier_rows, ref_rows)
-			elif mode == "hybrid":
-				prs_rows, full_rows, sel_mask, row_class = resampler.resample_hybrid(
-					outlier_rows, xData, local_fraction=outlier_cfg["local_fraction"])
-			else:  # "d_optimal" (default) -- band-valid candidates, greedy D-optimal pick
-				prs_rows, full_rows, sel_mask, row_class, dopt_info = resampler.resample_d_optimal(
-					outlier_rows, xData, X_aug, best.build_basis,
-					target_weights=weights, local_fraction=outlier_cfg["local_fraction"],
-					oversample_boost=oversample_boost)
-
-			# ── STALL DETECTION (2026-08-19, d_optimal only) ────────────────
-			# A stalled pass -- zero candidates selected, or the IDENTICAL
-			# candidate set as the previous pass -- burns a full simulation
-			# batch for zero possible benefit (observed: Case 52 selected 0
-			# points on all 8 pre-fix passes; Case 56 re-picked the same 34
-			# points 8 times). Detected BEFORE any simulation is requested,
-			# so a stall costs nothing. Does not count toward min_passes.
-			if mode == "d_optimal" and dopt_info is not None:
-				sig = dopt_info.get("selected_signature", ())
-				stalled = (dopt_info["n_selected"] == 0
-				           or (sig and prev_signature is not None and sig == prev_signature))
-				if stalled:
-					stall_count += 1
-					stage3_stats["stalled_passes"] += 1
-					print(f"\t[Case-{case}] pass stalled ({stall_count}/{outlier_cfg['stall_patience']}): "
-					      f"D-optimal selected {dopt_info['n_selected']} candidate(s) from "
-					      f"{dopt_info['n_candidates_band_valid']}/{dopt_info['n_candidates_generated']} "
-					      f"band-valid (reject_rate {100*dopt_info['reject_rate']:.1f}%)"
-					      + (", identical to the previous pass's selection" if sig and sig == prev_signature else "")
-					      + " -- no simulation run for this pass.")
-					if stall_count >= outlier_cfg["stall_patience"]:
-						stage3_stats["aborted_reason"] = (
-							f"stalled {stall_count} consecutive passes (candidate pool "
-							f"exhausted -- check class-pool provenance for this case)")
-						print(f"\t[Case-{case}] aborting Stage 3: {stage3_stats['aborted_reason']}.")
-						break
-					oversample_boost = min(oversample_boost * 4, 64)
-					it += 1
-					continue
-				else:
-					stall_count = 0
-					oversample_boost = 1
-					if sig:
-						prev_signature = sig
-
-			print(f"\n[Case-{case}] adaptive re-training pass "
-				  f"{stage3_stats['passes_attempted']+1}/{outlier_cfg['max_iter']} (attempt {it+1}) "
-				  f"[{mode}]: {oidx.size} point(s) above target on VALIDATION, "
-				  f"worst |err|={worst_abs:.3f}% "
-				  f"(target {target:.3f}% = {outlier_cfg['target_fraction']}x MRE {MRE_criteria}%)")
-			if dopt_info is not None:
-				print(f"\t[Case-{case}] D-optimal candidates: band-valid "
-					  f"{dopt_info['n_candidates_band_valid']}/{dopt_info['n_candidates_generated']} "
-					  f"(reject_rate {100*dopt_info['reject_rate']:.1f}%), "
-					  f"selected {dopt_info['n_selected']}/{dopt_info['n_budget']}")
-
-			stage3_stats["passes_attempted"] += 1
-
-			# Persist the mini-DM ("small DM at the end of the original DM"),
-			# split by row class just like the original DM generation, plus a
-			# combined file. Saved next to the simulation results for inspection.
-			sim_store = os.path.join(optDir, "Data", "Outlier_Simulations")
-			os.makedirs(sim_store, exist_ok=True)
-			row_class = np.asarray(row_class)
-			np.savetxt(os.path.join(sim_store, f"Outlier_DM_case-{case}_pass-{it+1}.csv"),
-					   prs_rows, delimiter=",")
-			for lab in sorted(set(row_class)):
-				np.savetxt(os.path.join(sim_store,
-										f"Outlier_DM_case-{case}_pass-{it+1}_{lab}type.csv"),
-						   prs_rows[row_class == lab], delimiter=",")
-			print(f"\t[Case-{case}] mini-DM by class: " +
-				  ", ".join(f"{lab}={int((row_class==lab).sum())}"
-							for lab in sorted(set(row_class))))
-			y_new = _simulate_new_samples(case, prs_rows, full_rows, sel_mask, it + 1,
-										   force_resim=outlier_cfg["force_resim"])
-			stage3_stats["sims_run"] += len(prs_rows)
-			if len(y_new) != len(prs_rows):
-				warn(f"[Case-{case}] simulated {len(y_new)} of {len(prs_rows)} new "
-					 f"points; truncating to matched rows.")
-				m = min(len(y_new), len(prs_rows))
-				prs_rows, y_new = prs_rows[:m], y_new[:m]
-
-			# Every NEW row must itself be band-valid before it is even
-			# eligible to be counted "kept" -- resample_d_optimal already
-			# band-gates candidates at the source (band_tolerance), so this
-			# is defense-in-depth accounting, not a second filter pass; for
-			# the legacy geometric modes (no band gate at all) this is the
-			# FIRST time these rows are checked.
-			if prs_fit_cfg["band_tolerance_eval"] is not None:
-				_new_valid = IPRS.band_valid_mask(prs_rows, blocks, prs_fit_cfg["band_tolerance_eval"])
-				stage3_stats["sims_kept"] += int(_new_valid.sum())
-			else:
-				stage3_stats["sims_kept"] += len(prs_rows)
-
-			X_trial = np.vstack([X_aug, prs_rows])
-			y_trial = np.concatenate([y_aug, np.asarray(y_new, dtype=float).ravel()])
-
-			# Re-fit the PLS rotation on the AUGMENTED set (k/order/ridge fixed
-			# at whatever the initial fit_prs_with_search chose for this case),
-			# then the PRS itself.
-			fmap_trial = IPRS.fit_feature_map(X_trial, y_trial, blocks, xData.shape[1], k=search["k"])
-			if os.path.isfile(coef_path):
-				os.remove(coef_path)
-			trial = PRS.ResponseSurface(X_trial, y_trial, case, case_index,
-										responseOrder=search["order"], prs_type=PRS_type,
-										selected_params=selectedParams, criteria=MRE_criteria,
-										feature_map=fmap_trial, ridge_alpha=search["ridge_alpha"])
-			trial.create_response_surface()
-			mtr, mva, crit = trial.test(xVal, yVal)
-			trial_score = max(mtr, mva)
-			print(f"\t[Case-{case}] pass {it+1}: VALIDATION max error "
-				  f"{best_val_score:.3f}% -> {mva:.3f}% (train {mtr:.3f}%, "
-				  f"max(train,val) {best_score:.3f}% -> {trial_score:.3f}%, "
-				  f"target {target:.3f}%, +{len(prs_rows)} pts, {len(X_trial)} total)")
-
-			# ── accept only if max(train, val) does not worsen, else revert and
-			# stop -- NOT validation alone (see docstring: val-only accept let
-			# train silently regress above the 2% criterion while chasing a
-			# stricter validation target). ──
-			if trial_score <= best_score:
-				X_aug, y_aug = X_trial, y_trial
-				best = trial
-				best_val_score = mva
-				best_train_score = mtr
-				best_score = trial_score
-				stage3_stats["passes_accepted"] += 1
-				append_csv_row(PRS_ERROR_FILE, [f"Case-{case}-retrained-p{it+1}", "validation", it + 1,
-				                                 mtr, mva, crit, "", len(yVal), 0, len(yVal),
-				                                 "PASS" if mva <= MRE_criteria else "FAIL"])
-				if mva <= target:
-					print(f"\t[Case-{case}] reached target ({mva:.3f}% <= {target:.3f}%) "
-						  f"after {stage3_stats['passes_attempted']} pass(es) -- stopping.")
-					break
-				if stage3_stats["passes_attempted"] >= outlier_cfg["max_iter"]:
-					print(f"\t[Case-{case}] max_iter ({outlier_cfg['max_iter']}) reached; "
-						  f"best VALIDATION error {mva:.3f}% still above target {target:.3f}%.")
-			else:
-				# RETRY-ON-REJECTION (2026-08-19): a rejected pass retries
-				# with a new draw rather than stopping outright, UNLESS
-				# min_passes is already satisfied and the case has run out
-				# of max_iter budget. X_aug/y_aug/best/best_score are
-				# UNCHANGED by a rejected trial.
-				print(f"\t[Case-{case}] pass {it+1} made max(train,val) WORSE "
-					  f"({trial_score:.3f}% > {best_score:.3f}%, train {mtr:.3f}% val {mva:.3f}%) "
-					  f"-- discarding this pass's draw, keeping the last accepted surface, "
-					  f"and retrying with a new draw" +
-					  (f" (max_iter reached)." if stage3_stats["passes_attempted"] >= outlier_cfg["max_iter"] else "."))
-				if stage3_stats["passes_attempted"] >= outlier_cfg["max_iter"]:
-					break
-		except Exception as exc:
-			print(f"\t[Case-{case}] adaptive re-training FAILED: "
-				  f"{type(exc).__name__}: {exc}. Keeping the last good surface.")
-			traceback.print_exc()
-			stage3_stats["aborted_reason"] = f"exception: {type(exc).__name__}: {exc}"
-			break
-		it += 1
-
-	# Guarantee the on-disk coefficient cache reflects `best`, regardless of
-	# which branch above ended the loop (a rejected trial's create_response_surface
-	# call may have left ITS coefficients on disk otherwise).
-	_write_coef_cache(coef_path, best.coeff)
-	return best, resampler, stage3_stats
-
-ResponseSurfaces = {}
-selected_PRS = {}
-# case_index MUST equal the true case number (int(case)), not its position in
-# this loop -- design_matrix_dict / selected_params_dict / DM_FOR_PARTIAL_PRS
-# paths / coefficient cache filenames are all keyed/named by the true case
-# number (see their construction above, `for case in case_dir: ...dict[case]
-# = ...`). The original `for case_index, case in enumerate(temp_sim_opt)`
-# only got away with using the enumerate POSITION as case_index because
-# case_dir defaults to a contiguous range(0, N) processed in insertion
-# order, making position == case number by coincidence; it silently breaks
-# (reads/writes the WRONG case's cached files) the moment case_dir is ever a
-# non-contiguous or reordered subset (e.g. MUQSAC_CASE_SUBSET, above).
-_n_cases_total = len(list(temp_sim_opt))
-_n_case_done = 0
-_case_verdicts = []   # (case, train%, holdout%, holdout_bandvalid%, PASS/FAIL) for the closing summary
-for case in temp_sim_opt:
-	case_index = int(case)
-	_n_case_done += 1
-	step(f"Case {case} ({_n_case_done}/{_n_cases_total})")
-
-	# ── X/Y ALIGNMENT FIX (2026-08-19) ───────────────────────────────────
-	# yData_sim/xData_sim are restricted to kept_row_index[case] -- the
-	# design-matrix row each simulated response actually came from (see the
-	# response-extraction phase above) -- rather than assuming positional
-	# alignment between temp_sim_opt[case] and design_matrix_dict[case_index]
-	# (silently wrong the moment any simulation fails and is dropped by
-	# generate_target_value_tables; benign today, 0 failures, but no longer
-	# an assumption this code makes).
-	yData_sim = np.asarray(temp_sim_opt[case]).flatten()
-	full_xData = np.asarray(design_matrix_dict[case_index])
-	orig_row_idx = kept_row_index[case]
-	if len(orig_row_idx) != len(yData_sim):
-		warn(f"[Case-{case}] kept_row_index length ({len(orig_row_idx)}) != "
-		     f"response count ({len(yData_sim)}) -- falling back to positional "
-		     f"0..N-1 indexing for this case.")
-		orig_row_idx = np.arange(len(yData_sim))
-	xData_sim = full_xData[orig_row_idx]
-	selectedParams = np.asarray(selected_params_dict[case_index])
-
-	# ── Stage 1 setup: this case's identifiable-subspace layout + a
-	#    DOptimalResampler (also reused by Stage 3 below if retraining fires,
-	#    and needed here first because screen_case_samples's band-validity
-	#    test uses `blocks`, which is built from resampler.layout) ──────────
-	Tc = target_list[case_index].temperature
-	twf = prs_fit_cfg["temp_window_frac"]
-	T_local = np.array([Tc * (1.0 - twf), Tc, Tc * (1.0 + twf)])
-	resampler = AR.DOptimalResampler(
-		unsrt_data, selectedParams, design_type, PRS_type, home_dir, case,
-		N_new=outlier_cfg["N_new"], delta_fraction=outlier_cfg["delta_fraction"],
-		seed=outlier_cfg["seed"], uns_cap=outlier_cfg["uns_cap"],
-		shuffle_factor=outlier_cfg["shuffle_factor"], method=outlier_cfg["method"],
-		gapfill_oversample=outlier_cfg["gapfill_oversample"],
-		gapfill_knn_radius_frac=outlier_cfg["gapfill_knn_radius_frac"],
-		gapfill_knn_k=outlier_cfg["gapfill_knn_k"],
-		gapfill_shuffle_factor=outlier_cfg["gapfill_shuffle_factor"],
-		band_tolerance=outlier_cfg["band_tolerance"],
-		temps_for_validity={"__default__": np.linspace(300., 2500., outlier_cfg["validity_n_temps"])},
-		acquisition_alpha=outlier_cfg["acquisition_alpha"],
-		candidate_oversample=outlier_cfg["candidate_oversample"])
-	# DOptimalResampler.layout entries -> IdentifiablePRS's (rxn, col_slice,
-	# local_indices) triples (same convention: prs_local is the reaction's
-	# selected local Arrhenius-parameter indices for Partial PRS, or the full
-	# 0..alen-1 range for Full PRS -- see AdaptiveResampler.py's _build_layout).
-	layout_triples = [(lay["rxn"], slice(lay["comp_offset"], lay["comp_offset"] + lay["n_cols"]), lay["prs_local"])
-	                   for lay in resampler.layout if lay["n_cols"] > 0]
-	def _sigma_of(rxn):
-		L = unsrt_data[rxn].cholskyDeCorrelateMat
-		return L @ L.T
-	blocks = IPRS.build_layout_blocks(layout_triples, _sigma_of, T_local, svd_tol=prs_fit_cfg["svd_tol"],
-	                                   fprior_mode=prs_fit_cfg["band_fprior"])
-
-	# ── SCREEN: quarantine bad samples into DM_FOR_PARTIAL_PRS/<case>/
-	#    failed_DM.csv (this study's OWN dir, via home_dir -- never hardcoded)
-	#    BEFORE the PRS ever sees them -- the good/bad split below is what
-	#    every downstream split, fit, and reported metric is computed from. ──
-	dm_case_dir = os.path.join(home_dir, "DM_FOR_PARTIAL_PRS", str(case_index))
-	xData, yData, screen_stats = screen_case_samples(
-		case, case_index, xData_sim, yData_sim, orig_row_idx, blocks,
-		dm_case_dir, prs_fit_cfg["band_tolerance_eval"])
-	append_csv_row(SCREENING_SUMMARY_FILE, [
-		f"Case-{case}", screen_stats["n_generated_kept_for_sim"],
-		screen_stats["n_band_invalid"], no_of_sim[case_index] - screen_stats["n_generated_kept_for_sim"],
-		screen_stats["n_sentinel"], screen_stats["n_non_finite"], screen_stats["n_non_physical"],
-		screen_stats["n_good"], f"{screen_stats['good_fraction_pct']:.2f}",
-		f"{screen_stats['worst_violation_ratio']:.3f}", f"{screen_stats['median_violation_ratio']:.3f}",
-	])
-	kv("Samples simulated", screen_stats["n_generated_kept_for_sim"])
-	kv("Band-invalid (quarantined)", f"{screen_stats['n_band_invalid']} "
-	   f"({100 - screen_stats['good_fraction_pct']:.1f}%)")
-	kv("Good (fit + scored on)", f"{screen_stats['n_good']} ({screen_stats['good_fraction_pct']:.1f}%)")
-	if screen_stats["n_good"] < 50:
-		warn(f"[Case-{case}] only {screen_stats['n_good']} good sample(s) -- "
-		     f"PRS capacity (k) will be tightly capped by prs_max_terms_frac.")
-
-	# ── 3-way split: train / validation / UNTOUCHED hold-out -- GOOD ROWS
-	#    ONLY (2026-08-19). Previously split the RAW xData/yData (~89-94%
-	#    band-invalid), so every split -- and everything scored against it --
-	#    was already contaminated before Stage 1+2's own screening ever ran.
-	#    Splitting the pre-screened good submatrix instead means xHold is
-	#    finally an honest hold-out of PHYSICALLY VALID data, and
-	#    Max_Holdout_Final converges with Max_Holdout_BandValid (they were
-	#    previously two very different numbers computed from two different
-	#    populations; see PRS_DETAIL_HEADER's comment). ────────────────────
-	train_frac = 1.0 - prs_fit_cfg["val_frac"] - prs_fit_cfg["holdout_frac"]
-	itr, ival, iho = IPRS.three_way_split(
-		len(yData), seed_outer=prs_fit_cfg["split_seed"], seed_inner=prs_fit_cfg["split_seed_inner"],
-		train_frac=train_frac, val_frac=prs_fit_cfg["val_frac"])
-	xTrain, yTrain = xData[itr], yData[itr]
-	xVal,   yVal   = xData[ival], yData[ival]
-	xHold,  yHold  = xData[iho], yData[iho]
-
-	try:
-		# ── Stage 1+2: search (screening tolerance, k, order, ridge) --------------
-		# Default "cv_kfold": worst-of-cv_folds-fold selection over the combined
-		# train+val pool, scored on band-valid points only -- see prs_fit_cfg's
-		# comment for why (a single split can massively underestimate true risk).
-		# "single_split" restores the original train->validation-only search.
-		if prs_fit_cfg["search_method"] == "cv_kfold":
-			X_search_pool = np.vstack([xTrain, xVal])
-			y_search_pool = np.concatenate([yTrain, yVal])
-			search = IPRS.fit_prs_with_cv_search(
-				PRS.ResponseSurface, X_search_pool, y_search_pool, blocks, xData.shape[1],
-				case, case_index, PRS_type, selectedParams, MRE_criteria,
-				cache_dir=optDir,
-				tol_grid=prs_fit_cfg["screening_tolerances"], k_grid=prs_fit_cfg["k_grid"],
-				order_grid=prs_fit_cfg["order_grid"], ridge_grid=prs_fit_cfg["ridge_grid"],
-				max_terms_frac=prs_fit_cfg["max_terms_frac"],
-				cv_folds=prs_fit_cfg["cv_folds"], cv_seed=prs_fit_cfg["cv_seed"],
-				band_tolerance_eval=prs_fit_cfg["band_tolerance_eval"])
-			kv("Stage1+2 search", f"cv_kfold/{prs_fit_cfg['cv_folds']}-fold")
-			kv("  tolerance / k / order / ridge", f"{search['tolerance']} / {search['k']} / "
-			   f"{search['order']} / {search['ridge_alpha']:.0e}")
-			kv("  rows kept / pool", f"{search['n_kept']}/{len(X_search_pool)}")
-			kv("  worst-fold score", f"{search['cv_score']:.3f}%")
-			# For downstream code that expects a single train_pct/val_pct pair
-			# (retrain_around_outlier's initial best_score, logging) -- the CV
-			# score is the honest summary here, use it for both.
-			search["train_pct"] = search["val_pct"] = search["cv_score"]
-		else:
-			search = IPRS.fit_prs_with_search(
-				PRS.ResponseSurface, xTrain, yTrain, xVal, yVal, blocks, xData.shape[1],
-				case, case_index, PRS_type, selectedParams, MRE_criteria,
-				cache_dir=optDir,
-				tol_grid=prs_fit_cfg["screening_tolerances"], k_grid=prs_fit_cfg["k_grid"],
-				order_grid=prs_fit_cfg["order_grid"], ridge_grid=prs_fit_cfg["ridge_grid"],
-				max_terms_frac=prs_fit_cfg["max_terms_frac"],
-				band_tolerance_eval=prs_fit_cfg["band_tolerance_eval"])
-			kv("Stage1+2 search", "single_split")
-			kv("  tolerance / k / order / ridge", f"{search['tolerance']} / {search['k']} / "
-			   f"{search['order']} / {search['ridge_alpha']:.0e}")
-			kv("  rows kept / train", f"{search['n_kept']}/{len(xTrain)}")
-			kv("  train / val score", f"{search['train_pct']:.3f}% / {search['val_pct']:.3f}%")
-
-		# NOTE: for cv_kfold, search["keep_mask"] is sized to the combined
-		# train+val POOL it searched internally, not to xTrain alone -- re-screen
-		# xTrain by the WINNING tolerance here instead of trusting that mask
-		# directly, so xVal stays untouched for Stage 3's accept/reject and xHold
-		# stays untouched for final reporting, exactly as before (only the
-		# hyperparameter SELECTION got more robust, the train/val/holdout
-		# architecture is unchanged).
-		if prs_fit_cfg["search_method"] == "cv_kfold":
-			keep_mask, _ = IPRS.screen_rows(xTrain, blocks, search["tolerance"])
-		else:
-			keep_mask = search["keep_mask"]
-		xTrainK, yTrainK = xTrain[keep_mask], yTrain[keep_mask]
-		feature_map = IPRS.fit_feature_map(xTrainK, yTrainK, blocks, xData.shape[1], k=search["k"])
-
-		coef_path = os.path.join(optDir, "Data", "ResponseSurface", f"responsecoef_case-{case_index}.csv")
-		if os.path.isfile(coef_path):
-			os.remove(coef_path)
-		Response = PRS.ResponseSurface(xTrainK, yTrainK, case, case_index,
-								responseOrder=search["order"], prs_type=PRS_type,
-								selected_params=selectedParams, criteria=MRE_criteria,
-								feature_map=feature_map, ridge_alpha=search["ridge_alpha"])
-		Response.create_response_surface()
-		Max_Train_Error, Max_Val_Error, Criterion = Response.test(xVal, yVal)
-
-		# BAND-VALID TRIGGER FIX (2026-08-19): Stage 3's trigger below used to
-		# gate on `Response.selection`, set by the Response.test() call just
-		# above -- scored on the RAW (unfiltered) xVal. When most of a case's
-		# rows are physically invalid (the class-B sampler bug, root cause 1;
-		# fixed, but this study's EXISTING design matrix still has ~89% invalid
-		# rows until Stage 3 itself replaces them), xVal is dominated by
-		# invalid rows too (verified: 88% for case 0), so a cleanly-trained
-		# model scores badly on it regardless of whether it actually meets the
-		# criterion on the rows that matter -- Stage 3 would fire for nearly
-		# every case, not just the ones genuinely failing. The search
-		# (fit_prs_with_cv_search) already selects hyperparameters against
-		# band-valid-filtered scoring when band_tolerance_eval is set; the
-		# trigger now checks the SAME thing, so "does this case need
-		# retraining" agrees with what was just optimized for. Max_Val_Error /
-		# Criterion / Response.selection above are left untouched (other code
-		# may depend on their original, all-points meaning) -- only the Stage 3
-		# GATE below uses the band-valid figure.
-		if prs_fit_cfg["band_tolerance_eval"] is not None:
-			_trigger_vmask = IPRS.band_valid_mask(xVal, blocks, prs_fit_cfg["band_tolerance_eval"])
-			_trigger_rel = np.asarray(Response.error_testing_relative, dtype=float)
-			_stage3_val_error = (float(np.max(np.abs(_trigger_rel[_trigger_vmask])))
-			                      if _trigger_vmask.any() else Max_Val_Error)
-		else:
-			_stage3_val_error = Max_Val_Error
-		_stage3_needed = max(Max_Train_Error, _stage3_val_error) > MRE_criteria
-
-		# ── Stage 3: adaptive outlier re-training -- outliers & accept/reject
-		#    decided on VALIDATION only, never on the hold-out below ────────────
-		# Trigger against the RAW criterion (validation > MRE_criteria), not a
-		# tighter internal target. An earlier version of this trigger used
-		# target_fraction*MRE_criteria (1.0% vs the raw 2%) to give borderline
-		# cases a safety margin against hold-out-split sampling variance -- but
-		# empirically (Case 1: search-selected combo already at 1.32% validation,
-		# comfortably under criterion) that extra retraining pass, even though it
-		# was ACCEPTED under the "validation does not get worse" rule (validation
-		# was unchanged, 1.318% -> 1.318%), made the untouched hold-out
-		# noticeably WORSE (2.30% -> 3.58%) -- i.e. the added D-optimal points
-		# were validation-neutral but hold-out-harmful for this case, a genuine
-		# overfit-to-validation risk the "accept if not worse" rule cannot see
-		# (it only ever looks at validation, by design -- hold-out is touched
-		# once, see below). A case whose SEARCH-selected fit already clears the
-		# raw criterion is left alone; only cases that still fail outright
-		# proceed to Stage 3.
-		# Stage 3 (D-optimal adaptive resampling) is gated to the "A1+B1+C1"
-		# design-matrix mode only: it relies on the class-A/B/C curve-sampler
-		# pools (AdaptiveResampler._load_class_pool) that only exist for that
-		# design; under "A-facto" (A-factor-only optimization), that loader
-		# silently returns None and every candidate-generation path already
-		# falls back to an uninformed LHS box-draw -- i.e. it would burn real
-		# simulation budget on uninformed candidates instead of doing nothing.
-		# Added 2026-07-31, per explicit instruction: resampling must never run
-		# for A-factor-only optimization.
-		stage3_stats = {"passes_attempted": 0, "passes_accepted": 0,
-		                 "sims_run": 0, "sims_kept": 0, "stalled_passes": 0,
-		                 "aborted_reason": None}
-		if outlier_cfg["enable"] and design_type == "A1+B1+C1" and _stage3_needed:
-			step(f"Stage 3: adaptive resampling (min {outlier_cfg['min_passes']} passes, "
-			     f"max {outlier_cfg['max_iter']})")
-			# A single case's Stage 3 hitting an unexpected internal error used
-			# to crash the ENTIRE multi-hour, multi-case run (confirmed
-			# 2026-08-19: a rare, documented-as-"structurally unreachable"
-			# branch inside retrain_around_outlier raised uncaught, killing a
-			# run that had already correctly written every one of the 68
-			# cases' Prediction_errors_detailed.csv rows and Parity plots --
-			# the crash was on a bonus retry pass, not a primary case). Any
-			# case reaching here already has a valid Response from Stage 1+2,
-			# so on failure we keep that surface and report zero Stage-3
-			# passes rather than losing the whole run over one case's retry.
-			try:
-				Response, resampler, stage3_stats = retrain_around_outlier(
-					case, case_index, Response, xTrainK, yTrainK, xVal, yVal,
-					xData, selectedParams, blocks, search, resampler)
-			except Exception as e:
-				warn(f"[Case-{case}] Stage 3 raised {e!r} -- keeping the Stage 1+2 "
-				     f"surface and reporting zero Stage-3 passes for this case.")
-				stage3_stats["aborted_reason"] = f"exception: {e!r}"
-			kv("Stage 3 passes attempted/accepted", f"{stage3_stats['passes_attempted']}/"
-			   f"{stage3_stats['passes_accepted']}" + (
-			   f" (aborted: {stage3_stats['aborted_reason']})" if stage3_stats["aborted_reason"] else ""))
-			kv("Stage 3 new sims run/kept", f"{stage3_stats['sims_run']}/{stage3_stats['sims_kept']}")
-		elif outlier_cfg["enable"] and design_type != "A1+B1+C1" and _stage3_needed:
-			warn(f"[Case-{case}] Stage 3 D-optimal resampling SKIPPED: "
-			     f"{design}={design_type!r} (A-factor-only optimization). "
-			     f"Resampling is supported only for the 'A1+B1+C1' design.")
-
-		# ── Final, ONE-TIME, untouched hold-out evaluation -- this is the number
-		#    that gets reported; nothing above has seen xHold/yHold ─────────────
-		Max_Train_Final, Max_Holdout_Final, Criterion = Response.test(xHold, yHold)
-		Response.plot(case_index)
-
-		# Band-valid-only hold-out MRE (2026-07-30, 10-fold CV investigation):
-		# a row the sampler's own physical-validity test would have rejected
-		# (ratio 7x-30x the band; the class-B m=3 sampler bug, sec:upstream
-		# item 1) is not a fair target to grade a physically-valid fit against.
-		# Computed from the SAME test() call above (error_testing_relative),
-		# never a second fit/scoring pass -- no extra leakage risk. Reported
-		# alongside the raw all-points number for transparency; band-valid is
-		# the officially gating criterion when prs_fit_cfg["band_tolerance_eval"]
-		# is set (default 1.0).
-		if prs_fit_cfg["band_tolerance_eval"] is not None:
-			hold_valid_mask = IPRS.band_valid_mask(xHold, blocks, prs_fit_cfg["band_tolerance_eval"])
-			rel = np.asarray(Response.error_testing_relative, dtype=float)
-			Max_Holdout_BandValid = float(np.max(np.abs(rel[hold_valid_mask]))) if hold_valid_mask.any() else Max_Holdout_Final
-			gating_holdout = Max_Holdout_BandValid
-			# Band-valid validation MRE, re-scored fresh against whatever Response
-			# is FINAL at this point (Stage 3 may have replaced it since
-			# Max_Val_Error was captured, above) -- cheap (Response is already
-			# fit), and avoids reporting a validation number that predates the
-			# retraining loop's last accepted pass.
-			_mtr_v, _mva_v, _ = Response.test(xVal, yVal)
-			val_valid_mask = IPRS.band_valid_mask(xVal, blocks, prs_fit_cfg["band_tolerance_eval"])
-			relv = np.asarray(Response.error_testing_relative, dtype=float)
-			Max_Val_BandValid = float(np.max(np.abs(relv[val_valid_mask]))) if val_valid_mask.any() else _mva_v
-			# Response.error_testing_relative now reflects the xVal scoring call
-			# above -- re-run the xHold test so it is left in its documented
-			# post-loop state (the untouched-hold-out numbers) for anything
-			# downstream (e.g. Response.plot, already called above, is unaffected).
-			Response.test(xHold, yHold)
-		else:
-			Max_Holdout_BandValid = Max_Holdout_Final
-			gating_holdout = Max_Holdout_Final
-			Max_Val_BandValid = Max_Val_Error
-
-		verdict = "PASS" if max(Max_Train_Final, gating_holdout) <= MRE_criteria else "FAIL"
-
-		# PRS_ERROR_FILE (Prediction_errors.csv): now reports the sample counts
-		# every error number was computed FROM, alongside the numbers themselves
-		# -- "how good is the fit" is no longer separable from "on how much,
-		# and how clean, data" (2026-08-19; see PRS_HEADER's comment).
-		append_csv_row(PRS_ERROR_FILE, [
-			f"Case-{case}", "holdout", "final",
-			Max_Train_Final, Max_Holdout_Final, Criterion, Max_Holdout_BandValid,
-			screen_stats["n_good"], screen_stats["n_band_invalid"] + screen_stats["n_sentinel"]
-			+ screen_stats["n_non_finite"] + screen_stats["n_non_physical"],
-			search["n_kept"], verdict,
-		])
-		append_csv_row(PRS_DETAIL_FILE, [
-			case, search["tolerance"], search["k"], search["order"], search["ridge_alpha"],
-			no_of_sim[case_index], screen_stats["n_good"], len(xTrain), search["n_kept"],
-			Max_Train_Final, Max_Val_Error, Max_Holdout_Final,
-			Max_Val_BandValid, Max_Holdout_BandValid,
-		])
-
-		# optimization_cost.csv ledger row (2026-08-19): the ACTUAL simulation
-		# accounting for this case -- see HEADERS' comment for why this replaced
-		# the old pre-simulation closed-form-only row.
-		total_sims_run = no_of_sim[case_index] + stage3_stats["sims_run"]
-		total_sims_useful = screen_stats["n_good"] + stage3_stats["sims_kept"]
-		append_csv_row(COST_FILE, [
-			f"Case-{case}",
-			cost_estimate_dict[case_index]["Total_Rxns"], cost_estimate_dict[case_index]["Active_Rxns"],
-			cost_estimate_dict[case_index]["Cost_Estimate_pPRS"], cost_estimate_dict[case_index]["Cost_Estimate_FullPRS"],
-			no_of_sim[case_index], screen_stats["n_generated_kept_for_sim"],
-			no_of_sim[case_index] - screen_stats["n_generated_kept_for_sim"],
-			screen_stats["n_sentinel"], screen_stats["n_non_finite"], screen_stats["n_non_physical"],
-			screen_stats["n_band_invalid"], screen_stats["n_good"],
-			stage3_stats["passes_attempted"], stage3_stats["passes_accepted"],
-			stage3_stats["sims_run"], stage3_stats["sims_kept"],
-			total_sims_run, total_sims_useful,
-			f"{100.0 * total_sims_useful / total_sims_run:.2f}" if total_sims_run else "0.00",
-		])
-
-		result(verdict == "PASS",
-		       f"[Case-{case}] FINAL: train={Max_Train_Final:.3f}%  "
-		       f"holdout(band-valid)={Max_Holdout_BandValid:.3f}%  holdout(all)={Max_Holdout_Final:.3f}%  "
-		       f"{verdict}  (criteria {MRE_criteria}%, {screen_stats['n_good']} good / "
-		       f"{no_of_sim[case_index]} generated samples)")
-		_case_verdicts.append((case, Max_Train_Final, Max_Holdout_Final, Max_Holdout_BandValid, verdict))
-		ResponseSurfaces[case_index] = Response
-		del xTrain,xVal,xHold,yTrain,yVal,yHold,xTrainK,yTrainK
-	except Exception as _case_exc:
-		# CASE-LEVEL ROBUSTNESS NET (2026-08-19): a single case's fit
-		# genuinely failing (e.g. too few good rows even for Stage 1+2's
-		# search grid to find ANY fittable combo -- fit_prs_with_search /
-		# fit_prs_with_cv_search raise RuntimeError in that case, by design)
-		# must not abort the entire 68-case run -- "every process must be
-		# accounted for" means every case gets a verdict, including a
-		# case that could not be fit at all. Logged loudly, recorded as an
-		# explicit FAILED row in every ledger, and the loop continues.
-		error(f"[Case-{case}] PRS fitting FAILED: {type(_case_exc).__name__}: {_case_exc}")
-		traceback.print_exc()
-		_screen_n_good = screen_stats.get('n_good', 0) if 'screen_stats' in dir() else 0
-		append_csv_row(PRS_ERROR_FILE, [
-			f"Case-{case}", "holdout", "final", "", "", MRE_criteria, "",
-			screen_stats.get('n_good', ''), '', '', 'FAIL (fit error)'])
-		append_csv_row(COST_FILE, [
-			f"Case-{case}",
-			cost_estimate_dict[case_index]['Total_Rxns'], cost_estimate_dict[case_index]['Active_Rxns'],
-			cost_estimate_dict[case_index]['Cost_Estimate_pPRS'], cost_estimate_dict[case_index]['Cost_Estimate_FullPRS'],
-			no_of_sim[case_index], screen_stats.get('n_generated_kept_for_sim', ''),
-			'', screen_stats.get('n_sentinel', ''), screen_stats.get('n_non_finite', ''),
-			screen_stats.get('n_non_physical', ''), screen_stats.get('n_band_invalid', ''),
-			screen_stats.get('n_good', ''), 0, 0, 0, 0, no_of_sim[case_index], 0, '0.00'])
-		_case_verdicts.append((case, float('nan'), float('nan'), float('nan'), 'FAIL (fit error)'))
-#raise AssertionError("The Target class, Uncertainty class, Design Matrix and Simulations and Response surface")
-os.chdir("..")
-
-# ── Run summary (2026-08-19): every case's verdict as one scannable table,
-#    plus the totals optimization_cost.csv's ledger rows sum to -- this is
-#    what makes "did the fix work" answerable in one glance instead of
-#    grepping 68 FINAL lines out of a scrollback. ─────────────────────────
-_n_pass = sum(1 for *_, v in _case_verdicts if v == "PASS")
-_n_fail = len(_case_verdicts) - _n_pass
-step("Per-case PRS summary")
-table(["Case", "Train%", "Holdout(BV)%", "Holdout(all)%", "Verdict"],
-      [[c, f"{tr:.3f}", f"{hv:.3f}", f"{ha:.3f}", v]
-       for c, tr, ha, hv, v in _case_verdicts])
-kv("Cases passing", f"{_n_pass}/{len(_case_verdicts)}")
-if _n_fail:
-	warn(f"Failing case(s): {', '.join(c for c, *_ , v in _case_verdicts if v == 'FAIL')}")
 phase_end(10)
 
 ##################################################

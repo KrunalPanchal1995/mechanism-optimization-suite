@@ -1,0 +1,67 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20100182</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-14</firstPublicationDate>
+    <lastModificationDate>2024-06-14</lastModificationDate>
+    <bibliographyLink>
+        <description>A. Yasiry, J. Wang, L. Zhang, A.A.A. Abdulraheem, X. Cai, Z. Huang, International Journal of Hydrogen Energy 58 (2024), 28–39</description>
+        <referenceDOI>10.1016/j.ijhydene.2024.01.138</referenceDOI>
+        <location>Main article</location>
+        <figure>Fig. 2B, black squares (fi = 1.0, P = 1 atm)</figure>
+        <details>
+            <author>Yasiry, Ahmed and Wang, Jinhua and Zhang, Longkai and Abdulraheem, Ahmed A. A. and Cai, Xiao and Huang, Zuohua</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <pages>28–39</pages>
+            <title>An experimental study on H2/NH3/CH4-air laminar propagating spherical flames at elevated pressure and oxygen enrichment</title>
+            <type>Journal Article</type>
+            <volume>58</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, laminar, premixed, unstretched, extrapolation method: LS</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"        label="T"    sourcetype="reported"  units="K"        ><value>298</value></property>
+        <property name="pressure"           label="p"    sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="equivalence ratio"  label="fi"   sourcetype="reported"  units="unitless" ><value>1.0</value></property>
+        <property name="uncertainty"        label="d_P"  sourcetype="reported"  units="kPa"       reference="pressure"     kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.1</value></property>
+        <property name="uncertainty"        label="d_T"  sourcetype="reported"  units="K"         reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>5</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="initial composition"           id="x1"   label="x_H2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="H2"   CAS="1333-74-0"  InChI="1S/H2/h1H"    SMILES="[HH]"  chemName="hydrogen" />
+        </property>
+        <property name="initial composition"           id="x2"   label="xNH3"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x3"   label="xO2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x4"   label="xN2"      sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"   chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="digitized"   units="cm/s"          />
+        <property name="uncertainty"                   id="x6"   label="d_LBV"    sourcetype="digitized"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.000000</x1><x2>0.218750</x2><x3>0.164063</x3><x4>0.617188</x4><x5>5.63</x5><x6>1.99</x6><x7>1.0079</x7></dataPoint>
+        <dataPoint><x1>0.022460</x1><x2>0.202139</x2><x3>0.162834</x3><x4>0.612567</x4><x5>8.88</x5><x6>2.17</x6><x7>1.1173</x7></dataPoint>
+        <dataPoint><x1>0.046154</x1><x2>0.184615</x2><x3>0.161539</x3><x4>0.607692</x4><x5>13.21</x5><x6>2.71</x6><x7>1.4141</x7></dataPoint>
+        <dataPoint><x1>0.071186</x1><x2>0.166102</x2><x3>0.160170</x3><x4>0.602542</x4><x5>18.63</x5><x6>2.53</x6><x7>1.3889</x7></dataPoint>
+        <dataPoint><x1>0.097674</x1><x2>0.146512</x2><x3>0.158721</x3><x4>0.597093</x4><x5>27.65</x5><x6>3.25</x6><x7>1.8364</x7></dataPoint>
+        <dataPoint><x1>0.155556</x1><x2>0.103704</x2><x3>0.155556</x3><x4>0.585185</x4><x5>63.21</x5><x6>6.14</x6><x7>3.6398</x7></dataPoint>
+        <dataPoint><x1>0.221053</x1><x2>0.055263</x2><x3>0.151974</x3><x4>0.571711</x4><x5>124.39</x5><x6>7.40</x6><x7>5.3422</x7></dataPoint>
+    </dataGroup>
+    <comment>Composition of air was assumed: 21% O2 - 79% N2.</comment>
+</experiment>

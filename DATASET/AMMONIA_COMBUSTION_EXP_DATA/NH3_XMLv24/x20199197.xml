@@ -1,0 +1,64 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199197</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-09-04</firstPublicationDate>
+    <lastModificationDate>2024-09-04</lastModificationDate>
+    <bibliographyLink>
+        <description>X. Han, F. Lin, D. Yuan, H. Feng, R. Lin, Proceedings of the Combustion Institute 40 (2024), 105653</description>
+        <referenceDOI>10.1016/j.proci.2024.105653</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>SM: T = 348 K, xO2 = 0.34</table>
+        <figure>Main Article: Fig. 1b, yellow triangles (not used)</figure>
+        <details>
+            <author>Han, Xinlu and Lin, Fawei and Yuan, Dingkun and Feng, Hongqing and Lin, Riyi</author>
+            <journal>Proceedings of the Combustion Institute</journal>
+            <number>1</number>
+            <pages>105653</pages>
+            <title>Laminar burning velocities of rich NH3+N2+O2 flames: Comparing the effects of elevated temperatures and oxygen ratios on model validation</title>
+            <type>Journal Article</type>
+            <volume>40</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>heat flux burner</kind>
+        <mode>laminar, premixed</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"     label="p"    sourcetype="reported"  units="atm" ><value>1</value></property>
+        <property name="uncertainty"  label="d_T"  sourcetype="reported"  units="K"    reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.2</value></property>
+        <property name="temperature"  label="T"    sourcetype="reported"  units="K"   ><value>348</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"    units="unitless"      />
+        <property name="uncertainty"                   id="x2"   label="d_phi"    sourcetype="reported"    units="unitless"       reference="equivalence ratio"         kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="initial composition"           id="x3"   label="x_NH3"    sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x4"   label="x_O2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x5"   label="x_N2"     sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x6"   label="LBV"      sourcetype="reported"    units="cm/s"          />
+        <property name="uncertainty"                   id="x7"   label="d_LBV"    sourcetype="reported"    units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x8"   label="std_LBV"  sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>1.4</x1><x2>0.02</x2><x3>0.388255</x3><x4>0.207994</x4><x5>0.403752</x5><x6>24.1</x6><x7>0.7</x7><x8>0.5000</x8></dataPoint>
+        <dataPoint><x1>1.5</x1><x2>0.03</x2><x3>0.404762</x3><x4>0.202381</x4><x5>0.392857</x5><x6>20.8</x6><x7>0.7</x7><x8>0.5000</x8></dataPoint>
+        <dataPoint><x1>1.6</x1><x2>0.03</x2><x3>0.420402</x3><x4>0.197063</x4><x5>0.382535</x5><x6>17.4</x6><x7>0.7</x7><x8>0.5000</x8></dataPoint>
+        <dataPoint><x1>1.7</x1><x2>0.04</x2><x3>0.435241</x3><x4>0.192018</x4><x5>0.372741</x5><x6>14.4</x6><x7>0.9</x7><x8>0.5317</x8></dataPoint>
+        <dataPoint><x1>1.8</x1><x2>0.04</x2><x3>0.449339</x3><x4>0.187225</x4><x5>0.363436</x5><x6>11.7</x6><x7>1.0</x7><x8>0.5501</x8></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties were considered the 2sigma limits.</comment>
+</experiment>

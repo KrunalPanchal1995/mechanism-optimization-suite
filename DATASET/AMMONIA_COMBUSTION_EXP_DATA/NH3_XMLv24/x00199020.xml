@@ -1,0 +1,156 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00199020</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-03-13</firstPublicationDate>
+    <lastModificationDate>2024-10-03</lastModificationDate>
+    <bibliographyLink>
+        <description>K.N. Osipova, X. Zhang, S.M. Sarathy, O.P. Korobeinichev, A.G. Shmakov, Fuel 310 (2022), 122202</description>
+        <referenceDOI>10.1016/j.fuel.2021.122202</referenceDOI>
+        <location>Main Article</location>
+        <figure>Figure 2., black circles</figure>
+        <details>
+            <author>Osipova, Ksenia N. and Zhang, Xiaoyuan and Sarathy, S. Mani and Korobeinichev, Oleg P. and Shmakov, Andrey G.</author>
+            <journal>Fuel</journal>
+            <pages>122202</pages>
+            <title>Ammonia and ammonia/hydrogen blends oxidation in a jet-stirred reactor: Experimental and numerical study</title>
+            <type>Journal Article</type>
+            <volume>310</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>stirred reactor (quartz)</kind>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"               label="V"    sourcetype="reported"   units="cm3"           ><value>76</value></property>
+        <property name="pressure"             label="p"    sourcetype="reported"   units="atm"           ><value>1</value></property>
+        <property name="residence time"       label="tau"  sourcetype="reported"   units="s"             ><value>1</value></property>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"   units="unitless"      ><value>1</value></property>
+        <property name="initial composition" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     sourcetype="reported"   chemName="ammonia" /><amount units="ppm"           >2000</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   sourcetype="estimated"  chemName="oxygen"  /><amount units="ppm"           >1500</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  sourcetype="estimated"  chemName="argon"   /><amount units="mole fraction" >0.996500</amount></component>
+        </property>
+        <property name="uncertainty"          label="d_T"  sourcetype="reported"   units="K"              reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>2</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="[NH3]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia" />
+        </property>
+        <property name="composition"                   id="x3"   label="[O2]"   sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"  />
+        </property>
+        <property name="evaluated standard deviation"  id="x4"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"       kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"      kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia" />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"  />
+        </property>
+
+        <dataPoint><x1>900</x1><x2>0.002000</x2><x3>0.001500</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000152</x6></dataPoint>
+        <dataPoint><x1>930</x1><x2>0.002000</x2><x3>0.001500</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000152</x6></dataPoint>
+        <dataPoint><x1>960</x1><x2>0.002000</x2><x3>0.001500</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000152</x6></dataPoint>
+        <dataPoint><x1>990</x1><x2>0.002000</x2><x3>0.001528</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000154</x6></dataPoint>
+        <dataPoint><x1>1020</x1><x2>0.002000</x2><x3>0.001526</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000154</x6></dataPoint>
+        <dataPoint><x1>1050</x1><x2>0.002000</x2><x3>0.001492</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000151</x6></dataPoint>
+        <dataPoint><x1>1080</x1><x2>0.002006</x2><x3>0.001518</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000153</x6></dataPoint>
+        <dataPoint><x1>1110</x1><x2>0.002013</x2><x3>0.001507</x3><x4>0.000204</x4><x5>0.000204</x5><x6>0.000152</x6></dataPoint>
+        <dataPoint><x1>1140</x1><x2>0.002000</x2><x3>0.001490</x3><x4>0.000203</x4><x5>0.000203</x5><x6>0.000151</x6></dataPoint>
+        <dataPoint><x1>1160</x1><x2>0.001932</x2><x3>0.001466</x3><x4>0.000196</x4><x5>0.000196</x5><x6>0.000148</x6></dataPoint>
+        <dataPoint><x1>1170</x1><x2>0.001864</x2><x3>0.001425</x3><x4>0.000189</x4><x5>0.000189</x5><x6>0.000144</x6></dataPoint>
+        <dataPoint><x1>1180</x1><x2>0.001882</x2><x3>0.001379</x3><x4>0.000191</x4><x5>0.000191</x5><x6>0.000140</x6></dataPoint>
+        <dataPoint><x1>1190</x1><x2>0.001900</x2><x3>0.001406</x3><x4>0.000193</x4><x5>0.000193</x5><x6>0.000142</x6></dataPoint>
+        <dataPoint><x1>1200</x1><x2>0.001843</x2><x3>0.001366</x3><x4>0.000187</x4><x5>0.000187</x5><x6>0.000139</x6></dataPoint>
+        <dataPoint><x1>1210</x1><x2>0.001786</x2><x3>0.001301</x3><x4>0.000182</x4><x5>0.000182</x5><x6>0.000132</x6></dataPoint>
+        <dataPoint><x1>1220</x1><x2>0.001641</x2><x3>0.001217</x3><x4>0.000168</x4><x5>0.000168</x5><x6>0.000124</x6></dataPoint>
+        <dataPoint><x1>1230</x1><x2>0.001495</x2><x3>0.001176</x3><x4>0.000154</x4><x5>0.000154</x5><x6>0.000120</x6></dataPoint>
+        <dataPoint><x1>1240</x1><x2>0.001267</x2><x3>0.001111</x3><x4>0.000132</x4><x5>0.000132</x5><x6>0.000114</x6></dataPoint>
+        <dataPoint><x1>1250</x1><x2>0.001108</x2><x3>0.000928</x3><x4>0.000117</x4><x5>0.000117</x5><x6>0.000096</x6></dataPoint>
+        <dataPoint><x1>1260</x1><x2>0.001013</x2><x3>0.000827</x3><x4>0.000108</x4><x5>0.000109</x5><x6>0.000087</x6></dataPoint>
+        <dataPoint><x1>1270</x1><x2>0.000642</x2><x3>0.000682</x3><x4>0.000079</x4><x5>0.000078</x5><x6>0.000073</x6></dataPoint>
+        <dataPoint><x1>1280</x1><x2>0.000420</x2><x3>0.000578</x3><x4>0.000055</x4><x5>0.000055</x5><x6>0.000063</x6></dataPoint>
+        <dataPoint><x1>1290</x1><x2>0.000379</x2><x3>0.000462</x3><x4>0.000051</x4><x5>0.000051</x5><x6>0.000053</x6></dataPoint>
+        <dataPoint><x1>1300</x1><x2>0.000339</x2><x3>0.000334</x3><x4>0.000048</x4><x5>0.000048</x5><x6>0.000042</x6></dataPoint>
+    </dataGroup>
+    <comment>The composition vs. temperature data were obtained through personal communication from the authors in tabulated form.</comment>
+    <comment>The composition was calculated assuming phi = 0.75 * x_NH3 / x_O2.</comment>
+    <comment>Recommended simulation settings: isothermal-isobaric.</comment>
+    <dataGroup id="dg2">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="[H2O]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"  chemName="water" />
+        </property>
+        <property name="evaluated standard deviation"  id="x3"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"  chemName="water" />
+        </property>
+
+        <dataPoint><x1>900</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>930</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>960</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>990</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1020</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1050</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1080</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1110</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1140</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1160</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1170</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1180</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1190</x1><x2>0.000000</x2><x3>0.000051</x3></dataPoint>
+        <dataPoint><x1>1200</x1><x2>0.000015</x2><x3>0.000052</x3></dataPoint>
+        <dataPoint><x1>1210</x1><x2>0.000300</x2><x3>0.000061</x3></dataPoint>
+        <dataPoint><x1>1220</x1><x2>0.000500</x2><x3>0.000074</x3></dataPoint>
+        <dataPoint><x1>1240</x1><x2>0.000950</x2><x3>0.000111</x3></dataPoint>
+        <dataPoint><x1>1250</x1><x2>0.001400</x2><x3>0.000151</x3></dataPoint>
+        <dataPoint><x1>1270</x1><x2>0.001797</x2><x3>0.000188</x3></dataPoint>
+        <dataPoint><x1>1280</x1><x2>0.002195</x2><x3>0.000226</x3></dataPoint>
+        <dataPoint><x1>1290</x1><x2>0.002274</x2><x3>0.000233</x3></dataPoint>
+        <dataPoint><x1>1300</x1><x2>0.002354</x2><x3>0.000241</x3></dataPoint>
+    </dataGroup>
+    <dataGroup id="dg3">
+        <property name="temperature"                   id="x1"   label="T"     sourcetype="reported"   units="K"             />
+        <property name="composition"                   id="x2"   label="[N2]"  sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="evaluated standard deviation"  id="x3"   sourcetype="estimated"  reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plusminus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="N2"  CAS="7727-37-9"  InChI="1S/N2/c1-2"  SMILES="N#N"  chemName="nitrogen" />
+        </property>
+
+        <dataPoint><x1>900</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>930</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>960</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>990</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1020</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1050</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1080</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1110</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1140</x1><x2>0.000000</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1160</x1><x2>0.000010</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1170</x1><x2>0.000035</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1180</x1><x2>0.000060</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1190</x1><x2>0.000080</x2><x3>0.000029</x3></dataPoint>
+        <dataPoint><x1>1200</x1><x2>0.000100</x2><x3>0.000030</x3></dataPoint>
+        <dataPoint><x1>1220</x1><x2>0.000275</x2><x3>0.000040</x3></dataPoint>
+        <dataPoint><x1>1230</x1><x2>0.000449</x2><x3>0.000054</x3></dataPoint>
+        <dataPoint><x1>1240</x1><x2>0.000514</x2><x3>0.000059</x3></dataPoint>
+        <dataPoint><x1>1250</x1><x2>0.000579</x2><x3>0.000064</x3></dataPoint>
+        <dataPoint><x1>1270</x1><x2>0.000648</x2><x3>0.000071</x3></dataPoint>
+        <dataPoint><x1>1280</x1><x2>0.000717</x2><x3>0.000077</x3></dataPoint>
+        <dataPoint><x1>1290</x1><x2>0.000863</x2><x3>0.000091</x3></dataPoint>
+        <dataPoint><x1>1300</x1><x2>0.000907</x2><x3>0.000095</x3></dataPoint>
+    </dataGroup>
+</experiment>

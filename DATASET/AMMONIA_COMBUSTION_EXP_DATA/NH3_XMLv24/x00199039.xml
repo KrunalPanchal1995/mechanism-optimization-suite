@@ -1,0 +1,94 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x00199039</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>S. Jin, Y. Tu, H. Liu, International Journal of Hydrogen Energy 47 (2022), 36323–36341</description>
+        <referenceDOI>10.1016/j.ijhydene.2022.08.178</referenceDOI>
+        <location>Main article</location>
+        <table>Table 2, Case 6, O2=1.3%/phi=0.5</table>
+        <figure>Figure 7a, purple diamonds (NO); Figure 8a, ochre triangles (O2)</figure>
+        <details>
+            <author>Jin, Shaocai and Tu, Yaojie and Liu, Hao</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <number>85</number>
+            <pages>36323–36341</pages>
+            <title>Experimental study and kinetic modeling of NH3/CH4 co-oxidation in a jet-stirred reactor</title>
+            <type>Journal Article</type>
+            <volume>47</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>jet stirred reactor measurement</experimentType>
+    <apparatus>
+        <kind>Perfectly stirred reactor (silica)</kind>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="volume"               label="V"       sourcetype="reported"  units="cm3"      ><value>47.7</value></property>
+        <property name="pressure"             label="p"       sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="initial composition" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="ppm"     >5000</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="percent" >1.2500</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="percent" >98.2500</amount></component>
+        </property>
+        <property name="uncertainty"          label="d_x_NO"  sourcetype="reported"  units="unitless"  reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>0.05</value>
+        </property>
+        <property name="uncertainty"          label="d_x_O2"  sourcetype="reported"  units="unitless"  reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"   InChI="1S/O2/c1-2"   SMILES="O=O"    chemName="oxygen"       />
+            <value>0.05</value>
+        </property>
+        <property name="equivalence ratio"    label="phi"     sourcetype="reported"  units="unitless" ><value>0.5</value></property>
+        <property name="uncertainty"          label="d_T"     sourcetype="reported"  units="K"         reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>20</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"     sourcetype="digitized"   units="K"             />
+        <property name="residence time"                id="x2"   label="tau"   sourcetype="calculated"  units="s"             />
+        <property name="composition"                   id="x3"   label="x_NO"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="composition"                   id="x4"   label="x_O2"  sourcetype="digitized"   units="percent"       >
+            <speciesLink preferredKey="O2"  CAS="7782-44-7"   InChI="1S/O2/c1-2"  SMILES="O=O"    chemName="oxygen"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NO"  CAS="10102-43-9"  InChI="1S/NO/c1-2"  SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x7"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"  CAS="7782-44-7"   InChI="1S/O2/c1-2"  SMILES="O=O"    chemName="oxygen"       />
+        </property>
+        <property name="evaluated standard deviation"  id="x8"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="O2"  CAS="7782-44-7"   InChI="1S/O2/c1-2"  SMILES="O=O"    chemName="oxygen"       />
+        </property>
+
+        <dataPoint><x1>850</x1><x2>1.052</x2><x3>73</x3><x4>1.2504</x4><x5>0.000027</x5><x6>0.000026</x6><x7>0.000404</x7><x8>0.000404</x8></dataPoint>
+        <dataPoint><x1>900</x1><x2>0.993</x2><x3>119</x3><x4>1.2504</x4><x5>0.000029</x5><x6>0.000028</x6><x7>0.000405</x7><x8>0.000405</x8></dataPoint>
+        <dataPoint><x1>950</x1><x2>0.941</x2><x3>190</x3><x4>1.2411</x4><x5>0.000031</x5><x6>0.000030</x6><x7>0.000404</x7><x8>0.000404</x8></dataPoint>
+        <dataPoint><x1>1000</x1><x2>0.894</x2><x3>247</x3><x4>1.2302</x4><x5>0.000032</x5><x6>0.000032</x6><x7>0.000402</x7><x8>0.000403</x8></dataPoint>
+        <dataPoint><x1>1050</x1><x2>0.851</x2><x3>341</x3><x4>1.1712</x4><x5>0.000047</x5><x6>0.000033</x6><x7>0.000392</x7><x8>0.000392</x8></dataPoint>
+        <dataPoint><x1>1100</x1><x2>0.813</x2><x3>497</x3><x4>1.1417</x4><x5>0.000029</x5><x6>0.000038</x6><x7>0.000387</x7><x8>0.000387</x8></dataPoint>
+        <dataPoint><x1>1150</x1><x2>0.777</x2><x3>271</x3><x4>1.1292</x4><x5>0.000059</x5><x6>0.000059</x6><x7>0.000385</x7><x8>0.000385</x8></dataPoint>
+        <dataPoint><x1>1200</x1><x2>0.745</x2><x3>32</x3><x4>1.1199</x4><x5>0.000037</x5><x6>0.000029</x6><x7>0.000383</x7><x8>0.000383</x8></dataPoint>
+        <dataPoint><x1>1250</x1><x2>0.715</x2><x3>16</x3><x4>1.0796</x4><x5>0.000027</x5><x6>0.000026</x6><x7>0.000395</x7><x8>0.000409</x8></dataPoint>
+        <dataPoint><x1>1300</x1><x2>0.688</x2><x3>36</x3><x4>0.9305</x4><x5>0.000028</x5><x6>0.000027</x6><x7>0.000401</x7><x8>0.000409</x8></dataPoint>
+        <dataPoint><x1>1350</x1><x2>0.662</x2><x3>64</x3><x4>0.8606</x4><x5>0.000030</x5><x6>0.000030</x6><x7>0.000405</x7><x8>0.000413</x8></dataPoint>
+    </dataGroup>
+    <comment>Reported experimental uncertainties are considered the 2sigma limits.</comment>
+    <comment>Recommended simulation settings: isothermal-isobaric.</comment>
+    <comment>Reported equivalence ratio is defined in the paper based on the reaction equation: 4NH3 + 5O2 = 4NO + 6H2O</comment>
+    <comment>Experimental temperature uncertainty was considered based on the discussion of Fig. 4b in the main text.</comment>
+    <comment>First point of the O2 profile was obtained from Fig. 16a.</comment>
+</experiment>

@@ -763,17 +763,29 @@ log.info(f"{'='*64}")
 log.info("SECTION 12 — Running simulations")
 
 
-def _run_or_load_sim(SM_obj, yaml_case_dict, design_mat, sim_dir, label):
+def _run_or_load_sim(SM_obj, yaml_case_dict, design_mat, sim_dir, label, nominal=False):
     """
     Run simulations or load previously saved locations.
+
+    ``nominal=True`` switches to the case-wise parallel nominal path
+    (``SM.make_nominal_dir_in_parallel``): each case has exactly one
+    sample (the unperturbed mechanism), so the per-case sample loop in
+    ``make_dir_in_parallel`` would serialize the whole run. This mirrors
+    the pattern mso_compare/sim_runner uses for nominal runs — one
+    ``case-N/`` per target, all simulated in a single pool.
 
     Returns
     -------
     locations : list of execution location paths
     """
     if not os.path.isfile("progress"):
-        log.info(f"  [SIM] Running {label} simulations ...")
-        locs = SM_obj.make_dir_in_parallel(yaml_case_dict)
+        if nominal:
+            log.info(f"  [SIM] Running {label} simulations "
+                     f"(case-wise parallel, one sample per case) ...")
+            locs = SM_obj.make_nominal_dir_in_parallel()
+        else:
+            log.info(f"  [SIM] Running {label} simulations ...")
+            locs = SM_obj.make_dir_in_parallel(yaml_case_dict)
         log.info(f"  [SIM] {label} simulations complete.")
     else:
         log.info(f"  [SIM] {label}: progress file detected — loading saved locations.")
@@ -833,7 +845,8 @@ os.chdir("../nominal");  SADir = os.getcwd()
 log.info(f"  Entering nominal/  ({os.getcwd()})")
 FlameMaster_Execution_location_x0 = _run_or_load_sim(
     simulator.SM(target_list, optInputs, rxn_dict, design_matrix_x0_3P),
-    yaml_loc_nominal_case, design_matrix_x0_3P, SADir, "NOMINAL"
+    yaml_loc_nominal_case, design_matrix_x0_3P, SADir, "NOMINAL",
+    nominal=True
 )
 
 os.chdir("..")
@@ -866,8 +879,19 @@ def _collect_case_data(optInputs,case_dir, SAdir, data_subdir, sim_subdir,
         if os.path.isfile(lst_file):
             lines = open(lst_file).readlines()
             try:
-                ETA    = [float(l.split("\t")[1]) for l in lines]
-                folder = [float(l.split("\t")[0]) for l in lines]
+                ETA = [float(l.split("\t")[1]) for l in lines]
+                # First column is the per-sample index for perturbed runs
+                # ("0", "1", ...), but the case-wise parallel nominal layout
+                # (make_nominal_dir_in_parallel) writes "run" there — keep
+                # non-numeric entries as strings instead of failing the
+                # whole cached case (nominal only consumes ETA anyway).
+                folder = []
+                for l in lines:
+                    f0 = l.split("\t")[0]
+                    try:
+                        folder.append(float(f0))
+                    except ValueError:
+                        folder.append(f0)
             except (ValueError, IndexError) as exc:
                 log.warning(f"  [{label}] Case {case}: parse error ({exc}) — ETA set to [].")
                 ETA, folder = [], []

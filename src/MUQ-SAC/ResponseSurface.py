@@ -211,8 +211,10 @@ class ResponseSurface(object):
 
 	def plot(self,index,slice_type="",slice_no=""):
 		#if self.flag != "Zero_rxn_selected":
-		if "Plots" not in os.listdir(".."):
-			os.mkdir("../Plots")
+		# os.makedirs(..., exist_ok=True) instead of the listdir/mkdir check:
+		# the check throws if ".." is unreadable and races when multiple
+		# cases create "../Plots" concurrently.
+		os.makedirs(os.path.join("..", "Plots"), exist_ok=True)
 		fig = plt.figure()
 		ax = fig.add_subplot()
 		for spine in ax.spines.values():

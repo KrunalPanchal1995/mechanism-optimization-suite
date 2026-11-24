@@ -1,0 +1,64 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199187</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-29</firstPublicationDate>
+    <lastModificationDate>2024-06-29</lastModificationDate>
+    <bibliographyLink>
+        <description>M. Figueroa-Labastida, L. Zheng, A.M. Ferris, N. Obrecht, C. Callu, R.K. Hanson, Combustion and Flame 260 (2024), 113256</description>
+        <referenceDOI>10.1016/j.combustflame.2023.113256</referenceDOI>
+        <location>Main Article and Supp. Mat.</location>
+        <table>Main Article: Table 1, NH3/Airgon, phi = 0.75 (initial compositions); SM5: Table S1 - phi = 0.75 (initial conditions, measured data)</table>
+        <figure>Main Article: Fig. 7b, black hollow squares (not used)</figure>
+        <details>
+            <author>Figueroa-Labastida, Miguel and Zheng, Lingzhi and Ferris, Alison M. and Obrecht, Nicolas and Callu, Cyrille and Hanson, Ronald K.</author>
+            <journal>Combustion and Flame</journal>
+            <pages>113256</pages>
+            <title>Shock-tube laminar flame speed measurements of ammonia/airgon mixtures at temperatures up to 771K</title>
+            <type>Journal Article</type>
+            <volume>260</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>imaging shock tube</kind>
+        <mode>reflected shock wave, laminar, premixed, extrapolation to zero stretch: area-averaged linear-curvature (AALC) method</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless" ><value>0.75</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="percent" >17.35</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="percent" >17.35</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="percent" >65.30</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"        sourcetype="reported"   units="K"    />
+        <property name="uncertainty"                   id="x2"   label="d_T"      sourcetype="reported"   units="K"     reference="temperature"               kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="pressure"                      id="x3"   label="p"        sourcetype="reported"   units="atm"  />
+        <property name="uncertainty"                   id="x4"   label="d_p"      sourcetype="reported"   units="atm"   reference="pressure"                  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x6"   label="d_LBV"    sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>488.50</x1><x2>2.85</x2><x3>1.02</x3><x4>0.02</x4><x5>25.36</x5><x6>3.81</x6><x7>4.4018</x7></dataPoint>
+        <dataPoint><x1>540.10</x1><x2>3.65</x2><x3>1.04</x3><x4>0.02</x4><x5>33.13</x5><x6>3.94</x6><x7>4.4305</x7></dataPoint>
+        <dataPoint><x1>621.70</x1><x2>2.46</x2><x3>1.00</x3><x4>0.01</x4><x5>46.18</x5><x6>4.38</x6><x7>4.5327</x7></dataPoint>
+        <dataPoint><x1>675.80</x1><x2>4.55</x2><x3>1.02</x3><x4>0.02</x4><x5>56.93</x5><x6>5.99</x6><x7>4.9710</x7></dataPoint>
+        <dataPoint><x1>722.20</x1><x2>5.01</x2><x3>0.99</x3><x4>0.02</x4><x5>68.53</x5><x6>8.10</x6><x7>5.6691</x7></dataPoint>
+        <dataPoint><x1>724.80</x1><x2>8.34</x2><x3>1.02</x3><x4>0.03</x4><x5>66.68</x5><x6>6.50</x6><x7>5.1304</x7></dataPoint>
+        <dataPoint><x1>746.10</x1><x2>8.52</x2><x3>0.98</x3><x4>0.03</x4><x5>71.94</x5><x6>9.40</x6><x7>6.1526</x7></dataPoint>
+        <dataPoint><x1>746.30</x1><x2>7.46</x2><x3>1.02</x3><x4>0.02</x4><x5>72.10</x5><x6>6.93</x6><x7>5.2697</x7></dataPoint>
+        <dataPoint><x1>746.30</x1><x2>9.79</x2><x3>0.97</x3><x4>0.03</x4><x5>76.03</x5><x6>7.66</x6><x7>5.5151</x7></dataPoint>
+        <dataPoint><x1>763.60</x1><x2>3.58</x2><x3>1.01</x3><x4>0.01</x4><x5>90.21</x5><x6>7.98</x6><x7>5.6283</x7></dataPoint>
+        <dataPoint><x1>770.90</x1><x2>8.90</x2><x3>1.00</x3><x4>0.03</x4><x5>93.03</x5><x6>7.66</x6><x7>5.5156</x7></dataPoint>
+    </dataGroup>
+</experiment>

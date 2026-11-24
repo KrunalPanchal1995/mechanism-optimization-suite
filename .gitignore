@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 _ORIGINALS_*/
+
+# Phase-10 offline diagnostics / experiment caches
+prs_diag_cache/
+prs_experiment_out/

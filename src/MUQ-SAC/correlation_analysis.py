@@ -256,7 +256,12 @@ def final_active_set_per_target(pickle_path, correlation_csv_path, output_dir,
             if rxn in selected or pd.isna(s_row[rxn]):
                 continue
             others = [r for r in selected if r != rxn]
-            if others and (rho.loc[rxn, others].dropna().abs() >= corr_cutoff).any() and sens_dict[case][rxn] > threshold_corr: 
+            # abs() fix (2026-08-29): the docstring's own spec is "rescued only
+            # if the selected has |S| > threshold_corr" -- a bare `>` let a
+            # strongly NEGATIVE-sensitivity reaction never be rescued no matter
+            # how correlated. The 3-param pipeline (final_active_set_combined_3p)
+            # already gets this right with abs(); this matches it.
+            if others and (rho.loc[rxn, others].dropna().abs() >= corr_cutoff).any() and abs(sens_dict[case][rxn]) > threshold_corr:
                 rescued.add(rxn)
 
         final = sorted(selected | rescued)
@@ -288,7 +293,7 @@ def final_active_set_per_target(pickle_path, correlation_csv_path, output_dir,
 
 def run_pipeline(pickle_path, output_dir, threshold=0.05, corr_cutoff=None,
                   alpha=0.05, min_pairs=8, top_n_heatmap=40, param_names=None,
-                  final_set_corr_cutoff=0.9):
+                  final_set_corr_cutoff=0.9, threshold_corr=0.01):
     os.makedirs(output_dir, exist_ok=True)
     sens_dict = load_sens_pickle(pickle_path)
     structure, param_names = detect_structure(sens_dict, param_names)
@@ -328,6 +333,7 @@ def run_pipeline(pickle_path, output_dir, threshold=0.05, corr_cutoff=None,
         final_sets = final_active_set_per_target(
             pickle_path, corr_csv_path, output_dir,
             param_name=p, threshold=threshold, corr_cutoff=final_set_corr_cutoff,
+            threshold_corr=threshold_corr,
         )
         n_no_corr = sel_table.groupby("case")["selected_by_threshold"].sum()
         n_with_corr = sel_table.groupby("case")["final_in_PRS"].sum()

@@ -1,0 +1,176 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199064</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2024-11-11</lastModificationDate>
+    <bibliographyLink>
+        <description>A. Karan, G. Dayma, C. Chauveau, F. Halter, Combustion and Flame 236 (2022), 111819</description>
+        <referenceDOI>10.1016/j.combustflame.2021.111819</referenceDOI>
+        <location>Main article and Supp. Mat. (SM4)</location>
+        <table>Main article: Table 1, row 2 (initial conditions)</table>
+        <figure>SM4: Fig. 1.</figure>
+        <details>
+            <author>Karan, Alka and Dayma, Guillaume and Chauveau, Christian and Halter, Fabien</author>
+            <journal>Combustion and Flame</journal>
+            <pages>111819</pages>
+            <title>Experimental study and numerical validation of oxy-ammonia combustion at elevated temperatures and pressures</title>
+            <type>Journal Article</type>
+            <volume>236</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>constant volume combustion chamber</mode>
+        <mode>premixed</mode>
+        <mode>laminar</mode>
+        <mode>unstretched</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="equivalence ratio"    label="phi"  sourcetype="reported"  units="unitless"      ><value>0.8</value></property>
+        <property name="initial composition"  sourcetype="reported" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="mole fraction" >0.243</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="mole fraction" >0.227</amount></component>
+            <component><speciesLink preferredKey="He"   CAS="7440-59-7"  InChI="1S/He"        SMILES="[He]"  chemName="helium"  /><amount units="mole fraction" >0.159</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="mole fraction" >0.371</amount></component>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="pressure"                      id="x1"   label="p"     sourcetype="reported"   units="bar"  />
+        <property name="temperature"                   id="x2"   label="T"     sourcetype="reported"   units="K"    />
+        <property name="laminar burning velocity"      id="x3"   label="Sl"    sourcetype="reported"   units="cm/s" />
+        <property name="uncertainty"                   id="x4"   label="d_Sl"  sourcetype="reported"   units="cm/s"  reference="laminar burning velocity"  kind="absolute"  bound="plusminus" />
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"  units="cm/s"  reference="laminar burning velocity"  kind="absolute"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>4.2336</x1><x2>374.09</x2><x3>36.9</x3><x4>1.8</x4><x5>0.923</x5></dataPoint>
+        <dataPoint><x1>4.3336</x1><x2>376.79</x2><x3>37.1</x3><x4>1.9</x4><x5>0.928</x5></dataPoint>
+        <dataPoint><x1>4.4336</x1><x2>379.44</x2><x3>37.4</x3><x4>1.9</x4><x5>0.935</x5></dataPoint>
+        <dataPoint><x1>4.5336</x1><x2>382.05</x2><x3>37.6</x3><x4>1.9</x4><x5>0.940</x5></dataPoint>
+        <dataPoint><x1>4.6336</x1><x2>384.62</x2><x3>37.9</x3><x4>1.9</x4><x5>0.948</x5></dataPoint>
+        <dataPoint><x1>4.7336</x1><x2>387.15</x2><x3>38.2</x3><x4>1.9</x4><x5>0.955</x5></dataPoint>
+        <dataPoint><x1>4.8336</x1><x2>389.64</x2><x3>38.4</x3><x4>1.9</x4><x5>0.960</x5></dataPoint>
+        <dataPoint><x1>4.9336</x1><x2>392.09</x2><x3>38.6</x3><x4>1.9</x4><x5>0.965</x5></dataPoint>
+        <dataPoint><x1>5.0336</x1><x2>394.50</x2><x3>38.9</x3><x4>1.9</x4><x5>0.973</x5></dataPoint>
+        <dataPoint><x1>5.1336</x1><x2>396.88</x2><x3>39.1</x3><x4>2.0</x4><x5>0.978</x5></dataPoint>
+        <dataPoint><x1>5.2336</x1><x2>399.23</x2><x3>39.3</x3><x4>2.0</x4><x5>0.983</x5></dataPoint>
+        <dataPoint><x1>5.3336</x1><x2>401.54</x2><x3>39.6</x3><x4>2.0</x4><x5>0.990</x5></dataPoint>
+        <dataPoint><x1>5.4336</x1><x2>403.82</x2><x3>39.8</x3><x4>2.0</x4><x5>0.995</x5></dataPoint>
+        <dataPoint><x1>5.5336</x1><x2>406.07</x2><x3>40.0</x3><x4>2.0</x4><x5>1.000</x5></dataPoint>
+        <dataPoint><x1>5.6336</x1><x2>408.29</x2><x3>40.2</x3><x4>2.0</x4><x5>1.005</x5></dataPoint>
+        <dataPoint><x1>5.7336</x1><x2>410.48</x2><x3>40.4</x3><x4>2.0</x4><x5>1.010</x5></dataPoint>
+        <dataPoint><x1>5.8336</x1><x2>412.65</x2><x3>40.7</x3><x4>2.0</x4><x5>1.018</x5></dataPoint>
+        <dataPoint><x1>5.9336</x1><x2>414.78</x2><x3>40.9</x3><x4>2.0</x4><x5>1.023</x5></dataPoint>
+        <dataPoint><x1>6.0336</x1><x2>416.89</x2><x3>41.1</x3><x4>2.1</x4><x5>1.028</x5></dataPoint>
+        <dataPoint><x1>6.1336</x1><x2>418.98</x2><x3>41.3</x3><x4>2.1</x4><x5>1.033</x5></dataPoint>
+        <dataPoint><x1>6.2336</x1><x2>421.03</x2><x3>41.5</x3><x4>2.1</x4><x5>1.038</x5></dataPoint>
+        <dataPoint><x1>6.3336</x1><x2>423.07</x2><x3>41.7</x3><x4>2.1</x4><x5>1.043</x5></dataPoint>
+        <dataPoint><x1>6.4336</x1><x2>425.08</x2><x3>41.9</x3><x4>2.1</x4><x5>1.048</x5></dataPoint>
+        <dataPoint><x1>6.5336</x1><x2>427.07</x2><x3>42.1</x3><x4>2.1</x4><x5>1.053</x5></dataPoint>
+        <dataPoint><x1>6.6336</x1><x2>429.03</x2><x3>42.4</x3><x4>2.1</x4><x5>1.060</x5></dataPoint>
+        <dataPoint><x1>6.7336</x1><x2>430.97</x2><x3>42.6</x3><x4>2.1</x4><x5>1.065</x5></dataPoint>
+        <dataPoint><x1>6.8336</x1><x2>432.89</x2><x3>42.8</x3><x4>2.1</x4><x5>1.070</x5></dataPoint>
+        <dataPoint><x1>6.9336</x1><x2>434.79</x2><x3>43.0</x3><x4>2.1</x4><x5>1.075</x5></dataPoint>
+        <dataPoint><x1>7.0336</x1><x2>436.67</x2><x3>43.2</x3><x4>2.2</x4><x5>1.080</x5></dataPoint>
+        <dataPoint><x1>7.1336</x1><x2>438.53</x2><x3>43.4</x3><x4>2.2</x4><x5>1.085</x5></dataPoint>
+        <dataPoint><x1>7.2336</x1><x2>440.37</x2><x3>43.6</x3><x4>2.2</x4><x5>1.090</x5></dataPoint>
+        <dataPoint><x1>7.3336</x1><x2>442.20</x2><x3>43.8</x3><x4>2.2</x4><x5>1.095</x5></dataPoint>
+        <dataPoint><x1>7.4336</x1><x2>444.00</x2><x3>44.0</x3><x4>2.2</x4><x5>1.100</x5></dataPoint>
+        <dataPoint><x1>7.5336</x1><x2>445.78</x2><x3>44.2</x3><x4>2.2</x4><x5>1.105</x5></dataPoint>
+        <dataPoint><x1>7.6336</x1><x2>447.55</x2><x3>44.5</x3><x4>2.2</x4><x5>1.113</x5></dataPoint>
+        <dataPoint><x1>7.7336</x1><x2>449.30</x2><x3>44.7</x3><x4>2.2</x4><x5>1.118</x5></dataPoint>
+        <dataPoint><x1>7.8336</x1><x2>451.04</x2><x3>44.9</x3><x4>2.2</x4><x5>1.123</x5></dataPoint>
+        <dataPoint><x1>7.9336</x1><x2>452.75</x2><x3>45.1</x3><x4>2.3</x4><x5>1.128</x5></dataPoint>
+        <dataPoint><x1>8.0336</x1><x2>454.45</x2><x3>45.3</x3><x4>2.3</x4><x5>1.133</x5></dataPoint>
+        <dataPoint><x1>8.1336</x1><x2>456.14</x2><x3>45.5</x3><x4>2.3</x4><x5>1.138</x5></dataPoint>
+        <dataPoint><x1>8.2336</x1><x2>457.81</x2><x3>45.7</x3><x4>2.3</x4><x5>1.143</x5></dataPoint>
+        <dataPoint><x1>8.3336</x1><x2>459.46</x2><x3>45.9</x3><x4>2.3</x4><x5>1.148</x5></dataPoint>
+        <dataPoint><x1>8.4336</x1><x2>461.10</x2><x3>46.1</x3><x4>2.3</x4><x5>1.153</x5></dataPoint>
+        <dataPoint><x1>8.5336</x1><x2>462.73</x2><x3>46.4</x3><x4>2.3</x4><x5>1.160</x5></dataPoint>
+        <dataPoint><x1>8.6336</x1><x2>464.34</x2><x3>46.6</x3><x4>2.3</x4><x5>1.165</x5></dataPoint>
+        <dataPoint><x1>8.7336</x1><x2>465.93</x2><x3>46.8</x3><x4>2.3</x4><x5>1.170</x5></dataPoint>
+        <dataPoint><x1>8.8336</x1><x2>467.52</x2><x3>47.0</x3><x4>2.3</x4><x5>1.175</x5></dataPoint>
+        <dataPoint><x1>8.9336</x1><x2>469.08</x2><x3>47.2</x3><x4>2.4</x4><x5>1.180</x5></dataPoint>
+        <dataPoint><x1>9.0336</x1><x2>470.64</x2><x3>47.4</x3><x4>2.4</x4><x5>1.185</x5></dataPoint>
+        <dataPoint><x1>9.1336</x1><x2>472.18</x2><x3>47.6</x3><x4>2.4</x4><x5>1.190</x5></dataPoint>
+        <dataPoint><x1>9.2336</x1><x2>473.71</x2><x3>47.9</x3><x4>2.4</x4><x5>1.198</x5></dataPoint>
+        <dataPoint><x1>9.3336</x1><x2>475.23</x2><x3>48.1</x3><x4>2.4</x4><x5>1.203</x5></dataPoint>
+        <dataPoint><x1>9.4336</x1><x2>476.74</x2><x3>48.3</x3><x4>2.4</x4><x5>1.208</x5></dataPoint>
+        <dataPoint><x1>9.5336</x1><x2>478.23</x2><x3>48.5</x3><x4>2.4</x4><x5>1.213</x5></dataPoint>
+        <dataPoint><x1>9.6336</x1><x2>479.71</x2><x3>48.7</x3><x4>2.4</x4><x5>1.218</x5></dataPoint>
+        <dataPoint><x1>9.7336</x1><x2>481.18</x2><x3>48.9</x3><x4>2.4</x4><x5>1.223</x5></dataPoint>
+        <dataPoint><x1>9.8336</x1><x2>482.64</x2><x3>49.1</x3><x4>2.5</x4><x5>1.228</x5></dataPoint>
+        <dataPoint><x1>9.9336</x1><x2>484.09</x2><x3>49.3</x3><x4>2.5</x4><x5>1.233</x5></dataPoint>
+        <dataPoint><x1>10.034</x1><x2>485.53</x2><x3>49.6</x3><x4>2.5</x4><x5>1.240</x5></dataPoint>
+        <dataPoint><x1>10.134</x1><x2>486.96</x2><x3>49.8</x3><x4>2.5</x4><x5>1.245</x5></dataPoint>
+        <dataPoint><x1>10.234</x1><x2>488.38</x2><x3>50.0</x3><x4>2.5</x4><x5>1.250</x5></dataPoint>
+        <dataPoint><x1>10.334</x1><x2>489.78</x2><x3>50.2</x3><x4>2.5</x4><x5>1.255</x5></dataPoint>
+        <dataPoint><x1>10.434</x1><x2>491.17</x2><x3>50.4</x3><x4>2.5</x4><x5>1.260</x5></dataPoint>
+        <dataPoint><x1>10.534</x1><x2>492.56</x2><x3>50.6</x3><x4>2.5</x4><x5>1.265</x5></dataPoint>
+        <dataPoint><x1>10.634</x1><x2>493.93</x2><x3>50.8</x3><x4>2.5</x4><x5>1.270</x5></dataPoint>
+        <dataPoint><x1>10.734</x1><x2>495.30</x2><x3>51.1</x3><x4>2.6</x4><x5>1.278</x5></dataPoint>
+        <dataPoint><x1>10.834</x1><x2>496.65</x2><x3>51.3</x3><x4>2.6</x4><x5>1.283</x5></dataPoint>
+        <dataPoint><x1>10.934</x1><x2>498.00</x2><x3>51.5</x3><x4>2.6</x4><x5>1.288</x5></dataPoint>
+        <dataPoint><x1>11.034</x1><x2>499.34</x2><x3>51.7</x3><x4>2.6</x4><x5>1.293</x5></dataPoint>
+        <dataPoint><x1>11.134</x1><x2>500.66</x2><x3>51.9</x3><x4>2.6</x4><x5>1.298</x5></dataPoint>
+        <dataPoint><x1>11.234</x1><x2>501.98</x2><x3>52.1</x3><x4>2.6</x4><x5>1.303</x5></dataPoint>
+        <dataPoint><x1>11.334</x1><x2>503.29</x2><x3>52.3</x3><x4>2.6</x4><x5>1.308</x5></dataPoint>
+        <dataPoint><x1>11.434</x1><x2>504.59</x2><x3>52.6</x3><x4>2.6</x4><x5>1.315</x5></dataPoint>
+        <dataPoint><x1>11.534</x1><x2>505.88</x2><x3>52.8</x3><x4>2.6</x4><x5>1.320</x5></dataPoint>
+        <dataPoint><x1>11.634</x1><x2>507.17</x2><x3>53.0</x3><x4>2.6</x4><x5>1.325</x5></dataPoint>
+        <dataPoint><x1>11.734</x1><x2>508.44</x2><x3>53.2</x3><x4>2.7</x4><x5>1.330</x5></dataPoint>
+        <dataPoint><x1>11.834</x1><x2>509.71</x2><x3>53.4</x3><x4>2.7</x4><x5>1.335</x5></dataPoint>
+        <dataPoint><x1>11.934</x1><x2>510.97</x2><x3>53.6</x3><x4>2.7</x4><x5>1.340</x5></dataPoint>
+        <dataPoint><x1>12.034</x1><x2>512.22</x2><x3>53.8</x3><x4>2.7</x4><x5>1.345</x5></dataPoint>
+        <dataPoint><x1>12.134</x1><x2>513.46</x2><x3>54.0</x3><x4>2.7</x4><x5>1.350</x5></dataPoint>
+        <dataPoint><x1>12.234</x1><x2>514.70</x2><x3>54.3</x3><x4>2.7</x4><x5>1.358</x5></dataPoint>
+        <dataPoint><x1>12.334</x1><x2>515.92</x2><x3>54.5</x3><x4>2.7</x4><x5>1.363</x5></dataPoint>
+        <dataPoint><x1>12.434</x1><x2>517.14</x2><x3>54.7</x3><x4>2.7</x4><x5>1.368</x5></dataPoint>
+        <dataPoint><x1>12.534</x1><x2>518.36</x2><x3>54.9</x3><x4>2.7</x4><x5>1.373</x5></dataPoint>
+        <dataPoint><x1>12.634</x1><x2>519.56</x2><x3>55.1</x3><x4>2.8</x4><x5>1.378</x5></dataPoint>
+        <dataPoint><x1>12.734</x1><x2>520.76</x2><x3>55.3</x3><x4>2.8</x4><x5>1.383</x5></dataPoint>
+        <dataPoint><x1>12.834</x1><x2>521.95</x2><x3>55.5</x3><x4>2.8</x4><x5>1.388</x5></dataPoint>
+        <dataPoint><x1>12.934</x1><x2>523.13</x2><x3>55.7</x3><x4>2.8</x4><x5>1.393</x5></dataPoint>
+        <dataPoint><x1>13.034</x1><x2>524.31</x2><x3>55.9</x3><x4>2.8</x4><x5>1.398</x5></dataPoint>
+        <dataPoint><x1>13.134</x1><x2>525.48</x2><x3>56.1</x3><x4>2.8</x4><x5>1.403</x5></dataPoint>
+        <dataPoint><x1>13.234</x1><x2>526.64</x2><x3>56.4</x3><x4>2.8</x4><x5>1.410</x5></dataPoint>
+        <dataPoint><x1>13.334</x1><x2>527.80</x2><x3>56.6</x3><x4>2.8</x4><x5>1.415</x5></dataPoint>
+        <dataPoint><x1>13.434</x1><x2>528.95</x2><x3>56.8</x3><x4>2.8</x4><x5>1.420</x5></dataPoint>
+        <dataPoint><x1>13.534</x1><x2>530.09</x2><x3>57.0</x3><x4>2.8</x4><x5>1.425</x5></dataPoint>
+        <dataPoint><x1>13.634</x1><x2>531.23</x2><x3>57.2</x3><x4>2.9</x4><x5>1.430</x5></dataPoint>
+        <dataPoint><x1>13.734</x1><x2>532.36</x2><x3>57.4</x3><x4>2.9</x4><x5>1.435</x5></dataPoint>
+        <dataPoint><x1>13.834</x1><x2>533.48</x2><x3>57.6</x3><x4>2.9</x4><x5>1.440</x5></dataPoint>
+        <dataPoint><x1>13.934</x1><x2>534.60</x2><x3>57.8</x3><x4>2.9</x4><x5>1.445</x5></dataPoint>
+        <dataPoint><x1>14.034</x1><x2>535.71</x2><x3>58.0</x3><x4>2.9</x4><x5>1.450</x5></dataPoint>
+        <dataPoint><x1>14.134</x1><x2>536.82</x2><x3>58.2</x3><x4>2.9</x4><x5>1.455</x5></dataPoint>
+        <dataPoint><x1>14.234</x1><x2>537.91</x2><x3>58.4</x3><x4>2.9</x4><x5>1.460</x5></dataPoint>
+        <dataPoint><x1>14.334</x1><x2>539.01</x2><x3>58.6</x3><x4>2.9</x4><x5>1.465</x5></dataPoint>
+        <dataPoint><x1>14.434</x1><x2>540.10</x2><x3>58.8</x3><x4>2.9</x4><x5>1.470</x5></dataPoint>
+        <dataPoint><x1>14.534</x1><x2>541.18</x2><x3>59.0</x3><x4>3.0</x4><x5>1.475</x5></dataPoint>
+        <dataPoint><x1>14.634</x1><x2>542.25</x2><x3>59.2</x3><x4>3.0</x4><x5>1.480</x5></dataPoint>
+        <dataPoint><x1>14.734</x1><x2>543.33</x2><x3>59.4</x3><x4>3.0</x4><x5>1.485</x5></dataPoint>
+        <dataPoint><x1>14.834</x1><x2>544.39</x2><x3>59.6</x3><x4>3.0</x4><x5>1.490</x5></dataPoint>
+        <dataPoint><x1>14.934</x1><x2>545.45</x2><x3>59.8</x3><x4>3.0</x4><x5>1.495</x5></dataPoint>
+        <dataPoint><x1>15.034</x1><x2>546.50</x2><x3>60.0</x3><x4>3.0</x4><x5>1.500</x5></dataPoint>
+        <dataPoint><x1>15.134</x1><x2>547.55</x2><x3>60.2</x3><x4>3.0</x4><x5>1.505</x5></dataPoint>
+        <dataPoint><x1>15.234</x1><x2>548.60</x2><x3>60.4</x3><x4>3.0</x4><x5>1.510</x5></dataPoint>
+        <dataPoint><x1>15.334</x1><x2>549.64</x2><x3>60.6</x3><x4>3.0</x4><x5>1.515</x5></dataPoint>
+        <dataPoint><x1>15.434</x1><x2>550.67</x2><x3>60.8</x3><x4>3.0</x4><x5>1.520</x5></dataPoint>
+        <dataPoint><x1>15.534</x1><x2>551.70</x2><x3>61.0</x3><x4>3.1</x4><x5>1.525</x5></dataPoint>
+        <dataPoint><x1>15.634</x1><x2>552.72</x2><x3>61.2</x3><x4>3.1</x4><x5>1.530</x5></dataPoint>
+        <dataPoint><x1>15.734</x1><x2>553.74</x2><x3>61.4</x3><x4>3.1</x4><x5>1.535</x5></dataPoint>
+        <dataPoint><x1>15.834</x1><x2>554.75</x2><x3>61.6</x3><x4>3.1</x4><x5>1.540</x5></dataPoint>
+        <dataPoint><x1>15.934</x1><x2>555.76</x2><x3>61.8</x3><x4>3.1</x4><x5>1.545</x5></dataPoint>
+    </dataGroup>
+    <comment>There was no need for stretch correction since "The experiments were performed in the isochoric condition. The isochoric method helps to retrieve a wide band of flame speed data at elevated conditions. This range has been chosen such that the stretch effects that occur in the initial phase and the heat losses endured when the flame front hits the wall do not affect the propagation of the flame front and hence, the flame speed."</comment>
+    <comment>Tabulated experimental data were obtained through personal communication with the corresponding author.</comment>
+    <comment>Initial state of the gas mixtre: Pu = 2 bar, Tu = 296 K</comment>
+</experiment>

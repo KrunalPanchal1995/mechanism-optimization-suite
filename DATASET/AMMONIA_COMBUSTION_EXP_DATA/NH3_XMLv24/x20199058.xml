@@ -1,0 +1,66 @@
+<experiment>
+    <fileAuthor>András Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199058</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>4</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2023-12-18</firstPublicationDate>
+    <lastModificationDate>2023-12-18</lastModificationDate>
+    <bibliographyLink>
+        <description>Y. Li, M. Bi, K. Zhang, W. Gao, International Journal of Hydrogen Energy 46 (2021), 21249–21259</description>
+        <referenceDOI>10.1016/j.ijhydene.2021.03.212</referenceDOI>
+        <location>Main article</location>
+        <figure>Fig. 8., Nitrogen, blue horizontal triangles ("Experimental")</figure>
+        <details>
+            <author>Li, Yanchao and Bi, Mingshu and Zhang, Kai and Gao, Wei</author>
+            <journal>International Journal of Hydrogen Energy</journal>
+            <number>40</number>
+            <pages>21249–21259</pages>
+            <title>Effects of nitrogen and argon on ammonia-oxygen explosion</title>
+            <type>Journal Article</type>
+            <volume>46</volume>
+            <year>2021</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>constant volume combustion chamber</mode>
+        <mode>premixed</mode>
+        <mode>laminar</mode>
+        <mode>unstretched</mode>
+        <mode>extrapolation method to zero stretch: LS</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"        label="T"    sourcetype="estimated"  units="K"        ><value>300</value></property>
+        <property name="pressure"           label="p"    sourcetype="estimated"  units="MPa"      ><value>0.1</value></property>
+        <property name="equivalence ratio"  label="phi"  sourcetype="reported"   units="unitless" ><value>1.0</value></property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="composition"                   id="x1"   label="x_NH3"  sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+        </property>
+        <property name="composition"                   id="x2"   label="x_O2"   sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+        </property>
+        <property name="composition"                   id="x3"   label="x_N2"   sourcetype="calculated"  units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x4"   label="Sl"     sourcetype="digitized"   units="cm/s"          />
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  method="combined from scatter and reported uncertainty" />
+
+        <dataPoint><x1>0.571429</x1><x2>0.428571</x2><x3>0.000000</x3><x4>98.63</x4><x5>5.809</x5></dataPoint>
+        <dataPoint><x1>0.470588</x1><x2>0.352941</x2><x3>0.176471</x3><x4>79.69</x4><x5>4.693</x5></dataPoint>
+        <dataPoint><x1>0.400000</x1><x2>0.300000</x2><x3>0.300000</x3><x4>62.29</x4><x5>3.669</x5></dataPoint>
+        <dataPoint><x1>0.347826</x1><x2>0.260870</x2><x3>0.391304</x3><x4>42.77</x4><x5>2.519</x5></dataPoint>
+        <dataPoint><x1>0.307692</x1><x2>0.230769</x2><x3>0.461538</x3><x4>30.18</x4><x5>1.777</x5></dataPoint>
+        <dataPoint><x1>0.275862</x1><x2>0.206897</x2><x3>0.517241</x3><x4>21.89</x4><x5>1.289</x5></dataPoint>
+    </dataGroup>
+    <comment>The authors applied stretch correction to calculate the laminar flame speeds and the bouyancy effect was eliminated in the measurements.</comment>
+    <comment>Unburnt gas temperature and pressure are not reported in the paper. These data are taken from a paper of the same group from 2018 (DOI: 10.1080/00102202.2018.1473859).</comment>
+</experiment>

@@ -1,0 +1,68 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x10199063</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-08-22</firstPublicationDate>
+    <lastModificationDate>2024-08-22</lastModificationDate>
+    <bibliographyLink>
+        <description>S. Clees, T.M. Rault, L.T. Zaczek, R.K. Hanson, Proceedings of the Combustion Institute 40 (2024), 105286</description>
+        <referenceDOI>10.1016/j.proci.2024.105286</referenceDOI>
+        <location>Main article, Supp Mat.</location>
+        <table>Supp. Mat. 2 - Experiments 14-18; Main paper - Table 1, Mixture 3</table>
+        <figure>Main paper - Fig. 3c, black stars</figure>
+        <details>
+            <author>Clees, Sean and Rault, Taylor M. and Zaczek, Luke T. and Hanson, Ronald K.</author>
+            <journal>Proceedings of the Combustion Institute</journal>
+            <number>1</number>
+            <pages>105286</pages>
+            <title>Simultaneous OH and OH∗ measurements during NH3 oxidation in a shock tube</title>
+            <type>Journal Article</type>
+            <volume>40</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>ignition delay measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+        <mode>reflected shock</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="uncertainty"                   label="d_tau"    sourcetype="reported"   units="unitless"  reference="ignition delay"       kind="relative"  bound="plusminus"  sigmarange="2" ><value>0.1</value></property>
+        <property name="evaluated standard deviation"  label="std_tau"  sourcetype="estimated"  units="unitless"  reference="ignition delay"       kind="relative"  sigmarange="1"  method="combined from scatter and reported uncertainty" ><value>0.117831</value></property>
+        <property name="uncertainty"                   label="d_T"      sourcetype="reported"   units="K"         reference="temperature"          kind="absolute"  bound="plusminus"  sigmarange="2" ><value>13</value></property>
+        <property name="uncertainty"                   label="d_p"      sourcetype="reported"   units="atm"       reference="pressure"             kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.05</value></property>
+        <property name="uncertainty"                   label="d_x_NH3"  sourcetype="reported"   units="unitless"  reference="initial composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"  chemName="ammonia" />
+            <value>0.042</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"          id="x1"   label="T"      sourcetype="reported"  units="K"             />
+        <property name="pressure"             id="x2"   label="p"      sourcetype="reported"  units="atm"           />
+        <property name="initial composition"  id="x3"   label="x_NH3"  sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" />
+        </property>
+        <property name="initial composition"  id="x4"   label="x_O2"   sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  />
+        </property>
+        <property name="initial composition"  id="x5"   label="x_Ar"   sourcetype="reported"  units="mole fraction" >
+            <speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   />
+        </property>
+        <property name="equivalence ratio"    id="x6"   label="phi"    sourcetype="reported"  units="unitless"      />
+        <property name="ignition delay"       id="x7"   label="tau"    sourcetype="reported"  units="us"            />
+
+        <dataPoint><x1>2107</x1><x2>1.33</x2><x3>0.006929</x3><x4>0.002727</x4><x5>0.990344</x5><x6>1.906</x6><x7>527</x7></dataPoint>
+        <dataPoint><x1>2188</x1><x2>1.28</x2><x3>0.006902</x3><x4>0.002727</x4><x5>0.990371</x5><x6>1.898</x6><x7>258</x7></dataPoint>
+        <dataPoint><x1>2361</x1><x2>1.29</x2><x3>0.006918</x3><x4>0.002727</x4><x5>0.990355</x5><x6>1.903</x6><x7>125</x7></dataPoint>
+        <dataPoint><x1>2400</x1><x2>1.23</x2><x3>0.006884</x3><x4>0.002727</x4><x5>0.990389</x5><x6>1.893</x6><x7>93</x7></dataPoint>
+        <dataPoint><x1>2506</x1><x2>1.20</x2><x3>0.006955</x3><x4>0.002727</x4><x5>0.990318</x5><x6>1.913</x6><x7>55</x7></dataPoint>
+    </dataGroup>
+    <ignitionType target="OH*" type="baseline min intercept from d/dt"/>
+</experiment>

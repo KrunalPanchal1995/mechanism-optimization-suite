@@ -197,11 +197,49 @@ class PartialPRS(object):
 		# Three-parameter design (A, n, Ea) – new implementation			  #
 		# ------------------------------------------------------------------ #
 		else:
-			csv_path = f"DM_FOR_PARTIAL_PRS/{case_index}/selected_parameters.csv"
-			if status == "Pending" and not os.path.exists(csv_path):
+			if status == "Pending":
+				# ALWAYS rebuild from CURRENT thresholds + correlation rescue,
+				# even when a cached selected_parameters.csv already exists on
+				# disk -- mirrors the A-facto branch above, which has no
+				# separate reload path at all. Pure computation over
+				# already-loaded sensitivity_dict/unsrt_data (no file I/O), so
+				# there is no cost to doing it unconditionally. This is also
+				# the precondition for partial_DesignMatrix's stale-cache
+				# DETECTION (2026-08-29): comparing a "fresh" selection against
+				# the cached file is meaningless if that "fresh" value was
+				# itself just reconstructed FROM the cache, which is what the
+				# old `not os.path.exists(csv_path)` gate did whenever a cache
+				# was present -- it silently skipped ever re-deriving the
+				# selection from the current cut_off/correlation_list.
 				self._build_three_param_selection(sensitivity_dict, active_parameters)
 			else:
+				# True restart mode (status != "Pending"): trust the saved
+				# selection state as-is, skipping re-derivation entirely.
 				self._reload_three_param_selection(active_parameters)
+
+		# ------------------------------------------------------------------ #
+		# Stale-selection DETECTION (2026-08-29) -- report only, never acts. #
+		# ------------------------------------------------------------------ #
+		# self.selected_rxn_string above is always freshly derived from
+		# TODAY's thresholds (cut_off_percentage) + correlation_list, for both
+		# designs. If a previous run already wrote selected_parameters.csv for
+		# this case under DIFFERENT settings, partial_DesignMatrix()'s
+		# cache-hit branch would otherwise silently reload that stale
+		# DesignMatrix.csv/pDesignMatrix.csv instead of the current selection
+		# -- exactly the failure mode that would make changing target.opt's
+		# thresholds and rerunning silently do nothing for an already-built
+		# case. Detected here (constructor time, before any file is touched)
+		# and left for the caller (run_script.py's per-case design-matrix
+		# loop) to collect and report -- this class never deletes, renames, or
+		# rebuilds anything on its own; see partial_DesignMatrix()'s docstring
+		# note and run_script.py's Phase 6 loop for what happens with it.
+		self.stale_selection = None   # None = matches cache (or no cache yet)
+		_cached_sel_path = f"DM_FOR_PARTIAL_PRS/{self.case_index}/selected_parameters.csv"
+		if os.path.isfile(_cached_sel_path):
+			_cached = {l.strip() for l in open(_cached_sel_path) if l.strip()}
+			_fresh = {l.strip() for l in self.selected_rxn_string.splitlines() if l.strip()}
+			if _cached != _fresh:
+				self.stale_selection = (sorted(_fresh - _cached), sorted(_cached - _fresh))
 
 	# ====================================================================== #
 	# Three-parameter selection helpers										#
@@ -573,6 +611,15 @@ class PartialPRS(object):
 	# ====================================================================== #
 
 	def partial_DesignMatrix(self):
+		"""
+		NOTE (2026-08-29): this method does NOT check `self.stale_selection`
+		(set in __init__) and will happily reload a cached DesignMatrix.csv
+		even when it no longer matches the current selection -- unchanged
+		behaviour, deliberately. Detection and any resulting action (stop the
+		run, report what to clear -- see run_script.py's Phase 6 loop) live at
+		the caller, one level up, where the decision affects the whole run
+		rather than just this one case's files.
+		"""
 		na = len(self.partial_active_list)
 		n_rxn = len(self.active_params)
 		self.no_of_sim = self.getSim(na, self.design)   # formula estimate; updated to actual below
@@ -642,6 +689,39 @@ class PartialPRS(object):
 			selected_parameters     = [i.strip() for i in selected_parameters]
 			self.selected_rxn_count = len(selected_parameters)
 			
+			
+			design_matrix = []
+			for row in design_matrix_file:
+			    design_matrix.append([
+				   float(ele) for ele in row.strip("\n").strip(",").split(",")
+				   if ele.strip() != ""
+			    ])
+
+			selection_matrix = []
+			for row in selection_matrix_file:
+			    selection_matrix.append([
+				   float(ele) for ele in row.strip("\n").strip(",").split(",")
+				   if ele.strip() != ""
+			    ])
+
+			p_design_matrix = []
+			for row in p_design_matrix_file:
+			    p_design_matrix.append([
+				   float(ele) for ele in row.strip("\n").strip(",").split(",")
+				   if ele.strip() != ""
+			    ])
+
+			p_selection_matrix = []
+			for row in p_selection_matrix_file:
+			    p_selection_matrix.append([
+				   float(ele) for ele in row.strip("\n").strip(",").split(",")
+				   if ele.strip() != ""
+			    ])
+			
+			
+			
+			
+			"""
 			design_matrix = []
 			for row in design_matrix_file:
 				design_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
@@ -652,12 +732,14 @@ class PartialPRS(object):
 			
 			p_design_matrix = []
 			for row in p_design_matrix_file:
+				print([ele for ele in row.strip("\n").strip(",").split(",")])
 				p_design_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
+				#print([ele for ele in row.strip("\n").strip(",").split(",")])
 			
 			p_selection_matrix = []
 			for row in p_selection_matrix_file:
 				p_selection_matrix.append([float(ele) for ele in row.strip("\n").strip(",").split(",")])
-		
+		"""
 		# Update no_of_sim to the ACTUAL row count of the design matrix
 		# (Sobol or other samplers may produce more rows than the formula estimate)
 		self.no_of_sim = len(p_design_matrix)

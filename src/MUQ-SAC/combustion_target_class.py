@@ -374,7 +374,7 @@ class combustion_target():
 		if "ComputeWithRadiation" not in self.add:
 			self.add["ComputeWithRadiation"] = True
 		if "saveAll" not in self.add:
-			self.add["saveAll"] = False
+			self.add["saveAll"] = True
 		if "BoundaryLayer" not in self.add:
 			self.add["BoundaryLayer"] = False
 		if "ign_delay_def" not in self.add:

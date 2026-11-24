@@ -1,0 +1,74 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x20199095</fileDOI>
+    <fileVersion>
+        <major>2</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-06-24</firstPublicationDate>
+    <lastModificationDate>2024-06-24</lastModificationDate>
+    <bibliographyLink>
+        <description>Y. Xia, G. Hashimoto, K. Hadi, N. Hashimoto, A. Hayakawa, H. Kobayashi, O. Fujita, Fuel 268 (2020), 117383</description>
+        <referenceDOI>10.1016/j.fuel.2020.117383</referenceDOI>
+        <location>Main Article</location>
+        <table>Table 1, row 1 (initial conditions)</table>
+        <figure>Fig. 7., red dashed line with red empty triangles (omega = 0.35/eq. 7)</figure>
+        <details>
+            <author>Xia, Yu and Hashimoto, Genya and Hadi, Khalid and Hashimoto, Nozomu and Hayakawa, Akihiro and Kobayashi, Hideaki and Fujita, Osamu</author>
+            <journal>Fuel</journal>
+            <pages>117383</pages>
+            <title>Turbulent burning velocity of ammonia/oxygen/nitrogen premixed flame in O2-enriched air condition</title>
+            <type>Journal Article</type>
+            <volume>268</volume>
+            <year>2020</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>laminar burning velocity measurement</experimentType>
+    <apparatus>
+        <kind>outwardly propagating spherical flame</kind>
+        <mode>CVCC, premixed, laminar, unstretched, LS extrapolation method</mode>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"  label="T"       sourcetype="reported"  units="K"        ><value>298</value></property>
+        <property name="uncertainty"  label="d_T"     sourcetype="reported"  units="K"         reference="temperature"          kind="absolute"  bound="plusminus" ><value>3</value></property>
+        <property name="pressure"     label="p"       sourcetype="reported"  units="atm"      ><value>1</value></property>
+        <property name="uncertainty"  label="d_p"     sourcetype="reported"  units="unitless"  reference="pressure"             kind="relative"  bound="plusminus" ><value>0.05</value></property>
+        <property name="uncertainty"  label="d_xNH3"  sourcetype="reported"  units="unitless"  reference="initial composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia" />
+            <value>0.015</value>
+        </property>
+        <property name="uncertainty"  label="d_xO2"   sourcetype="reported"  units="unitless"  reference="initial composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"  />
+            <value>0.015</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="equivalence ratio"             id="x1"   label="phi"      sourcetype="reported"   units="unitless"      />
+        <property name="initial composition"           id="x2"   label="x_NH3"    sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  />
+        </property>
+        <property name="initial composition"           id="x3"   label="x_O2"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   />
+        </property>
+        <property name="initial composition"           id="x4"   label="x_N2"     sourcetype="reported"   units="mole fraction" >
+            <speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" />
+        </property>
+        <property name="laminar burning velocity"      id="x5"   label="LBV"      sourcetype="reported"   units="cm/s"          />
+        <property name="uncertainty"                   id="x6"   label="d_LBV"    sourcetype="reported"   units="cm/s"           reference="laminar burning velocity"  kind="absolute"  bound="plusminus"  sigmarange="2" />
+        <property name="evaluated standard deviation"  id="x7"   label="std_LBV"  sourcetype="estimated"  units="cm/s"           reference="laminar burning velocity"  kind="absolute"  sigmarange="1"  method="generic uncertainty" />
+
+        <dataPoint><x1>0.6</x1><x2>0.218750</x2><x3>0.273438</x3><x4>0.507813</x4><x5>9.70</x5><x6>0.36</x6><x7>1.1181</x7></dataPoint>
+        <dataPoint><x1>0.8</x1><x2>0.271845</x2><x3>0.254854</x3><x4>0.473301</x4><x5>18.36</x5><x6>0.35</x6><x7>1.1168</x7></dataPoint>
+        <dataPoint><x1>0.9</x1><x2>0.295775</x2><x3>0.246479</x3><x4>0.457746</x4><x5>23.73</x5><x6>0.70</x6><x7>1.1571</x7></dataPoint>
+        <dataPoint><x1>1.0</x1><x2>0.318182</x2><x3>0.238636</x3><x4>0.443182</x4><x5>26.62</x5><x6>0.75</x6><x7>1.1656</x7></dataPoint>
+        <dataPoint><x1>1.1</x1><x2>0.339207</x2><x3>0.231278</x3><x4>0.429515</x4><x5>27.42</x5><x6>0.39</x6><x7>1.1198</x7></dataPoint>
+        <dataPoint><x1>1.2</x1><x2>0.358974</x2><x3>0.224359</x3><x4>0.416667</x4><x5>25.65</x5><x6>0.58</x6><x7>1.1403</x7></dataPoint>
+        <dataPoint><x1>1.4</x1><x2>0.395161</x2><x3>0.211694</x3><x4>0.393145</x4><x5>21.78</x5><x6>1.12</x6><x7>1.2381</x7></dataPoint>
+    </dataGroup>
+    <comment>Tabulated experimental data was obtained through personal communication from Y. Xia.</comment>
+    <comment>This is the data series obtained with linear extrapolation to zero stretch. Y. Xia recommends the nonlinearly extrapolated data (XML x20199096) for mechanism validation and development.</comment>
+</experiment>

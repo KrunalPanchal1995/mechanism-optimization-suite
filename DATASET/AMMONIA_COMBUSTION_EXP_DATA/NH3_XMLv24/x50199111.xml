@@ -1,0 +1,76 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x50199111</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>6</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2024-11-13</firstPublicationDate>
+    <lastModificationDate>2024-11-22</lastModificationDate>
+    <bibliographyLink>
+        <description>S. Clees, T. Rault, M. Rault, L. Zaczek, T. Zaczek, R. Hanson, K. Hanson, Proceedings of the Combustion Institute 40 (2024), 105286</description>
+        <referenceDOI>10.1016/j.proci.2024.105286</referenceDOI>
+        <location>Main article and Supp. Mat.</location>
+        <table>SM: Shock 16 (initial conditions and measured data)</table>
+        <figure>Main article: Fig. 2c, orange line (2361 K)</figure>
+        <details>
+            <publisher>Elsevier BV</publisher>
+            <author>Clees, Sean and Rault, Taylor M. and Zaczek, Luke T. and Hanson, Ronald K.</author>
+            <journal>Proceedings of the Combustion Institute</journal>
+            <number>1</number>
+            <pages>105286</pages>
+            <title>Simultaneous OH and OH∗ measurements during NH3 oxidation in a shock tube</title>
+            <type>Journal Article</type>
+            <volume>40</volume>
+            <year>2024</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>concentration time profile measurement</experimentType>
+    <apparatus>
+        <kind>shock tube</kind>
+    </apparatus>
+    <commonProperties>
+        <property name="temperature"          label="T"         sourcetype="reported"  units="K"             ><value>2361</value></property>
+        <property name="pressure"             label="p"         sourcetype="reported"  units="atm"           ><value>1.29</value></property>
+        <property name="initial composition" >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia" /><amount units="mole fraction" >0.006918</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"   chemName="oxygen"  /><amount units="mole fraction" >0.002727</amount></component>
+            <component><speciesLink preferredKey="Ar"   CAS="7440-37-1"  InChI="1S/Ar"        SMILES="[Ar]"  chemName="argon"   /><amount units="mole fraction" >0.990355</amount></component>
+        </property>
+        <property name="equivalence ratio"    label="phi"       sourcetype="reported"  units="unitless"      ><value>1.903</value></property>
+        <property name="uncertainty"          label="d_T"       sourcetype="reported"  units="K"              reference="temperature"          kind="absolute"  bound="plusminus"  sigmarange="2" ><value>13</value></property>
+        <property name="uncertainty"          label="d_p"       sourcetype="reported"  units="atm"            reference="pressure"             kind="absolute"  bound="plusminus"  sigmarange="2" ><value>0.05</value></property>
+        <property name="uncertainty"          label="d_xOH"     sourcetype="reported"  units="unitless"       reference="composition"          kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="OH"   CAS="3352-57-6"  InChI="1S/HO/h1H"    SMILES="[OH]"  chemName="hydroxyl radical" />
+            <value>0.087</value>
+        </property>
+        <property name="uncertainty"          label="d_xNH3_0"  sourcetype="reported"  units="unitless"       reference="initial composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"     chemName="ammonia"          />
+            <value>0.042</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="time"                          id="x1"   label="t"     sourcetype="digitized"  units="us"            />
+        <property name="composition"                   id="x2"   label="x_OH"  sourcetype="digitized"  units="ppm"           >
+            <speciesLink preferredKey="OH"  CAS="3352-57-6"  InChI="1S/HO/h1H"  SMILES="[OH]"  chemName="hydroxyl radical" />
+        </property>
+        <property name="evaluated standard deviation"  id="x3"   sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  method="combined from scatter and reported uncertainty" >
+            <speciesLink preferredKey="OH"  CAS="3352-57-6"  InChI="1S/HO/h1H"  SMILES="[OH]"  chemName="hydroxyl radical" />
+        </property>
+
+        <dataPoint><x1>0</x1><x2>0</x2><x3>0.000005</x3></dataPoint>
+        <dataPoint><x1>64.36838264</x1><x2>3.740686093</x2><x3>0.000005</x3></dataPoint>
+        <dataPoint><x1>186.3229589</x1><x2>27.2162939</x2><x3>0.000005</x3></dataPoint>
+        <dataPoint><x1>346.0676747</x1><x2>68.40248883</x2><x3>0.000005</x3></dataPoint>
+        <dataPoint><x1>472.8392375</x1><x2>104.3752961</x2><x3>0.000005</x3></dataPoint>
+        <dataPoint><x1>641.0464863</x1><x2>126.9519198</x2><x3>0.000006</x3></dataPoint>
+        <dataPoint><x1>877.1492402</x1><x2>132.9193019</x2><x3>0.000006</x3></dataPoint>
+        <dataPoint><x1>1126.509109</x1><x2>134.8092089</x2><x3>0.000006</x3></dataPoint>
+        <dataPoint><x1>1407.257806</x1><x2>135.8087736</x2><x3>0.000006</x3></dataPoint>
+    </dataGroup>
+    <comment>The measured data were digitized from the figure in the main paper because the SM contained wrong data for this data series.</comment>
+</experiment>

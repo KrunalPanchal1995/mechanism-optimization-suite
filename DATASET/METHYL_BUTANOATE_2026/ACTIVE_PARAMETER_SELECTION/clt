@@ -24,3 +24,7 @@ python3.9 /home/krithika/mechanism-optimization-suite/src/ActiveParameterScreen.
     --classification-file /home/krithika/mechanism-optimization-suite/DATASET/METHYL_BUTANOATE_2026/ACTIVE_PARAMETER_SELECTION/results/master_active_reactions_CLASSIFIED.csv \
     --fuel MB_MB2D_LALIT_2024 \
     --generate-latex --longtable
+    
+    
+    
+    

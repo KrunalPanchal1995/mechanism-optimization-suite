@@ -1,0 +1,88 @@
+<experiment>
+    <fileAuthor>Andras Gy. Szanthoffer, Chemical Kinetics Laboratory, Institute of Chemistry, ELTE, Budapest, Hungary</fileAuthor>
+    <fileDOI>10.24388/x30199060</fileDOI>
+    <fileVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </fileVersion>
+    <ReSpecThVersion>
+        <major>2</major>
+        <minor>5</minor>
+    </ReSpecThVersion>
+    <firstPublicationDate>2025-01-29</firstPublicationDate>
+    <lastModificationDate>2025-01-29</lastModificationDate>
+    <bibliographyLink>
+        <description>M. Alzueta, U. Alzueta, J. Gim?nez-L?pez, V. Mercader, D. Mercader, R. Bilbao, Fuel 327 (2022), 125133</description>
+        <referenceDOI>10.1016/j.fuel.2022.125133</referenceDOI>
+        <location>Main Article</location>
+        <table>Table 1, Set 1 (initial conditions)</table>
+        <figure>Figure 1, full blue symbols</figure>
+        <details>
+            <month>11</month>
+            <publisher>Elsevier BV</publisher>
+            <author>Alzueta, María U. and Giménez-López, Jorge and Mercader, Víctor D. and Bilbao, Rafael</author>
+            <journal>Fuel</journal>
+            <pages>125133</pages>
+            <title>Conversion of NH3 and NH3-NO mixtures in a CO2 atmosphere. A parametric study</title>
+            <type>Journal Article</type>
+            <volume>327</volume>
+            <year>2022</year>
+        </details>
+    </bibliographyLink>
+    <experimentType>outlet concentration measurement</experimentType>
+    <apparatus>
+        <kind>flow reactor (quartz)</kind>
+        <mode>laminar, non-premixed</mode>
+        <type>isothermal</type>
+    </apparatus>
+    <commonProperties>
+        <property name="pressure"                      label="p"        sourcetype="reported"   units="atm"           ><value>1</value></property>
+        <property name="initial composition"          >
+            <component><speciesLink preferredKey="NH3"  CAS="7664-41-7"  InChI="1S/H3N/h1H3"  SMILES="N"    chemName="ammonia"  /><amount units="ppm"     >1000</amount></component>
+            <component><speciesLink preferredKey="O2"   CAS="7782-44-7"  InChI="1S/O2/c1-2"   SMILES="O=O"  chemName="oxygen"   /><amount units="ppm"     >882</amount></component>
+            <component><speciesLink preferredKey="H2O"  CAS="7732-18-5"  InChI="1S/H2O/h1H2"  SMILES="O"    chemName="water"    /><amount units="percent" >0.6</amount></component>
+            <component><speciesLink preferredKey="N2"   CAS="7727-37-9"  InChI="1S/N2/c1-2"   SMILES="N#N"  chemName="nitrogen" /><amount units="percent" >99.2118</amount></component>
+        </property>
+        <property name="uncertainty"                   label="d_T"      sourcetype="reported"   units="K"              reference="temperature"  kind="absolute"  bound="plusminus"  sigmarange="2" ><value>10</value></property>
+        <property name="uncertainty"                   label="d_x_NH3"  sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+            <value>0.1</value>
+        </property>
+        <property name="uncertainty"                   label="d_x_NO"   sourcetype="reported"   units="unitless"       reference="composition"  kind="relative"  bound="plusminus"  sigmarange="2" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>0.05</value>
+        </property>
+        <property name="evaluated standard deviation"  sourcetype="estimated"  units="mole fraction"  reference="composition"  kind="absolute"  bound="plusminus"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions" >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+            <value>0.000005</value>
+        </property>
+    </commonProperties>
+    <dataGroup id="dg1">
+        <property name="temperature"                   id="x1"   label="T"      sourcetype="digitized"   units="K"             />
+        <property name="residence time"                id="x2"   label="tau"    sourcetype="calculated"  units="s"             />
+        <property name="composition"                   id="x3"   label="x_NH3"  sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="composition"                   id="x4"   label="x_NO"   sourcetype="digitized"   units="ppm"           >
+            <speciesLink preferredKey="NO"   CAS="10102-43-9"  InChI="1S/NO/c1-2"   SMILES="[N]=O"  chemName="nitric oxide" />
+        </property>
+        <property name="evaluated standard deviation"  id="x5"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="plus"   kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+        <property name="evaluated standard deviation"  id="x6"   sourcetype="estimated"   reference="composition"  method="combined from scatter and reported uncertainty and the uncertainty of experimental conditions"  bound="minus"  kind="absolute"  units="mole fraction" >
+            <speciesLink preferredKey="NH3"  CAS="7664-41-7"   InChI="1S/H3N/h1H3"  SMILES="N"      chemName="ammonia"      />
+        </property>
+
+        <dataPoint><x1>973</x1><x2>0.200408</x2><x3>1008</x3><x4>6</x4><x5>0.000052</x5><x6>0.000052</x6></dataPoint>
+        <dataPoint><x1>1073</x1><x2>0.181739</x2><x3>1009</x3><x4>6</x4><x5>0.000052</x5><x6>0.000052</x6></dataPoint>
+        <dataPoint><x1>1123</x1><x2>0.173636</x2><x3>1008</x3><x4>5</x4><x5>0.000052</x5><x6>0.000052</x6></dataPoint>
+        <dataPoint><x1>1173</x1><x2>0.166198</x2><x3>982</x3><x4>5</x4><x5>0.000051</x5><x6>0.000051</x6></dataPoint>
+        <dataPoint><x1>1223</x1><x2>0.159445</x2><x3>925</x3><x4>5</x4><x5>0.000048</x5><x6>0.000048</x6></dataPoint>
+        <dataPoint><x1>1273</x1><x2>0.153197</x2><x3>858</x3><x4>5</x4><x5>0.000045</x5><x6>0.000045</x6></dataPoint>
+        <dataPoint><x1>1323</x1><x2>0.147378</x2><x3>777</x3><x4>12</x4><x5>0.000042</x5><x6>0.000045</x6></dataPoint>
+        <dataPoint><x1>1373</x1><x2>0.142023</x2><x3>535</x3><x4>19</x4><x5>0.000038</x5><x6>0.000039</x6></dataPoint>
+        <dataPoint><x1>1423</x1><x2>0.137026</x2><x3>280</x3><x4>35</x4><x5>0.000033</x5><x6>0.000034</x6></dataPoint>
+    </dataGroup>
+    <comment>Recommended simulation settings based on the paper: isothermal-isobaric.</comment>
+    <comment>The sum of the reported mole fractions in the initial mixture is not equal to 1.000000; therefore, the mole fraction of N2 was increased from 99.21% to 99.2118%.</comment>
+</experiment>
